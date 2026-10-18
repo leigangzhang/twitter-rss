@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { getConfig, type Lang, loadDotEnv } from "@xrss/core";
 import { getDb, migrateDb } from "@xrss/core/db";
-import { Resend } from "resend";
+import { createSmtpMailer, type Mailer, smtpConfigFromEnv } from "@xrss/emails";
 
 // 网站和命令行共用仓库根目录的 .env
 loadDotEnv();
@@ -42,14 +42,15 @@ export function topicOptions(): TopicOption[] {
   return config().topics.map((t) => ({ id: t.id, name: t.name, color: t.color, accounts: t.accounts }));
 }
 
+let mailer: Mailer | undefined;
+
 export async function sendMail(mail: { to: string; subject: string; html: string; text: string }) {
-  const key = process.env.RESEND_API_KEY;
-  const from = process.env.MAIL_FROM;
-  if (!key || !from) {
-    // 本地没配邮件服务时，把确认链接打印到终端，方便直接点开
-    console.log(`[mail] 未配置 RESEND_API_KEY/MAIL_FROM，未实际发送。收件人 ${mail.to}，标题「${mail.subject}」\n${mail.text}`);
+  const smtp = smtpConfigFromEnv();
+  if (!smtp) {
+    // 本地没配 SMTP 时，把确认链接打印到终端，方便直接点开
+    console.log(`[mail] 未配置 SMTP_USER/SMTP_PASS，未实际发送。收件人 ${mail.to}，标题「${mail.subject}」\n${mail.text}`);
     return;
   }
-  const { error } = await new Resend(key).emails.send({ from, ...mail });
-  if (error) throw new Error(error.message);
+  mailer ??= createSmtpMailer(smtp, { intervalMs: 0 });
+  await mailer.send(mail);
 }

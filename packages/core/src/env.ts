@@ -4,7 +4,7 @@ import { findRepoRoot } from "./config.ts";
 
 /**
  * 读取仓库根目录的 .env（如果存在），已存在的环境变量不会被覆盖。
- * 命令行脚本和网站都从这里拿 DEEPSEEK_API_KEY、RESEND_API_KEY 等配置。
+ * 命令行脚本和网站都从这里拿 DEEPSEEK_API_KEY、SMTP_PASS 等配置。
  */
 export function loadDotEnv(path?: string): void {
   let file = path;

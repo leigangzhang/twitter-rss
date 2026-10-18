@@ -119,13 +119,48 @@ export type MediaKind = "text" | "image" | "video";
 
 export type Lang = "zh" | "orig";
 
-/** AI 处理结果（中文版内容 + 说明） */
+/** 读者想看的四类高价值内容；other 表示不属于这四类 */
+export const ContentCategory = z.enum(["best_practice", "real_problem", "industry_trend", "expert_insight", "other"]);
+export type ContentCategory = z.infer<typeof ContentCategory>;
+
+export const CATEGORY_LABELS: Record<ContentCategory, string> = {
+  best_practice: "最佳实践",
+  real_problem: "真实问题",
+  industry_trend: "趋势解读",
+  expert_insight: "专家观点",
+  other: "其他",
+};
+
+/** 剔除原因 */
+export const DropReason = z.enum(["preachy", "obvious", "shallow", "repost", "duplicate", "promo", "chitchat", "other"]);
+export type DropReason = z.infer<typeof DropReason>;
+
+export const DROP_REASON_LABELS: Record<DropReason, string> = {
+  preachy: "说教",
+  obvious: "显而易见",
+  shallow: "没有思考",
+  repost: "纯搬运",
+  duplicate: "重复",
+  promo: "推广",
+  chitchat: "闲聊",
+  other: "其他",
+};
+
+/** AI 评审结果：价值判断 + 中文版内容 + 说明 */
 export const AiResult = z.object({
-  /** 0–10，信息密度、原创性、可读性综合判断 */
+  /** keep：值得推荐；drop：剔除 */
+  verdict: z.enum(["keep", "drop"]),
+  /** 内容类型 */
+  category: ContentCategory,
+  /** verdict 为 drop 时的主要原因，keep 时为 null */
+  dropReason: DropReason.nullable(),
+  /** 0–10。9–10 必读，7–8 值得读，5–6 普通，0–4 不推荐（drop 的内容不超过 4） */
   quality: z.number().min(0).max(10),
   /** 从该账号所属主题中选一个最贴近的 */
   topicId: z.string(),
-  /** 一句话说明打分理由，便于调参 */
+  /** 一句话中文摘要（30–60 字），说清这条讲了什么，用于终审去重 */
+  summary: z.string(),
+  /** 一句话说明判断理由，便于调整精选标准 */
   reason: z.string(),
   /** 原文已是中文时为 null */
   zh: z

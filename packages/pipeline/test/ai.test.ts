@@ -2,11 +2,12 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { RawTweet } from "@xrss/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createLlmReviewer } from "../src/ai.ts";
+import { createLlmEditor, createLlmReviewer, editorSystemPrompt, normalizeReview, reviewSystemPrompt } from "../src/ai.ts";
 
 // 用本地假服务模拟 DeepSeek 的 Anthropic 兼容接口，检查请求内容和结果解析
 const requests: Array<{ path: string; auth: string | undefined; body: any }> = [];
 let rejectImages = false;
+let editorialReply: unknown = { drops: [] };
 let server: Server;
 let baseURL = "";
 
@@ -17,13 +18,28 @@ beforeAll(async () => {
     req.on("end", () => {
       const body = JSON.parse(data);
       requests.push({ path: req.url!, auth: req.headers["x-api-key"] as string | undefined, body });
-      const hasImage = body.messages[0].content.some((b: any) => b.type === "image");
+      const content = body.messages[0].content;
+      const hasImage = Array.isArray(content) && content.some((b: any) => b.type === "image");
       if (rejectImages && hasImage) {
         res.writeHead(400, { "content-type": "application/json" });
         res.end(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "image not supported" } }));
         return;
       }
       res.writeHead(200, { "content-type": "application/json" });
+      if (body.tool_choice?.name === "submit_editorial") {
+        res.end(
+          JSON.stringify({
+            id: "msg_2",
+            type: "message",
+            role: "assistant",
+            model: body.model,
+            stop_reason: "tool_use",
+            usage: { input_tokens: 10, output_tokens: 10 },
+            content: [{ type: "tool_use", id: "tu_2", name: "submit_editorial", input: editorialReply }],
+          }),
+        );
+        return;
+      }
       res.end(
         JSON.stringify({
           id: "msg_1",
@@ -37,7 +53,17 @@ beforeAll(async () => {
               type: "tool_use",
               id: "tu_1",
               name: "submit_review",
-              input: { quality: 8, topicId: "unknown", reason: "一手经验", zh: { text: "你好", thread: [] }, mediaNote: null },
+              input: {
+                verdict: "keep",
+                category: "best_practice",
+                dropReason: null,
+                quality: 8,
+                topicId: "unknown",
+                summary: "一条示例",
+                reason: "一手经验",
+                zh: { text: "你好", thread: [] },
+                mediaNote: null,
+              },
             },
           ],
         }),
@@ -64,9 +90,10 @@ const tweet = RawTweet.parse({
 describe("createLlmReviewer（DeepSeek Anthropic 兼容接口）", () => {
   it("按 deepseek-flash 发请求、强制调用评审工具，并修正不在候选里的主题", async () => {
     requests.length = 0;
-    const reviewer = createLlmReviewer({ apiKey: "sk-test", baseURL });
+    const reviewer = createLlmReviewer({ apiKey: "sk-test", baseURL, guide: "只要最佳实践" });
     const result = await reviewer.review(tweet, [{ id: "ai", name: "AI" }]);
-    expect(result).toMatchObject({ quality: 8, topicId: "ai", zh: { text: "你好" } });
+    expect(result).toMatchObject({ verdict: "keep", category: "best_practice", quality: 8, topicId: "ai", zh: { text: "你好" } });
+    expect(requests[0]!.body.system).toContain("只要最佳实践");
     expect(requests[0]).toMatchObject({ path: "/v1/messages", auth: "sk-test" });
     expect(requests[0]!.body).toMatchObject({ model: "deepseek-flash", tool_choice: { type: "tool", name: "submit_review" } });
     expect(requests[0]!.body.messages[0].content[0]).toEqual({ type: "image", source: { type: "url", url: "https://example.com/p.jpg" } });
@@ -85,5 +112,45 @@ describe("createLlmReviewer（DeepSeek Anthropic 兼容接口）", () => {
 
   it("没有 DEEPSEEK_API_KEY 时给出明确提示", () => {
     expect(() => createLlmReviewer({ apiKey: "" })).toThrow("DEEPSEEK_API_KEY");
+  });
+});
+
+describe("精选规则", () => {
+  const base = {
+    verdict: "keep" as const,
+    category: "expert_insight" as const,
+    dropReason: null,
+    quality: 8,
+    topicId: "ai",
+    summary: "s",
+    reason: "r",
+    zh: null,
+    mediaNote: null,
+  };
+
+  it("提示词包含 config/curation.md 的内容，缺省时使用内置标准", () => {
+    expect(reviewSystemPrompt("自定义标准 XYZ")).toContain("自定义标准 XYZ");
+    expect(reviewSystemPrompt("")).toContain("best_practice");
+    expect(editorSystemPrompt("")).toContain("same_event");
+  });
+
+  it("类型为 other 时强制剔除，剔除的内容分数不超过 4", () => {
+    expect(normalizeReview({ ...base, category: "other" }, tweet, [{ id: "ai" }])).toMatchObject({ verdict: "drop", dropReason: "other", quality: 4 });
+    expect(normalizeReview({ ...base, verdict: "drop", dropReason: "preachy", quality: 7 }, tweet, [{ id: "ai" }])).toMatchObject({ quality: 4 });
+    expect(normalizeReview({ ...base, dropReason: "shallow" }, tweet, [{ id: "ai" }]).dropReason).toBeNull();
+  });
+
+  it("终审只剔除今天候选里的推文，不会把保留的那条也剔除", async () => {
+    editorialReply = {
+      drops: [
+        { id: "b", reason: "same_event", keptId: "a", note: "同一发布" },
+        { id: "x", reason: "duplicate", keptId: "a", note: "不在候选里" },
+        { id: "a", reason: "duplicate", keptId: "a", note: "自相矛盾" },
+      ],
+    };
+    const editor = createLlmEditor({ apiKey: "sk-test", baseURL });
+    const item = (id: string) => ({ id, author: "@a", topicId: "ai", category: "industry_trend" as const, quality: 7, summary: id });
+    const result = await editor.edit([item("a"), item("b")], []);
+    expect(result.drops.map((d) => d.id)).toEqual(["b"]);
   });
 });

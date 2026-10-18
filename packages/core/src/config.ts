@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { parse } from "yaml";
 import { z } from "zod";
 import { collectRange, type TimeRange } from "./time.ts";
+import { ContentCategory } from "./types.ts";
 
 const TopicSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/, "主题 id 用小写字母、数字、连字符"),
@@ -54,6 +55,16 @@ const DigestFile = z.object({
   rss: z.object({
     items_per_feed: z.number().int().min(1).default(30),
   }),
+  curation: z
+    .object({
+      /** 只有这些类型的内容能进入邮件 */
+      allowed_categories: z.array(ContentCategory).min(1).default(["best_practice", "real_problem", "industry_trend", "expert_insight"]),
+      /** 单条评审后，再让模型把当天全部候选放在一起做一次终审（去重、去同一事件） */
+      editor_pass: z.boolean().default(true),
+      /** 终审时对照最近几天已经发过的内容，避免隔天重复 */
+      recent_days: z.number().int().min(0).default(3),
+    })
+    .default({ allowed_categories: ["best_practice", "real_problem", "industry_trend", "expert_insight"], editor_pass: true, recent_days: 3 }),
 });
 export type DigestConfig = z.infer<typeof DigestFile>;
 
@@ -64,6 +75,8 @@ export interface AppConfig {
   accountTopics: Map<string, string[]>;
   /** 所有需要采集的账号（去重） */
   accounts: string[];
+  /** config/curation.md：精选标准，原样放进给大模型的提示词，可以直接编辑 */
+  curationGuide: string;
   configDir: string;
 }
 
@@ -117,6 +130,7 @@ export function loadConfig(configDir = resolveConfigDir()): AppConfig {
     digest: digestParsed.data,
     accountTopics,
     accounts: [...accountTopics.keys()],
+    curationGuide: existsSync(join(configDir, "curation.md")) ? readFileSync(join(configDir, "curation.md"), "utf8").trim() : "",
     configDir,
   };
 }

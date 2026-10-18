@@ -201,11 +201,29 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
           <Text style={{ fontSize: 15, fontWeight: 700, color: color.ink, margin: 0, lineHeight: "22px" }}>{card.author.name}</Text>
           <Text style={meta}>{metaLine}</Text>
         </Column>
-        {card.badge ? (
-          <Column align="right" style={{ verticalAlign: "middle", width: 110 }}>
-            <span style={{ fontFamily: font.mono, fontSize: 11, color: color.muted, backgroundColor: color.chip, borderRadius: 4, padding: "3px 8px", whiteSpace: "nowrap" }}>
-              {card.badge}
-            </span>
+        {card.badge || card.categoryLabel ? (
+          <Column align="right" style={{ verticalAlign: "middle", width: 170 }}>
+            {card.categoryLabel ? (
+              <span style={{ fontSize: 11, fontWeight: 700, color: color.link, backgroundColor: "#EEF3FC", borderRadius: 4, padding: "3px 8px", whiteSpace: "nowrap" }}>
+                {card.categoryLabel}
+              </span>
+            ) : null}
+            {card.badge ? (
+              <span
+                style={{
+                  fontFamily: font.mono,
+                  fontSize: 11,
+                  color: color.muted,
+                  backgroundColor: color.chip,
+                  borderRadius: 4,
+                  padding: "3px 8px",
+                  whiteSpace: "nowrap",
+                  marginLeft: card.categoryLabel ? 6 : 0,
+                }}
+              >
+                {card.badge}
+              </span>
+            ) : null}
           </Column>
         ) : null}
       </Row>

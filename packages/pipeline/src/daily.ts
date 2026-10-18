@@ -1,11 +1,12 @@
 import { parseArgs } from "node:util";
 import { loadConfig, localDate, runRange, loadDotEnv } from "@xrss/core";
 import { createDb, migrateDb } from "@xrss/core/db";
-import { createLlmReviewer, createRuleOnlyReviewer } from "./ai.ts";
+import { createLlmEditor, createLlmReviewer, createRuleOnlyReviewer } from "./ai.ts";
+import { runEditorial, writeCurationReport } from "./editorial.ts";
 import { pickCandidates } from "./candidates.ts";
 import { sendDigests } from "./digest.ts";
 import { ingest } from "./ingest.ts";
-import { createResendMailer } from "./mailer.ts";
+import { createSmtpMailer, smtpConfigFromEnv } from "./mailer.ts";
 import { reviewCandidates } from "./review.ts";
 
 loadDotEnv();
@@ -49,15 +50,36 @@ if (ing.truncated > 0) console.warn(`  ⚠ ${ing.truncated} 条长推文仍是�
 const candidates = await pickCandidates(db, config, range);
 console.log(`  候选：${candidates.length} 条送去评审`);
 
-const reviewer = values["skip-ai"]
+const skipAi = values["skip-ai"]!;
+const guide = config.curationGuide;
+const reviewer = skipAi
   ? createRuleOnlyReviewer(new Map(candidates.map((c) => [c.id, c.ruleScore ?? 0])))
-  : createLlmReviewer();
-const rev = await reviewCandidates(db, config, candidates, reviewer);
-console.log(`  评审：完成 ${rev.reviewed} 条${rev.failed.length ? `，失败 ${rev.failed.length} 条` : ""}`);
+  : createLlmReviewer({ guide });
+const rev = await reviewCandidates(db, config, candidates, reviewer, { strict: !skipAi });
+console.log(
+  `  初审：完成 ${rev.reviewed} 条，通过 ${rev.kept}，剔除 ${rev.rejected}${rev.failed.length ? `，失败 ${rev.failed.length}` : ""}${skipAi ? "（--skip-ai：未按类型过滤）" : ""}`,
+);
 for (const f of rev.failed.slice(0, 5)) console.warn(`  ⚠ ${f.id}：${f.error}`);
 
-const mailer = dryRun ? undefined : createResendMailer();
+if (!skipAi && config.digest.curation.editor_pass) {
+  try {
+    const ed = await runEditorial(db, config, range, createLlmEditor({ guide }));
+    console.log(`  终审：${ed.considered} 条候选，去掉重复 ${ed.dropped.length} 条`);
+  } catch (e) {
+    // 终审失败不影响发送，只是少了一道去重
+    console.warn(`  ⚠ 终审失败，跳过去重：${(e as Error).message}`);
+  }
+}
+console.log(`  精选报告：${await writeCurationReport(db, config, range, date)}`);
+
+let mailer: ReturnType<typeof createSmtpMailer> | undefined;
+if (!dryRun) {
+  const smtp = smtpConfigFromEnv();
+  if (!smtp) throw new Error("缺少 SMTP_USER 或 SMTP_PASS（QQ 邮箱授权码）。试跑请加 --dry-run。");
+  mailer = createSmtpMailer(smtp);
+}
 const sent = await sendDigests(db, config, { date, range, now, dryRun, mailer });
+mailer?.close();
 if (dryRun) {
   console.log(`  邮件预览：`);
   for (const p of sent.previews) console.log(`    ${p}`);

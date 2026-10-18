@@ -1,7 +1,7 @@
 import type { DigestConfig, Topic } from "./config.ts";
 import { xWeightedLength } from "./scoring.ts";
 import { compactNumber, displayTime, localDate } from "./time.ts";
-import type { AiResult, Lang, MediaKind, RawTweet } from "./types.ts";
+import { type AiResult, CATEGORY_LABELS, type Lang, type MediaKind, type RawTweet } from "./types.ts";
 
 /** 邮件卡片和 RSS 条目共用的展示数据，语言已确定，模板里不再判断 */
 export interface CardView {
@@ -12,6 +12,8 @@ export interface CardView {
   time: string;
   /** 中文版且原文不是中文时显示"译自英文" */
   translatedFrom?: string;
+  /** 内容类型标签：最佳实践 / 真实问题 / 趋势解读 / 专家观点（未分类时为空） */
+  categoryLabel?: string;
   /** 右上角标签：长文 / Thread · 3 / 视频 · 6:48 */
   badge?: string;
   kind: MediaKind;
@@ -98,7 +100,12 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
       initials: initials(raw.author.name),
     },
     time: displayTime(raw.createdAt, opts.timezone, opts.now),
-    translatedFrom: zh && !isChinese ? `译自${LANG_NAMES[raw.lang ?? ""] ?? "外文"}` : undefined,
+    categoryLabel: t.ai?.category && t.ai.category !== "other" ? CATEGORY_LABELS[t.ai.category] : undefined,
+    // 没有正文（如只有 X 长文链接）或语言未知时不标"译自"
+    translatedFrom:
+      zh && !isChinese && raw.text.trim() && !["zxx", "und", "qme", "qht", "qam"].includes(raw.lang ?? "")
+        ? `译自${LANG_NAMES[raw.lang ?? ""] ?? "外文"}`
+        : undefined,
     badge,
     kind: t.kind,
     parts,

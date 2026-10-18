@@ -6,6 +6,7 @@ import { DailyDigest } from "./DailyDigest.tsx";
 
 export { ConfirmEmail, DailyDigest };
 export { TweetCard } from "./TweetCard.tsx";
+export * from "./smtp.ts";
 
 export interface RenderedEmail {
   subject: string;

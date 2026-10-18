@@ -1,6 +1,6 @@
-# 每日 X 采集任务（交给装有 Browser Skill 的 Agent 执行）
+# 每日 X 采集任务（由 DeepSeek Harness 定时任务调用 Browser Skill 执行）
 
-你要用 Browser Skill（https://github.com/Tencent/BrowserSkill）操作本机 Chrome（已登录 X 的专用账号），按采集清单抓取博主**前一天**发布的推文，并按约定格式写成文件。
+你要用 Browser Skill（https://github.com/Tencent/BrowserSkill，工具名为 `bsk_*`）操作本机 Chrome（已登录 X 的专用账号），按采集清单抓取博主**前一天**发布的推文，并按约定格式写成文件。
 
 ## 输入
 

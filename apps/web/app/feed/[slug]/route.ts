@@ -19,7 +19,7 @@ function cardHtml(c: CardView): string {
   const quoted = c.quoted ? `<blockquote><strong>${esc(c.quoted.name)}</strong> @${esc(c.quoted.handle)}<br>${esc(c.quoted.text)}</blockquote>` : "";
   const linkTitle = c.link?.title ?? (c.link?.kind === "x_article" ? "在 X 上阅读这篇长文" : undefined);
   const link = c.link && linkTitle ? `<p>🔗 <a href="${esc(c.link.url)}">${esc(linkTitle)}</a>${c.link.description ? `<br>${esc(c.link.description)}` : ""}</p>` : "";
-  const meta = `<p><small>@${esc(c.author.handle)}${c.translatedFrom ? ` · ${c.translatedFrom}` : ""} · ♡ ${c.likes} · ⇄ ${c.reposts} · <a href="${esc(c.url)}">${c.ctaLabel}</a></small></p>`;
+  const meta = `<p><small>${c.categoryLabel ? `【${c.categoryLabel}】` : ""}@${esc(c.author.handle)}${c.translatedFrom ? ` · ${c.translatedFrom}` : ""} · ♡ ${c.likes} · ⇄ ${c.reposts} · <a href="${esc(c.url)}">${c.ctaLabel}</a></small></p>`;
   return parts + images + note + quoted + link + meta;
 }
 

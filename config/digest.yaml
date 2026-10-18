@@ -13,7 +13,7 @@ window_hours: 24
 digest:
   total_items: 10        # 每封邮件精选条数，常用 8–10
   min_per_topic: 1       # 每个已订阅主题至少保底几条（当天有合格内容时）
-  candidates_per_topic: 15  # 规则粗筛后，每个主题送给 AI 打分的条数上限，控制 AI 成本
+  candidates_per_topic: 30  # 规则粗筛后，每个主题送给 AI 评审的条数上限（按互动表现排序），控制 AI 成本
 
 filters:
   include_replies: false   # 回复别人的推文
@@ -39,3 +39,11 @@ default_language: zh
 
 rss:
   items_per_feed: 30       # 每个 Feed 保留最近多少条
+
+# LLM 精选（详细标准写在 config/curation.md，可直接修改）
+curation:
+  # 只有这几类内容能进入邮件：best_practice 最佳实践与应用 / real_problem 真实世界问题 /
+  # industry_trend 行业趋势与解读 / expert_insight 行业领袖与专家思考
+  allowed_categories: [best_practice, real_problem, industry_trend, expert_insight]
+  editor_pass: true        # 单条评审后再做一次"编辑终审"：同一事件/同一观点只留最好的一条
+  recent_days: 3           # 终审时对照最近 3 天已发过的内容，避免隔天重复

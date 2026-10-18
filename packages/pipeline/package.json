@@ -14,7 +14,6 @@
     "@xrss/core": "workspace:*",
     "@xrss/emails": "workspace:*",
     "drizzle-orm": "^0.44.0",
-    "resend": "^6.0.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
