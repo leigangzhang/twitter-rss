@@ -136,8 +136,8 @@ const CrawlFile = z.object({
   /** 按账号近期内容质量分档，决定采集频率 */
   account_quality: z
     .object({
-      /** 统计最近多少天评审过的推文 */
-      stats_days: z.number().int().min(1).default(30),
+      /** 统计最近多少天评审过的推文（建议 7–14 天：既能反映账号近况，样本也够） */
+      stats_days: z.number().int().min(1).max(60).default(14),
       /** 评审过的推文少于这个数时，样本不足，按"普通"处理 */
       min_samples: z.number().int().min(1).default(6),
       /** 保留率（AI 判为保留的比例）达到这个值为"优质" */
@@ -212,6 +212,14 @@ export function resolveTopicId(config: Pick<AppConfig, "topics" | "topicAliases"
   if (!id) return undefined;
   const cur = config.topicAliases.get(id) ?? id;
   return config.topics.some((t) => t.id === cur) ? cur : undefined;
+}
+
+/**
+ * 推文实际归属的主题：评审时定的主题（旧 id 按 aliases 映射）；
+ * 已不存在的主题（例如早期试跑用的示例主题）退回到账号在 topics.yaml 里的第一个主题。
+ */
+export function effectiveTopicId(config: Pick<AppConfig, "topics" | "topicAliases" | "accountTopics">, topicId: string | null | undefined, handle: string): string | undefined {
+  return resolveTopicId(config, topicId) ?? config.accountTopics.get(handle.toLowerCase())?.[0];
 }
 
 /** 从当前目录向上查找包含 config/topics.yaml 的仓库根目录 */

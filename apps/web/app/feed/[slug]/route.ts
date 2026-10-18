@@ -1,6 +1,6 @@
-import { type ArticleView, type CardView, type Lang, primaryArticle, qualityOf, resolveTopicId, toCardView } from "@xrss/core";
+import { type ArticleView, type CardView, type Lang, effectiveTopicId, primaryArticle, qualityOf, resolveTopicId, toCardView } from "@xrss/core";
 import { linkDigests, tweets } from "@xrss/core/db";
-import { and, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, or } from "drizzle-orm";
 import { Feed } from "feed";
 import { config, db, siteUrl } from "@/lib/server";
 
@@ -45,10 +45,18 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
   const rows = await (await db())
     .select()
     .from(tweets)
-    .where(and(eq(tweets.status, "scored"), inArray(tweets.topicId, [topic.id, ...topic.aliases]), gte(tweets.createdAt, new Date(Date.now() - 30 * 86_400_000))))
+    .where(
+      and(
+        eq(tweets.status, "scored"),
+        or(inArray(tweets.topicId, [topic.id, ...topic.aliases]), inArray(tweets.handle, topic.accounts)),
+        gte(tweets.createdAt, new Date(Date.now() - 30 * 86_400_000)),
+      ),
+    )
     .orderBy(desc(tweets.createdAt))
     .limit(cfg.digest.rss.items_per_feed * 3);
-  const items = rows.filter((r) => qualityOf(r.ai) >= cfg.digest.filters.min_quality).slice(0, cfg.digest.rss.items_per_feed);
+  const items = rows
+    .filter((r) => effectiveTopicId(cfg, r.topicId, r.handle) === topic.id && qualityOf(r.ai) >= cfg.digest.filters.min_quality)
+    .slice(0, cfg.digest.rss.items_per_feed);
 
   const feed = new Feed({
     id: siteUrl(`/feed/${slug}`),

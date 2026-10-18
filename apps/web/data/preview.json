@@ -1,0 +1,310 @@
+{
+  "generatedAt": "2026-10-18T14:58:41.894Z",
+  "periodLabel": "10月12日–10月17日",
+  "items": [
+    {
+      "id": "2109361546505966046",
+      "url": "https://x.com/karpathy/status/2109361546505966046",
+      "topic": {
+        "id": "research",
+        "name": "研究者与深度观点",
+        "color": "#B45309"
+      },
+      "author": {
+        "handle": "karpathy",
+        "name": "Andrej Karpathy",
+        "avatarUrl": "https://pbs.twimg.com/profile_images/1296667294148382721/9Pr6XrPB_bigger.jpg",
+        "initials": "AK"
+      },
+      "time": "10月12日 03:12",
+      "categoryLabel": "专家观点",
+      "quality": 4,
+      "likes": "4.3万",
+      "reposts": "5,792",
+      "video": false,
+      "zh": {
+        "text": "把这条 4 月的推文翻出来重发，是因为这种对 LLM 能力认知上的鸿沟正在*扩大*。现在它已经不太像\"两拨人各说各话\"，而更像一个急剧收窄的漏斗。\n\n- 粗略估算，大约 60 亿人（约 75% 的人口）几乎还没怎么接触过……",
+        "translatedFrom": "译自英文",
+        "quoted": {
+          "handle": "karpathy",
+          "text": "从我的时间线看，人们对 AI 能力的理解差距正在扩大。\n\n我认为第一个问题在于使用的新近程度和层级。很多人去年某个时候试过 ChatGPT 的免费版，然后就让这段体验过多地左右了自己对 AI 的看法。这……"
+        }
+      },
+      "orig": {
+        "text": "Dusting off this tweet from April because this gap in shared understanding of LLM capability is *widening*. It's now less \"two groups of people speaking past each other\" and more a sharp funnel.\n\n- Napkin math somewhere around 6B people (~75% of the population) have barely come",
+        "quoted": {
+          "handle": "karpathy",
+          "text": "Judging by my tl there is a growing gap in understanding of AI capability.\n\nThe first issue I think is around recency and tier of use. I think a lot of people tried the free tier of ChatGPT somewhere  last year and allowed it to inform their views on AI a little too much. This is"
+        }
+      }
+    },
+    {
+      "id": "2110047081414987957",
+      "url": "https://x.com/AnthropicAI/status/2110047081414987957",
+      "topic": {
+        "id": "labs",
+        "name": "实验室与官方发布",
+        "color": "#1F5FD6"
+      },
+      "author": {
+        "handle": "anthropicai",
+        "name": "Anthropic",
+        "avatarUrl": "https://pbs.twimg.com/profile_images/1798110641414443008/XP8gyBaY_bigger.jpg",
+        "initials": "AN"
+      },
+      "time": "10月14日 00:36",
+      "categoryLabel": "真实问题",
+      "quality": 3.5,
+      "likes": "2.6万",
+      "reposts": "2,631",
+      "video": false,
+      "zh": {
+        "text": "工程博客新文章：自建源码管理系统。\n\n5 月我们每天合并约 2,500 个代码变更，9 月每天合并超过 30,000 个。结果，我们被原本为人类（而非智能体）规模构建的开发基础设施卡住了脖子。",
+        "translatedFrom": "译自英文"
+      },
+      "orig": {
+        "text": "New on our Engineering blog: Creating in-house source control. \n\nIn May, we merged around 2,500 code changes per day. In September, we merged more than 30,000 per day. As a result, we became bottlenecked by developer infrastructure built for human (rather than agent) scale."
+      }
+    },
+    {
+      "id": "2111213093577691337",
+      "url": "https://x.com/openaidevs/status/2111213093577691337",
+      "topic": {
+        "id": "labs",
+        "name": "实验室与官方发布",
+        "color": "#1F5FD6"
+      },
+      "author": {
+        "handle": "openaidevs",
+        "name": "OpenAI Developers",
+        "initials": "OD"
+      },
+      "time": "10月17日 05:50",
+      "categoryLabel": "最佳实践",
+      "quality": 3.5,
+      "likes": "1,913",
+      "reposts": "130",
+      "video": false,
+      "zh": {
+        "text": "以下是我们 OpenAI 的工程师如何用 Codex 深入代码库、找出需要关注的地方，并一点点清理积压的维护工作：\n\n引用 @rrroim：软件维护正在发生变化。几个月前，我还得明确告诉 Codex 去哪里找死代码。现在它能在 Slack 里找到候选对象，对照生产遥测进行核实，并起草清理用的 PR。",
+        "translatedFrom": "译自英文"
+      },
+      "orig": {
+        "text": "Here’s how our engineers use Codex at OpenAI to dig through our codebase, find what needs attention, and chip away at the maintenance backlog:\n\n引用 @rrroim：Software maintenance is changing. A few months ago, I had to tell Codex exactly where to look for dead code. Now it can find candidates in Slack, check them against production telemetry, and draft cleanup PRs."
+      }
+    },
+    {
+      "id": "2110063893016096831",
+      "url": "https://x.com/gdb/status/2110063893016096831",
+      "topic": {
+        "id": "labs",
+        "name": "实验室与官方发布",
+        "color": "#1F5FD6"
+      },
+      "author": {
+        "handle": "gdb",
+        "name": "Greg Brockman",
+        "initials": "GB"
+      },
+      "time": "10月14日 01:43",
+      "categoryLabel": "趋势解读",
+      "quality": 3.5,
+      "likes": "6,424",
+      "reposts": "417",
+      "video": false,
+      "zh": {
+        "text": "用 GPT-5.6 Sol 花 6 天、4 万美元算力，找到 Chrome 的一个关键漏洞，并声称拿下谷歌 2026 年首个全链漏洞奖励——该漏洞预计影响约 10 亿用户。这凸显了防御方利用这类工具、抢在攻击者之前发现并修复漏洞的机会。\n\n引用 @oegerikus：这是谷歌 Chrome 历史上第二次为全链漏洞向 @XBOW 支付 25 万美元赏金。2026 年初在马耳他的全员会上，我给团队定了一个疯狂的目标：在年度 Black Hat 大会之前完成对 Chrome 的全链利用。",
+        "translatedFrom": "译自英文"
+      },
+      "orig": {
+        "text": "6 days and $40,000 of compute with GPT-5.6 Sol to find a critical vulnerability in Chrome, claiming Google’s first full-chain reward in 2026 for a vulnerability that would affect an estimated 1 billion users. Highlights the opportunity for defenders to utilize these tools to find and fix vulnerabilities before attackers do.\n\n引用 @oegerikus：For the second time in Google Chrome’s history, Google awarded a $250,000 bounty for a full-chain exploit to @XBOW. At an all-hands at the start of 2026 in Malta, I set the team a crazy challenge: a full-chain exploit of Chrome by the annual Black Hat conference."
+      }
+    },
+    {
+      "id": "2110784662071398807",
+      "url": "https://x.com/AnthropicAI/status/2110784662071398807",
+      "topic": {
+        "id": "labs",
+        "name": "实验室与官方发布",
+        "color": "#1F5FD6"
+      },
+      "author": {
+        "handle": "anthropicai",
+        "name": "Anthropic",
+        "avatarUrl": "https://pbs.twimg.com/profile_images/1798110641414443008/XP8gyBaY_bigger.jpg",
+        "initials": "AN"
+      },
+      "time": "10月16日 01:27",
+      "categoryLabel": "趋势解读",
+      "quality": 3.5,
+      "likes": "3,796",
+      "reposts": "257",
+      "video": false,
+      "zh": {
+        "text": "我们已承诺让外部评估者评估我们的安全实践。我们正在与多家机构洽谈，并且现已向来自 @METR_Evals 的团队开放了类似员工的访问权限。\n\n在这篇文章中，我们介绍了我们如何与第三方评估者合作：https://www.anthropic.com/news/an-update-on-independent-evaluators",
+        "translatedFrom": "译自英文",
+        "article": "Anthropic 关于独立评估者的更新"
+      },
+      "orig": {
+        "text": "We’ve committed to having evaluators assess our safety practices. We're in discussions with multiple organizations, and have now given employee-like access to a team from @METR_Evals.\n\nIn this post, we describe how we work with third-party evaluators: https://www.anthropic.com/news/an-update-on-independent-evaluators",
+        "article": "Anthropic update on independent evaluators"
+      }
+    },
+    {
+      "id": "2111244596131111253",
+      "url": "https://x.com/thsottiaux/status/2111244596131111253",
+      "topic": {
+        "id": "labs",
+        "name": "实验室与官方发布",
+        "color": "#1F5FD6"
+      },
+      "author": {
+        "handle": "thsottiaux",
+        "name": "Tibo",
+        "initials": "TI"
+      },
+      "time": "10月17日 07:55",
+      "categoryLabel": "趋势解读",
+      "quality": 3,
+      "likes": "1.1万",
+      "reposts": "665",
+      "video": false,
+      "zh": {
+        "text": "第 12 天 / 我们对 Codex 和 Work 做了改进，提升了你能实际用到的额度。具体做法是：在子代理之间复用上下文、让上下文缓存保留更久，以及改进请求路由，从而提高了缓存命中率。",
+        "translatedFrom": "译自英文"
+      },
+      "orig": {
+        "text": "Day 12/ We’ve made improvements to Codex & Work that increase the effective usage you get. We achieved this by reusing context across subagents, keeping context cached longer, and improved request routing that allows us to increase cache hits."
+      }
+    },
+    {
+      "id": "2109795898909950247",
+      "url": "https://x.com/AnthropicAI/status/2109795898909950247",
+      "topic": {
+        "id": "labs",
+        "name": "实验室与官方发布",
+        "color": "#1F5FD6"
+      },
+      "author": {
+        "handle": "anthropicai",
+        "name": "Anthropic",
+        "avatarUrl": "https://pbs.twimg.com/profile_images/1798110641414443008/XP8gyBaY_bigger.jpg",
+        "initials": "AN"
+      },
+      "time": "10月13日 07:58",
+      "categoryLabel": "趋势解读",
+      "quality": 3,
+      "likes": "6,561",
+      "reposts": "617",
+      "video": false,
+      "zh": {
+        "text": "过去几个月里，我们在降低针对 Claude 的蒸馏攻击（distillation attacks）有效性方面取得了显著进展。\n\n在这篇文章中，我们解释了具体做法：https://www.anthropic.com/research/distillation-defenses",
+        "translatedFrom": "译自英文",
+        "article": "加强我们对蒸馏攻击的防御"
+      },
+      "orig": {
+        "text": "Over the last few months, we’ve made significant progress in reducing the effectiveness of distillation attacks against Claude.\n\nIn this post, we explain how: https://www.anthropic.com/research/distillation-defenses",
+        "article": "Strengthening our defenses against distillation attacks"
+      }
+    },
+    {
+      "id": "2111152183240511640",
+      "url": "https://x.com/AnthropicAI/status/2111152183240511640",
+      "topic": {
+        "id": "labs",
+        "name": "实验室与官方发布",
+        "color": "#1F5FD6"
+      },
+      "author": {
+        "handle": "anthropicai",
+        "name": "Anthropic",
+        "avatarUrl": "https://pbs.twimg.com/profile_images/1798110641414443008/XP8gyBaY_bigger.jpg",
+        "initials": "AN"
+      },
+      "time": "10月17日 01:47",
+      "categoryLabel": "趋势解读",
+      "quality": 3,
+      "likes": "5,237",
+      "reposts": "578",
+      "video": false,
+      "zh": {
+        "text": "来自我们 STEM Fellows 项目的新成果：用 Claude 设计更高效的量子电路。\n\n在仅给出自然语言指令的情况下，Claude Mythos 5 设计出的量子电路优于已发表的最佳方案，部分情况下提升达一个数量级甚至更多。\n\n更高效的电路……",
+        "translatedFrom": "译自英文"
+      },
+      "orig": {
+        "text": "New from our STEM Fellows Program: Designing more efficient quantum circuits with Claude.\n\nGiven plain-language instructions, Claude Mythos 5 designed quantum circuits that improve on the best published ones, sometimes by an order of magnitude or more.\n\nMore efficient circuits"
+      }
+    },
+    {
+      "id": "2111384805741105182",
+      "url": "https://x.com/oran_ge/status/2111384805741105182",
+      "topic": {
+        "id": "cn-insight",
+        "name": "中文圈｜行业解读与产品出海",
+        "color": "#BE123C"
+      },
+      "author": {
+        "handle": "oran_ge",
+        "name": "Orange AI",
+        "avatarUrl": "https://pbs.twimg.com/profile_images/1760074488073629696/ceSsuVCY_bigger.png",
+        "initials": "OA"
+      },
+      "time": "10月17日 17:12",
+      "categoryLabel": "趋势解读",
+      "quality": 3,
+      "likes": "27",
+      "reposts": "0",
+      "video": false,
+      "zh": {
+        "text": "DeepSeek Flash 更新，性能更强，解决了之前过度思考的问题，再次降本，同样的任务省一半token。\n那天故障是不是就是在部署新模型？",
+        "quoted": {
+          "handle": "deepseek_ai",
+          "text": "🚀 DeepSeek-V4.1-Flash-1017 is here!\n\nStronger benchmark performance, faster task completion, and shorter outputs than the previous version—a Pareto improvement in performance and cost. Now live on our website, app, and API.\n\n🛠️ Optimized for @DeepSeekHarness, Tencent CodeBuddy,"
+        }
+      },
+      "orig": {
+        "text": "DeepSeek Flash 更新，性能更强，解决了之前过度思考的问题，再次降本，同样的任务省一半token。\n那天故障是不是就是在部署新模型？",
+        "quoted": {
+          "handle": "deepseek_ai",
+          "text": "🚀 DeepSeek-V4.1-Flash-1017 is here!\n\nStronger benchmark performance, faster task completion, and shorter outputs than the previous version—a Pareto improvement in performance and cost. Now live on our website, app, and API.\n\n🛠️ Optimized for @DeepSeekHarness, Tencent CodeBuddy,"
+        }
+      }
+    },
+    {
+      "id": "2110846112152105136",
+      "url": "https://x.com/AnthropicAI/status/2110846112152105136",
+      "topic": {
+        "id": "labs",
+        "name": "实验室与官方发布",
+        "color": "#1F5FD6"
+      },
+      "author": {
+        "handle": "anthropicai",
+        "name": "Anthropic",
+        "avatarUrl": "https://pbs.twimg.com/profile_images/1798110641414443008/XP8gyBaY_bigger.jpg",
+        "initials": "AN"
+      },
+      "time": "10月16日 05:31",
+      "categoryLabel": "趋势解读",
+      "quality": 3,
+      "likes": "2,466",
+      "reposts": "177",
+      "video": false,
+      "zh": {
+        "text": "要弄清如何在数学研究——以及更广泛的科学研究——中最好地使用 AI，需要时间、精力和资源。我们很希望支持数学家，让他们推动科学进步并定义自己领域的未来。\n\n我们已承诺提供 500 万美元资金，",
+        "translatedFrom": "译自英文",
+        "quoted": {
+          "handle": "simonsfdn",
+          "text": "数学界如何在 AI 时代找到最佳前进路径？我们正投入 1500 万美元用于工作坊和相关计划，并通过与 @AnthropicAI 和 @OpenAI 的新合作，为受基金会资助的研究者提供免费 AI 算力资源：https://bit.ly/4zpfIbW"
+        }
+      },
+      "orig": {
+        "text": "Working out how best to use AI in mathematics research—and in science more generally—will take time, effort, and resources. We’re eager to support mathematicians as they drive scientific progress and define the future of their field.\n\nWe’ve committed $5 million of funding,",
+        "quoted": {
+          "handle": "simonsfdn",
+          "text": "How can the math community forge the best path forward in the AI age? We're committing $15M to workshops and initiatives — plus free AI computing resources for foundation-supported researchers — through new partnerships with @AnthropicAI and @OpenAI: https://bit.ly/4zpfIbW"
+        }
+      }
+    }
+  ]
+}

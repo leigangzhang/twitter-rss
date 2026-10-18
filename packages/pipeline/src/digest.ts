@@ -3,7 +3,7 @@ import { join } from "node:path";
 import {
   normalizeTopicIds,
   qualityOf,
-  resolveTopicId,
+  effectiveTopicId,
   type AppConfig,
   dateLabel,
   type DigestView,
@@ -151,7 +151,7 @@ export async function sendDigests(
       .where(and(eq(tweets.status, "scored"), inBatch(opts.range)))
   )
     // 主题合并后，旧推文上的旧主题 id 映射到新主题
-    .map((t) => ({ ...t, topicId: resolveTopicId(config, t.topicId) ?? null }))
+    .map((t) => ({ ...t, topicId: effectiveTopicId(config, t.topicId, t.handle) ?? null }))
     .filter((t) => t.topicId && qualityOf(t.ai) >= config.digest.filters.min_quality);
   const articleUrls = scored.map((t) => primaryArticle(t.raw)?.link.expandedUrl).filter((u): u is string => Boolean(u));
   const articles = await loadDigests(db, articleUrls);

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadConfig, normalizeTopicIds, resolveTopicId } from "../src/config.ts";
+import { effectiveTopicId, loadConfig, normalizeTopicIds, resolveTopicId } from "../src/config.ts";
 
 const config = loadConfig(join(import.meta.dirname, "..", "..", "..", "config"));
 
@@ -18,6 +18,12 @@ describe("topics.yaml", () => {
     expect(resolveTopicId(config, "labs")).toBe("labs");
     expect(resolveTopicId(config, "gone")).toBeUndefined();
     expect(resolveTopicId(config, null)).toBeUndefined();
+  });
+
+  it("已不存在的主题退回到账号自己的主题", () => {
+    expect(effectiveTopicId(config, "startup", "oran_ge")).toBe("cn-insight");
+    expect(effectiveTopicId(config, "official-labs", "karpathy")).toBe("labs");
+    expect(effectiveTopicId(config, null, "unknown_user")).toBeUndefined();
   });
 
   it("订阅页配置有默认值", () => {

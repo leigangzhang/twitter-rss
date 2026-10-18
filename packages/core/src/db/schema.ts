@@ -1,6 +1,20 @@
 import { sql } from "drizzle-orm";
-import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
-import type { AiResult, Lang, LinkDigest, MediaKind, RawTweet } from "../types.ts";
+import { customType, index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { type AiResult, type Lang, type LinkDigest, type MediaKind, RawTweet } from "../types.ts";
+
+/**
+ * 推文原始数据（JSON）。读出时按当前的 RawTweet 补齐默认值：
+ * 旧版本存进去的数据可能缺少后来新增的字段（例如引用推文的 links），不补齐会让展示代码出错。
+ */
+const rawTweetJson = customType<{ data: RawTweet; driverData: string }>({
+  dataType: () => "text",
+  toDriver: (value) => JSON.stringify(value),
+  fromDriver: (value) => {
+    const json = JSON.parse(value);
+    const parsed = RawTweet.safeParse(json);
+    return parsed.success ? parsed.data : json;
+  },
+});
 
 const now = sql`(unixepoch() * 1000)`;
 
@@ -27,7 +41,7 @@ export const tweets = sqliteTable(
     handle: text("handle").notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     kind: text("kind").$type<MediaKind>().notNull(),
-    raw: text("raw", { mode: "json" }).$type<RawTweet>().notNull(),
+    raw: rawTweetJson("raw").notNull(),
     engagement: real("engagement").notNull(),
     /**
      * new：已入库；filtered：规则排除；scored：通过 AI 精选，可进入邮件；

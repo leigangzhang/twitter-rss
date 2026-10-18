@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "daily": "tsx src/daily.ts",
+    "preview:snapshot": "tsx src/cli-preview.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
