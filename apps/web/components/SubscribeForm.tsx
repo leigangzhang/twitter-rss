@@ -104,7 +104,8 @@ const optionClass = (on: boolean) =>
   }`;
 
 export function SubscribeForm({ topics, defaultLang, maxAvatars = 7, manage }: Props) {
-  const [selected, setSelected] = useState<string[]>(manage?.topics ?? topics.slice(0, 2).map((t) => t.id));
+  // 新订阅默认不选主题，由用户自己勾选；管理订阅时显示已选的主题
+  const [selected, setSelected] = useState<string[]>(manage?.topics ?? []);
   const [lang, setLang] = useState<Lang>(manage?.lang ?? defaultLang);
   const [email, setEmail] = useState(manage?.email ?? "");
   const [state, setState] = useState<{ kind: "idle" | "sending" | "done" | "error"; message?: string }>({ kind: "idle" });

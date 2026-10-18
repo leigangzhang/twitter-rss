@@ -35,7 +35,7 @@ thread:
 # 订阅者可选语言：zh = AI 翻译成中文，只显示译文；orig = 保留原文
 # AI 生成的视频说明、图片说明始终用中文
 languages: [zh, orig]
-default_language: zh
+default_language: zh       # 订阅页默认选中的阅读语言（新订阅），zh 中文 | orig 原文
 
 # 推文或引用推文里的外部文章：抓取标题、封面和正文，在邮件里生成图文摘要
 links:
