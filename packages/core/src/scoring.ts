@@ -53,3 +53,24 @@ export function passesFilters(t: RawTweet, cfg: DigestConfig["filters"]): Filter
 export function finalScore(quality: number, rule: number, kind: MediaKind, weights: DigestConfig["media_weight"]): number {
   return (0.7 * (quality / 10) + 0.3 * rule) * weights[kind];
 }
+
+/**
+ * X 计算推文长度的方式（twitter-text v3）：拉丁字母等记 1，中日韩文字和 emoji 记 2，链接固定记 23。
+ * 普通推文上限 280；时间线里接近上限的推文很可能是被截断的长推文。
+ */
+export function xWeightedLength(text: string): number {
+  let n = 0;
+  const withoutUrls = text.replace(/https?:\/\/\S+/g, () => {
+    n += 23;
+    return "";
+  });
+  for (const ch of withoutUrls) {
+    const cp = ch.codePointAt(0)!;
+    const light = cp <= 4351 || (cp >= 8192 && cp <= 8205) || (cp >= 8208 && cp <= 8223) || (cp >= 8242 && cp <= 8247);
+    n += light ? 1 : 2;
+  }
+  return n;
+}
+
+/** 长推文在时间线中被截断时，可见部分会贴近 280 的上限 */
+export const TRUNCATION_THRESHOLD = 260;

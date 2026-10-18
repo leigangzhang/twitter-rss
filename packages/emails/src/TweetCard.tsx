@@ -46,9 +46,27 @@ function Avatar({ card }: { card: CardView }) {
   );
 }
 
+function TruncatedHint({ card }: { card: CardView }) {
+  if (!card.truncated) return null;
+  return (
+    <Text style={{ ...meta, marginTop: 8 }}>
+      全文较长，<Link href={card.url} style={{ color: color.link }}>在 X 上阅读全文</Link>
+    </Text>
+  );
+}
+
 function Parts({ card }: { card: CardView }) {
   if (card.parts.length === 1) {
-    return <Text style={{ ...bodyText, whiteSpace: "pre-line" }}>{card.parts[0]}</Text>;
+    if (!card.parts[0]) return null;
+    return (
+      <>
+        <Text style={{ ...bodyText, whiteSpace: "pre-line" }}>
+          {card.parts[0]}
+          {card.truncated ? "…" : ""}
+        </Text>
+        <TruncatedHint card={card} />
+      </>
+    );
   }
   const total = card.parts.length + card.moreParts;
   return (
@@ -146,7 +164,9 @@ function Quoted({ card }: { card: CardView }) {
 
 function LinkPreview({ card }: { card: CardView }) {
   const link = card.link;
-  if (!link || (!link.title && !link.description)) return null;
+  if (!link) return null;
+  // X 长文没抓到标题时也给一个可点击的卡片，而不是在正文里露出一串链接
+  if (!link.title && !link.description && link.kind !== "x_article") return null;
   return (
     <Link href={link.url} style={{ display: "block", textDecoration: "none", marginTop: 14 }}>
       <Section style={{ border: `1px solid ${color.line}`, borderRadius: 10 }}>
@@ -157,7 +177,9 @@ function LinkPreview({ card }: { card: CardView }) {
             </Column>
           ) : null}
           <Column style={{ padding: "12px 14px", verticalAlign: "middle" }}>
-            {link.title ? <Text style={{ fontSize: 14, fontWeight: 700, lineHeight: "21px", color: color.ink, margin: "0 0 4px" }}>{link.title}</Text> : null}
+            <Text style={{ fontSize: 14, fontWeight: 700, lineHeight: "21px", color: color.ink, margin: "0 0 4px" }}>
+              {link.title ?? (link.kind === "x_article" ? "在 X 上阅读这篇长文" : link.url)}
+            </Text>
             {link.description ? <Text style={{ fontSize: 13, lineHeight: "20px", color: color.muted, margin: "0 0 4px" }}>{link.description}</Text> : null}
             {link.domain ? <Text style={{ ...meta, fontSize: 11 }}>{link.domain}</Text> : null}
           </Column>

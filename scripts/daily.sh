@@ -38,6 +38,11 @@ else
   echo "未设置 COLLECT_CMD，跳过采集，只处理 data/inbox 里已有的文件"
 fi
 
+# 采集端保存的原始响应统一再解析一次（已解析过也没关系），确保详情页补抓的全文被合并
+if [ -d "data/inbox/$(TZ=Asia/Shanghai date +%F)/raw" ]; then
+  pnpm -s --filter @xrss/collector parse
+fi
+
 pnpm -s pipeline
 
 echo "===== $(date '+%F %T') 结束 ====="

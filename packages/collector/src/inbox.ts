@@ -4,6 +4,9 @@ import { InboxFile } from "@xrss/core";
 import { z } from "zod";
 import { inboxDir } from "./paths.ts";
 
+/** 采集目录里不属于账号数据的文件 */
+const RESERVED = new Set(["plan.json", "detail-needed.json"]);
+
 export interface InboxReadResult {
   files: InboxFile[];
   /** 无法解析或格式不符的文件 */
@@ -12,13 +15,13 @@ export interface InboxReadResult {
   blocked: Array<{ handle: string; status: InboxFile["status"]; error?: string }>;
 }
 
-/** 读取某天采集端输出的所有账号文件（data/inbox/<date>/*.json，plan.json 除外） */
+/** 读取某天采集端输出的所有账号文件（data/inbox/<date>/<handle>.json） */
 export function readInbox(date: string, dir = inboxDir(date)): InboxReadResult {
   const result: InboxReadResult = { files: [], invalid: [], blocked: [] };
   if (!existsSync(dir)) return result;
 
   for (const name of readdirSync(dir).sort()) {
-    if (!name.endsWith(".json") || name === "plan.json") continue;
+    if (!name.endsWith(".json") || RESERVED.has(name)) continue;
     const path = join(dir, name);
     let json: unknown;
     try {

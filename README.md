@@ -51,15 +51,24 @@ pnpm dev                      # 订阅页面 http://localhost:3000
 
 ### 试跑一遍流水线
 
+默认只处理**前一天**（北京时间 0:00–24:00）发布的推文：10 月 19 日早上运行，处理 10 月 18 日的内容（`config/digest.yaml` 的 `collect_window`）。
+
 ```bash
-pnpm plan                                   # 生成 data/inbox/<今天>/plan.json
-# ……用 Browser Skill 采集，或者用测试样本模拟一个账号：
-pnpm --filter @xrss/collector parse --handle MiraChen_ML packages/collector/test/fixtures/user-tweets.json
+pnpm plan                                   # 生成 data/inbox/<今天>/plan.json（含 since/until）
+# ……用 Browser Skill 按 AGENT_PROMPT.md 采集时间线 → parse → 补抓详情页 → 再 parse
 pnpm pipeline:dry --skip-ai                 # 不调用 AI、不发邮件，邮件写到 data/out/<日期>/
 ```
 
-去掉 `--skip-ai` 会调用 Claude 打分、翻译和生成视频说明；去掉 `:dry` 才会真正发送。
-（用测试样本模拟时，`topics.yaml` 里需要有 `MiraChen_ML` 这个账号。）
+补跑某一天：`pnpm pipeline:dry --skip-ai --date 2026-10-19`（处理 10 月 18 日的内容，读取 `data/inbox/2026-10-19/`）。
+
+### 验证 Claude 评审和 Resend 发信
+
+1. 在 `.env` 填好 `ANTHROPIC_API_KEY`，运行 `pnpm pipeline:dry`（去掉 `--skip-ai`）。
+   终端会显示评审完成和失败的条数；打开 `data/out/<日期>/sample-zh.html` 检查译文和视频说明。
+   已评审过的推文不会重复评审；想重来一遍，删掉 `data/app.db` 后重新运行。
+2. 在 Resend 验证发信域名，`.env` 填好 `RESEND_API_KEY` 和 `MAIL_FROM`。
+   `pnpm dev` 打开订阅页，用自己的邮箱订阅并点确认链接，然后运行 `pnpm pipeline`（不带 `:dry`）。
+   同一订阅者同一天只发一封，重复运行会显示"今日已发过"。
 
 ## 采集（Browser Skill）
 
@@ -67,6 +76,7 @@ pnpm pipeline:dry --skip-ai                 # 不调用 AI、不发邮件，邮�
 
 - 交给 Agent 的任务说明：`packages/collector/AGENT_PROMPT.md`
 - 能拿到网络响应时，把 X 网页 `UserOriginalsTimeline` / `UserTweets` 接口的 JSON 存下来，用 `pnpm --filter @xrss/collector parse` 转换，比解析页面元素稳定
+- **时间线接口不含长推文全文和 X 长文标题**：`parse` 会按 X 的字数规则找出可能被截断的推文，写入 `detail-needed.json`；采集端再打开这些推文的详情页，保存 `TweetDetail` 响应后重新 `parse`，全文会自动合并。没补抓到的推文在邮件里会提示"全文较长"
 - 采集端遇到限流、登录失效、验证码时写入对应 `status` 并停止，流水线会告警，退出码为 2
 
 降低封号风险：使用专用小号；`plan.json` 已随机打乱账号顺序并给出停留和滚动间隔；`daily.sh` 启动时随机延迟 0–30 分钟；只抓增量（`lastSeenId`）。

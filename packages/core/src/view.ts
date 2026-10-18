@@ -1,5 +1,5 @@
 import type { DigestConfig, Topic } from "./config.ts";
-import { textLength } from "./scoring.ts";
+import { xWeightedLength } from "./scoring.ts";
 import { compactNumber, displayTime, localDate } from "./time.ts";
 import type { AiResult, Lang, MediaKind, RawTweet } from "./types.ts";
 
@@ -19,12 +19,14 @@ export interface CardView {
   parts: string[];
   /** Thread 超过上限时省略的条数 */
   moreParts: number;
+  /** 正文没能拿到全文（时间线截断且未补抓详情），模板提示"全文较长，查看原推" */
+  truncated: boolean;
   images: Array<{ url: string; width?: number; height?: number; alt?: string }>;
   video?: { thumbUrl?: string; duration?: string };
   /** AI 生成的中文说明（视频、含文字的图片） */
   mediaNote?: string;
   quoted?: { name: string; handle: string; text: string };
-  link?: { url: string; title?: string; description?: string; domain?: string; imageUrl?: string };
+  link?: { kind: "web" | "x_article"; url: string; title?: string; description?: string; domain?: string; imageUrl?: string };
   likes: string;
   reposts: string;
   ctaLabel: string;
@@ -82,7 +84,7 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
   let badge: string | undefined;
   if (videoMedia) badge = `视频${videoMedia.durationSec ? ` · ${duration(videoMedia.durationSec)}` : ""}`;
   else if (raw.thread.length > 0) badge = `Thread · ${raw.thread.length + 1}`;
-  else if (textLength(raw) > 280) badge = "长文";
+  else if (raw.textTruncated || xWeightedLength(raw.text) > 280) badge = "长文";
 
   const link = raw.links[0];
   return {
@@ -101,6 +103,7 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
     kind: t.kind,
     parts,
     moreParts: allParts.length - parts.length,
+    truncated: raw.textTruncated,
     images: raw.media.filter((m) => m.type === "photo").slice(0, 4).map((m) => ({ url: m.url, width: m.width, height: m.height, alt: m.altText })),
     video: videoMedia
       ? { thumbUrl: opts.videoMode === "thumbnail" ? videoMedia.url : undefined, duration: duration(videoMedia.durationSec) }
@@ -111,10 +114,11 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
       : undefined,
     link: link
       ? {
+          kind: link.kind,
           url: link.expandedUrl,
           title: zh?.linkTitle ?? link.title,
           description: zh?.linkDescription ?? link.description,
-          domain: link.domain,
+          domain: link.kind === "x_article" ? "X 长文" : link.domain,
           imageUrl: link.imageUrl,
         }
       : undefined,
@@ -127,6 +131,8 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
 export interface DigestView {
   date: string;
   dateLabel: string;
+  /** 内容覆盖的时间，例如"10月17日"；为空时表示最近 24 小时 */
+  periodLabel?: string;
   lang: Lang;
   total: number;
   topicCount: number;
@@ -143,4 +149,10 @@ export function dateLabel(date: Date, timeZone: string): string {
   const weekday = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(date);
   const idx = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekday);
   return `${d.replaceAll("-", ".")} · ${WEEKDAYS[idx] ?? ""}`;
+}
+
+/** 2026-10-17 → 10月17日 */
+export function monthDayLabel(date: string): string {
+  const [, m, d] = date.split("-");
+  return `${Number(m)}月${Number(d)}日`;
 }

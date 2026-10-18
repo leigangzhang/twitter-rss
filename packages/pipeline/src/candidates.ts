@@ -1,25 +1,25 @@
-import { type AppConfig, median, ruleScore } from "@xrss/core";
+import { type AppConfig, median, ruleScore, type TimeRange } from "@xrss/core";
 import { type Db, tweets, type TweetRow } from "@xrss/core/db";
-import { and, eq, gte, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray, lt } from "drizzle-orm";
 
 const BASELINE_DAYS = 30;
 
 /**
- * 给窗口内的新推文计算规则分（相对作者近 30 天互动中位数），
+ * 给时间范围内的新推文计算规则分（相对作者近 30 天互动中位数），
  * 然后每个主题取规则分最高的 N 条，作为送给 AI 的候选。
  */
-export async function pickCandidates(db: Db, config: AppConfig, since: Date, now = new Date()): Promise<TweetRow[]> {
+export async function pickCandidates(db: Db, config: AppConfig, range: TimeRange): Promise<TweetRow[]> {
   const fresh = await db
     .select()
     .from(tweets)
-    .where(and(eq(tweets.status, "new"), gte(tweets.createdAt, since), inArray(tweets.handle, config.accounts)));
+    .where(and(eq(tweets.status, "new"), gte(tweets.createdAt, range.since), lt(tweets.createdAt, range.until), inArray(tweets.handle, config.accounts)));
   if (fresh.length === 0) return [];
 
   const handles = [...new Set(fresh.map((t) => t.handle))];
   const history = await db
     .select({ handle: tweets.handle, engagement: tweets.engagement })
     .from(tweets)
-    .where(and(inArray(tweets.handle, handles), gte(tweets.createdAt, new Date(now.getTime() - BASELINE_DAYS * 86_400_000))));
+    .where(and(inArray(tweets.handle, handles), gte(tweets.createdAt, new Date(range.until.getTime() - BASELINE_DAYS * 86_400_000))));
   const baseline = new Map<string, number>();
   for (const h of handles) baseline.set(h, median(history.filter((r) => r.handle === h).map((r) => r.engagement)));
 

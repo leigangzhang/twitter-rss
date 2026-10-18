@@ -6,12 +6,15 @@ import {
   type DigestView,
   findRepoRoot,
   type Lang,
+  monthDayLabel,
   selectForSubscriber,
+  startOfLocalDay,
+  type TimeRange,
   toCardView,
 } from "@xrss/core";
 import { type Db, deliveries, subscribers, tweets, type SubscriberRow, type TweetRow } from "@xrss/core/db";
 import { GMAIL_CLIP_BYTES, renderDigest } from "@xrss/emails";
-import { and, eq, gte, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import type { Mailer } from "./mailer.ts";
 
 export function siteLinks(token: string, lang: Lang) {
@@ -28,6 +31,7 @@ interface DigestContext {
   config: AppConfig;
   date: string;
   now: Date;
+  range: TimeRange;
   scored: TweetRow[];
   /** 窗口内每个账号的新推文数，用于"从 N 条新推文中筛选" */
   scannedByHandle: Map<string, number>;
@@ -46,7 +50,9 @@ export function buildView(ctx: DigestContext, topicIds: string[], lang: Lang, li
   const handles = new Set(config.topics.filter((t) => topicOrder.includes(t.id)).flatMap((t) => t.accounts));
   return {
     date: ctx.date,
-    dateLabel: dateLabel(ctx.now, config.digest.timezone),
+    // 用运行日期（邮件所属日期）而不是当前时刻，补跑历史日期时标题也正确
+    dateLabel: dateLabel(new Date(startOfLocalDay(ctx.date, config.digest.timezone).getTime() + 12 * 3_600_000), config.digest.timezone),
+    periodLabel: config.digest.collect_window === "previous_day" ? monthDayLabel(ctx.range.contentDate) : undefined,
     lang,
     total: groups.reduce((n, g) => n + g.items.length, 0),
     topicCount: topicOrder.length,
@@ -74,21 +80,26 @@ export interface SendStats {
 export async function sendDigests(
   db: Db,
   config: AppConfig,
-  opts: { date: string; since: Date; now: Date; dryRun: boolean; mailer?: Mailer },
+  opts: { date: string; range: TimeRange; now: Date; dryRun: boolean; mailer?: Mailer },
 ): Promise<SendStats> {
   const stats: SendStats = { sent: 0, skippedEmpty: 0, alreadySent: 0, failed: [], previews: [] };
 
   const windowRows = await db
     .select({ handle: tweets.handle, status: tweets.status, id: tweets.id })
     .from(tweets)
-    .where(and(gte(tweets.createdAt, opts.since), inArray(tweets.handle, config.accounts)));
+    .where(and(gte(tweets.createdAt, opts.range.since), lt(tweets.createdAt, opts.range.until), inArray(tweets.handle, config.accounts)));
   const scannedByHandle = new Map<string, number>();
   for (const r of windowRows) scannedByHandle.set(r.handle, (scannedByHandle.get(r.handle) ?? 0) + 1);
 
-  const scored = (await db.select().from(tweets).where(and(eq(tweets.status, "scored"), gte(tweets.createdAt, opts.since)))).filter(
+  const scored = (
+    await db
+      .select()
+      .from(tweets)
+      .where(and(eq(tweets.status, "scored"), gte(tweets.createdAt, opts.range.since), lt(tweets.createdAt, opts.range.until)))
+  ).filter(
     (t) => t.topicId && (t.ai?.quality ?? 0) >= config.digest.filters.min_quality,
   );
-  const ctx: DigestContext = { config, date: opts.date, now: opts.now, scored, scannedByHandle };
+  const ctx: DigestContext = { config, date: opts.date, now: opts.now, range: opts.range, scored, scannedByHandle };
 
   const active = await db.select().from(subscribers).where(eq(subscribers.status, "active"));
   const outDir = join(findRepoRoot(), "data", "out", opts.date);

@@ -25,6 +25,8 @@ export const Media = z.object({
 export type Media = z.infer<typeof Media>;
 
 export const Link = z.object({
+  /** web：普通网页；x_article：X 长文（x.com/i/article/…） */
+  kind: z.enum(["web", "x_article"]).default("web"),
   /** 推文里的 t.co 短链 */
   url: z.string(),
   /** 还原后的真实地址 */
@@ -78,6 +80,11 @@ export const RawTweet = z.object({
   createdAt: z.iso.datetime({ offset: true }),
   /** 完整正文。长推文（note tweet）必须是全文，不能是截断版 */
   text: z.string(),
+  /**
+   * 正文可能被截断：时间线接口（如 UserOriginalsTimeline）不返回长推文全文，
+   * 需要打开推文详情页（TweetDetail）补抓。仍为 true 时，邮件会提示"全文较长"。
+   */
+  textTruncated: z.boolean().default(false),
   /** X 标注的语言代码，如 en / zh / ja */
   lang: z.string().optional(),
   isReply: z.boolean().default(false),

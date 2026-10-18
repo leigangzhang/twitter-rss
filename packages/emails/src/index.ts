@@ -21,7 +21,8 @@ export async function renderDigest(view: DigestView): Promise<RenderedEmail> {
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })]);
   const first = view.groups[0]?.items[0];
   const lead = first ? `：${first.author.name} 等` : "";
-  return { subject: `精选晨报 ${view.date.slice(5).replace("-", "/")} · ${view.total} 条${lead}`, html, text };
+  const when = view.periodLabel ?? view.date.slice(5).replace("-", "/");
+  return { subject: `精选晨报 · ${when} ${view.total} 条${lead}`, html, text };
 }
 
 export async function renderConfirm(props: ConfirmEmailProps): Promise<RenderedEmail> {

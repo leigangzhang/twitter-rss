@@ -1,0 +1,212 @@
+{
+  "_comment": "脱敏样本：时间线接口（UserOriginalsTimeline）返回的截断长推文和缺标题的 X 长文，以及详情页（TweetDetail）返回的完整版本。结构参照 Browser Skill 实际抓到的响应。",
+  "timeline": {
+    "data": {
+      "user": {
+        "result": {
+          "__typename": "User",
+          "timeline": {
+            "timeline": {
+              "instructions": [
+                {
+                  "type": "TimelineAddEntries",
+                  "entries": [
+                    {
+                      "entryId": "tweet-1900000000000000201",
+                      "content": {
+                        "itemContent": {
+                          "tweet_results": {
+                            "result": {
+                              "__typename": "Tweet",
+                              "rest_id": "1900000000000000201",
+                              "core": { "user_results": { "result": { "core": { "screen_name": "fixture_author", "name": "Fixture Author" } } } },
+                              "legacy": {
+                                "id_str": "1900000000000000201",
+                                "created_at": "Sun Oct 18 02:39:00 +0000 2026",
+                                "full_text": "第一段：一千名铁杆粉丝的计算很简单。如果一个创作者有一千名愿意购买你所做的一切的铁杆粉丝，每人每年给你带来一百美元的利润，那么你一年就有十万美元，足以维持生活。\n\n第二段：你不需要爆款，不需要百万粉丝。这篇文章常被当作独立创作者的宣言来引用，但它有一个经常被忽略的前提。",
+                                "display_text_range": [0, 135],
+                                "conversation_id_str": "1900000000000000201",
+                                "lang": "zh",
+                                "favorite_count": 3,
+                                "retweet_count": 0,
+                                "reply_count": 1,
+                                "quote_count": 1,
+                                "entities": {}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "entryId": "tweet-1900000000000000202",
+                      "content": {
+                        "itemContent": {
+                          "tweet_results": {
+                            "result": {
+                              "__typename": "Tweet",
+                              "rest_id": "1900000000000000202",
+                              "card": { "rest_id": "https://t.co/art1" },
+                              "core": { "user_results": { "result": { "core": { "screen_name": "fixture_author", "name": "Fixture Author" } } } },
+                              "legacy": {
+                                "id_str": "1900000000000000202",
+                                "created_at": "Sun Oct 18 02:22:25 +0000 2026",
+                                "full_text": "https://t.co/art1",
+                                "display_text_range": [0, 23],
+                                "conversation_id_str": "1900000000000000202",
+                                "lang": "zxx",
+                                "favorite_count": 2,
+                                "retweet_count": 1,
+                                "reply_count": 0,
+                                "quote_count": 0,
+                                "entities": {
+                                  "urls": [
+                                    { "url": "https://t.co/art1", "expanded_url": "https://x.com/i/article/1900000000000000999", "display_url": "x.com/i/article/1900…" }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "entryId": "tweet-1900000000000000203",
+                      "content": {
+                        "itemContent": {
+                          "tweet_results": {
+                            "result": {
+                              "__typename": "Tweet",
+                              "rest_id": "1900000000000000203",
+                              "core": { "user_results": { "result": { "core": { "screen_name": "fixture_author", "name": "Fixture Author" } } } },
+                              "legacy": {
+                                "id_str": "1900000000000000203",
+                                "created_at": "Sun Oct 18 03:52:00 +0000 2026",
+                                "full_text": "一条普通长度的推文，不会被当作截断。",
+                                "conversation_id_str": "1900000000000000203",
+                                "lang": "zh",
+                                "favorite_count": 3,
+                                "retweet_count": 0,
+                                "reply_count": 0,
+                                "quote_count": 0,
+                                "entities": {}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "details": [
+    {
+      "data": {
+        "threaded_conversation_with_injections_v2": {
+          "instructions": [
+            {
+              "type": "TimelineAddEntries",
+              "entries": [
+                {
+                  "entryId": "tweet-1900000000000000201",
+                  "content": {
+                    "itemContent": {
+                      "tweet_results": {
+                        "result": {
+                          "__typename": "Tweet",
+                          "rest_id": "1900000000000000201",
+                          "core": { "user_results": { "result": { "core": { "screen_name": "fixture_author", "name": "Fixture Author" } } } },
+                          "views": { "count": "626" },
+                          "note_tweet": {
+                            "is_expandable": true,
+                            "note_tweet_results": {
+                              "result": {
+                                "text": "第一段：一千名铁杆粉丝的计算很简单。如果一个创作者有一千名愿意购买你所做的一切的铁杆粉丝，每人每年给你带来一百美元的利润，那么你一年就有十万美元，足以维持生活。\n\n第二段：你不需要爆款，不需要百万粉丝。这篇文章常被当作独立创作者的宣言来引用，但它有一个经常被忽略的前提。\n\n第三段：直接关系。你必须直接从粉丝那里收钱。"
+                              }
+                            }
+                          },
+                          "legacy": {
+                            "id_str": "1900000000000000201",
+                            "created_at": "Sun Oct 18 02:39:00 +0000 2026",
+                            "full_text": "第一段：一千名铁杆粉丝的计算很简单。如果一个创作者有一千名愿意购买你所做的一切的铁杆粉丝，每人每年给你带来一百美元的利润，那么你一年就有十万美元，足以维持生活。\n\n第二段：你不需要爆款，不需要百万粉丝。这篇文章常被当作独立创作者的宣言来引用，但它有一个经常被忽略的前提。",
+                            "display_text_range": [0, 135],
+                            "conversation_id_str": "1900000000000000201",
+                            "lang": "zh",
+                            "favorite_count": 5,
+                            "retweet_count": 0,
+                            "reply_count": 1,
+                            "quote_count": 1,
+                            "entities": {}
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "data": {
+        "threaded_conversation_with_injections_v2": {
+          "instructions": [
+            {
+              "type": "TimelineAddEntries",
+              "entries": [
+                {
+                  "entryId": "tweet-1900000000000000202",
+                  "content": {
+                    "itemContent": {
+                      "tweet_results": {
+                        "result": {
+                          "__typename": "Tweet",
+                          "rest_id": "1900000000000000202",
+                          "core": { "user_results": { "result": { "core": { "screen_name": "fixture_author", "name": "Fixture Author" } } } },
+                          "article": {
+                            "article_results": {
+                              "result": {
+                                "rest_id": "1900000000000000999",
+                                "title": "大分发时代：导言",
+                                "preview_text": "为什么分发能力决定了创作者能拿到多少价值。",
+                                "cover_media": { "media_info": { "original_img_url": "https://example.com/cover.jpg" } }
+                              }
+                            }
+                          },
+                          "legacy": {
+                            "id_str": "1900000000000000202",
+                            "created_at": "Sun Oct 18 02:22:25 +0000 2026",
+                            "full_text": "https://t.co/art1",
+                            "display_text_range": [0, 23],
+                            "conversation_id_str": "1900000000000000202",
+                            "favorite_count": 2,
+                            "retweet_count": 1,
+                            "reply_count": 0,
+                            "quote_count": 0,
+                            "entities": {
+                              "urls": [
+                                { "url": "https://t.co/art1", "expanded_url": "https://x.com/i/article/1900000000000000999", "display_url": "x.com/i/article/1900…" }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

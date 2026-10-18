@@ -9,4 +9,4 @@ await migrateDb(db);
 const plan = await buildPlan(config, db);
 const path = writePlan(plan);
 console.log(`采集清单：${path}`);
-console.log(`共 ${plan.accounts.length} 个账号，采集 ${plan.since} 之后的推文`);
+console.log(`共 ${plan.accounts.length} 个账号，采集 ${plan.contentDate} 发布的推文（${plan.since} ~ ${plan.until}）`);

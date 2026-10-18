@@ -9,14 +9,16 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 /** RSS 条目正文：与邮件卡片同样的内容，用简单 HTML 呈现 */
 function cardHtml(c: CardView): string {
   const total = c.parts.length + c.moreParts;
+  const more = c.truncated ? `…</p><p><a href="${esc(c.url)}">全文较长，在 X 上阅读全文</a>` : "";
   const parts =
     c.parts.length === 1
-      ? `<p>${esc(c.parts[0]!).replace(/\n/g, "<br>")}</p>`
+      ? `<p>${esc(c.parts[0]!).replace(/\n/g, "<br>")}${more}</p>`
       : c.parts.map((p, i) => `<p><small>${i + 1}/${total}</small> ${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
   const images = c.images.map((img) => `<p><img src="${esc(img.url)}" alt="${esc(img.alt ?? "")}"></p>`).join("");
   const note = c.mediaNote ? `<blockquote><strong>${c.video ? "视频说明" : "图片说明"}（AI 生成）：</strong>${esc(c.mediaNote)}</blockquote>` : "";
   const quoted = c.quoted ? `<blockquote><strong>${esc(c.quoted.name)}</strong> @${esc(c.quoted.handle)}<br>${esc(c.quoted.text)}</blockquote>` : "";
-  const link = c.link?.title ? `<p>🔗 <a href="${esc(c.link.url)}">${esc(c.link.title)}</a>${c.link.description ? `<br>${esc(c.link.description)}` : ""}</p>` : "";
+  const linkTitle = c.link?.title ?? (c.link?.kind === "x_article" ? "在 X 上阅读这篇长文" : undefined);
+  const link = c.link && linkTitle ? `<p>🔗 <a href="${esc(c.link.url)}">${esc(linkTitle)}</a>${c.link.description ? `<br>${esc(c.link.description)}` : ""}</p>` : "";
   const meta = `<p><small>@${esc(c.author.handle)}${c.translatedFrom ? ` · ${c.translatedFrom}` : ""} · ♡ ${c.likes} · ⇄ ${c.reposts} · <a href="${esc(c.url)}">${c.ctaLabel}</a></small></p>`;
   return parts + images + note + quoted + link + meta;
 }

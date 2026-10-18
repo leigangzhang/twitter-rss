@@ -4,7 +4,10 @@
 send_time: "07:00"
 timezone: Asia/Shanghai
 
-# 只看最近多少小时内发布的推文
+# 采集和精选的时间范围：
+#   previous_day：只取前一天（按上面的 timezone，0:00–24:00）发布的推文，邮件标题显示该日期
+#   rolling：取最近 window_hours 小时内发布的推文
+collect_window: previous_day
 window_hours: 24
 
 digest:

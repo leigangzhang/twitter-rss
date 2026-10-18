@@ -149,6 +149,7 @@ export function sampleDigest(lang: Lang): DigestView {
   return {
     date: localDate(now, tz),
     dateLabel: dateLabel(now, tz),
+    periodLabel: "10月17日",
     lang,
     total: cards.length,
     topicCount: groups.length,

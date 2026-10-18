@@ -1,13 +1,16 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type AppConfig, localDate } from "@xrss/core";
+import { type AppConfig, localDate, runRange } from "@xrss/core";
 import { accounts, type Db } from "@xrss/core/db";
 import { inboxDir } from "./paths.ts";
 
 export interface CrawlPlan {
   date: string;
-  /** 只采集这个时间之后发布的推文 */
+  /** 只采集 [since, until) 之间发布的推文（默认是前一天 0:00–24:00，北京时间） */
   since: string;
+  until: string;
+  /** 内容所属日期，例如 2026-10-17 */
+  contentDate: string;
   /** 采集时的节奏控制，交给 Browser Skill 执行 */
   pacing: {
     /** 每个主页之间随机停留的秒数范围 */
@@ -46,12 +49,15 @@ function shuffle<T>(list: T[]): T[] {
 
 export async function buildPlan(config: AppConfig, db: Db, now = new Date()): Promise<CrawlPlan> {
   const date = localDate(now, config.digest.timezone);
+  const range = runRange(config, date, now);
   const known = new Map((await db.select().from(accounts)).map((a) => [a.handle, a]));
   const dir = inboxDir(date);
 
   return {
     date,
-    since: new Date(now.getTime() - config.digest.window_hours * 3_600_000).toISOString(),
+    since: range.since.toISOString(),
+    until: range.until.toISOString(),
+    contentDate: range.contentDate,
     pacing: { delaySec: [5, 20], scrollPauseMs: [800, 2500], maxScrolls: 8, stopOnBlock: true },
     accounts: shuffle(config.accounts).map((handle) => ({
       handle,

@@ -1,4 +1,4 @@
-import { type Link, type Media, type QuotedTweet, RawTweet } from "@xrss/core";
+import { type Link, type Media, type QuotedTweet, RawTweet, TRUNCATION_THRESHOLD, xWeightedLength } from "@xrss/core";
 
 /**
  * 把 X 网页时间线的内部接口响应（UserOriginalsTimeline、UserTweets、UserTweetsAndReplies、TweetDetail 等 GraphQL 返回的 JSON）
@@ -72,27 +72,51 @@ function cardOf(tweet: Obj): { cardUrl?: string; title?: string; description?: s
   };
 }
 
-/** 正文：长推文取 note_tweet 全文；去掉开头的 @回复对象、结尾的媒体链接和引用链接，t.co 换成真实地址 */
-function textOf(tweet: Obj, legacy: Obj): string {
+const X_ARTICLE = /^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/i\/article\//;
+
+/**
+ * 正文：长推文取 note_tweet 全文；去掉开头的 @回复对象、结尾的媒体链接、引用链接和 X 长文链接，t.co 换成真实地址。
+ * 时间线接口（如 UserOriginalsTimeline）不带 note_tweet，长推文只给前 280 字符左右，
+ * 这时按 X 的加权字数判断是否可能被截断。
+ */
+function textOf(tweet: Obj, legacy: Obj): { text: string; truncated: boolean } {
   const note: string | undefined = tweet.note_tweet?.note_tweet_results?.result?.text;
   let text: string;
+  let truncated = false;
   if (note) {
     text = note;
   } else {
     const chars = Array.from(String(legacy.full_text ?? ""));
     const [start, end] = Array.isArray(legacy.display_text_range) ? legacy.display_text_range : [0, chars.length];
     text = chars.slice(start, end).join("");
+    truncated = xWeightedLength(decodeEntities(text)) >= TRUNCATION_THRESHOLD;
   }
   const mediaUrls: string[] = (legacy.extended_entities?.media ?? legacy.entities?.media ?? []).map((m: Obj) => m.url);
   const quotedUrl: string | undefined = legacy.quoted_status_permalink?.url;
   for (const u of [...mediaUrls, quotedUrl]) if (u) text = text.split(u).join("");
-  for (const u of legacy.entities?.urls ?? []) if (u.url && u.expanded_url) text = text.split(u.url).join(u.expanded_url);
-  return decodeEntities(text).trim();
+  for (const u of legacy.entities?.urls ?? []) {
+    if (!u.url || !u.expanded_url) continue;
+    // X 长文会以卡片形式展示，正文里不再重复它的链接
+    text = text.split(u.url).join(X_ARTICLE.test(u.expanded_url) ? "" : u.expanded_url);
+  }
+  return { text: decodeEntities(text).trim(), truncated };
+}
+
+/** TweetDetail 中 X 长文的标题、摘要和封面（时间线接口通常没有） */
+function articleOf(tweet: Obj): { title?: string; description?: string; imageUrl?: string } {
+  const a: Obj | undefined = tweet.article?.article_results?.result;
+  if (!a) return {};
+  return {
+    title: a.title || undefined,
+    description: a.preview_text || undefined,
+    imageUrl: a.cover_media?.media_info?.original_img_url || undefined,
+  };
 }
 
 function linksOf(tweet: Obj, legacy: Obj): Link[] {
   const quotedExpanded: string | undefined = legacy.quoted_status_permalink?.expanded;
   const card = cardOf(tweet);
+  const article = articleOf(tweet);
   return (legacy.entities?.urls ?? [])
     .filter((u: Obj) => u.expanded_url && u.expanded_url !== quotedExpanded)
     .map((u: Obj) => {
@@ -102,8 +126,12 @@ function linksOf(tweet: Obj, legacy: Obj): Link[] {
       } catch {
         domain = undefined;
       }
+      if (X_ARTICLE.test(u.expanded_url)) {
+        return { kind: "x_article" as const, url: u.url, expandedUrl: u.expanded_url, domain: "x.com", ...article };
+      }
       const matchesCard = card.cardUrl === u.url;
       return {
+        kind: "web" as const,
         url: u.url,
         expandedUrl: u.expanded_url,
         domain: (matchesCard && card.domain) || domain,
@@ -123,7 +151,7 @@ function quotedOf(tweet: Obj): QuotedTweet | undefined {
     id,
     url: `https://x.com/${author.handle}/status/${id}`,
     author: { ...author, handle: author.handle.toLowerCase() },
-    text: textOf(q, q.legacy),
+    text: textOf(q, q.legacy).text,
     createdAt: q.legacy.created_at ? new Date(q.legacy.created_at).toISOString() : undefined,
     media: mediaOf(q.legacy),
   };
@@ -136,12 +164,14 @@ function toRaw(tweet: Obj) {
   const isRepost = Boolean(legacy.retweeted_status_result) || String(legacy.full_text ?? "").startsWith("RT @");
   const replyTo: string | undefined = legacy.in_reply_to_screen_name;
   const views = Number(tweet.views?.count);
+  const body = textOf(tweet, legacy);
   return {
     id,
     url: `https://x.com/${author.handle}/status/${id}`,
     author,
     createdAt: new Date(legacy.created_at).toISOString(),
-    text: textOf(tweet, legacy),
+    text: body.text,
+    textTruncated: body.truncated,
     lang: legacy.lang,
     isReply: Boolean(legacy.in_reply_to_status_id_str) && replyTo?.toLowerCase() !== author.handle.toLowerCase(),
     isRepost,
@@ -160,6 +190,58 @@ function toRaw(tweet: Obj) {
     quoted: quotedOf(tweet),
     thread: [] as RawTweet["thread"],
   };
+}
+
+type Parsed = ReturnType<typeof toRaw>;
+
+/**
+ * 同一条推文出现在多个响应里（时间线 + 详情页）时合并：
+ * 正文取未截断、更长的版本；链接卡片和 X 长文信息取有标题的版本；互动数取较大值（较新）。
+ */
+function mergeVersions(a: Parsed, b: Parsed): Parsed {
+  const better = a.textTruncated !== b.textTruncated ? (a.textTruncated ? b : a) : b.text.length > a.text.length ? b : a;
+  const other = better === a ? b : a;
+  const max = (x?: number, y?: number) => (x === undefined ? y : y === undefined ? x : Math.max(x, y));
+  // 一方缺失的字段（如语言、头像）用另一方补上
+  const filled = { ...better } as Record<string, unknown>;
+  for (const [k, v] of Object.entries(other)) if (filled[k] === undefined) filled[k] = v;
+  return {
+    ...(filled as Parsed),
+    author: { ...other.author, ...better.author, avatarUrl: better.author.avatarUrl ?? other.author.avatarUrl },
+    textTruncated: a.textTruncated && b.textTruncated,
+    links: better.links.map((l) => {
+      if (l.title) return l;
+      const rich = other.links.find((o) => o.expandedUrl === l.expandedUrl && o.title);
+      return rich ? { ...l, ...rich, url: l.url } : l;
+    }),
+    media: better.media.length >= other.media.length ? better.media : other.media,
+    quoted: better.quoted ?? other.quoted,
+    metrics: {
+      likes: Math.max(a.metrics.likes, b.metrics.likes),
+      reposts: Math.max(a.metrics.reposts, b.metrics.reposts),
+      replies: Math.max(a.metrics.replies, b.metrics.replies),
+      quotes: Math.max(a.metrics.quotes, b.metrics.quotes),
+      bookmarks: max(a.metrics.bookmarks, b.metrics.bookmarks),
+      views: max(a.metrics.views, b.metrics.views),
+    },
+  };
+}
+
+/** 需要打开详情页补抓的推文：长推文被截断、X 长文缺标题 */
+export interface DetailTarget {
+  id: string;
+  url: string;
+  reason: "truncated" | "x_article";
+}
+
+export function detailTargets(tweets: RawTweet[]): DetailTarget[] {
+  const out: DetailTarget[] = [];
+  for (const t of tweets) {
+    if (t.isRepost || t.isReply) continue;
+    if (t.textTruncated) out.push({ id: t.id, url: t.url, reason: "truncated" });
+    else if (t.links.some((l) => l.kind === "x_article" && !l.title)) out.push({ id: t.id, url: t.url, reason: "x_article" });
+  }
+  return out;
 }
 
 /** 在任意嵌套的响应里找出所有 tweet_results，跳过广告 */
@@ -192,7 +274,8 @@ export function parseXGraphQL(responses: unknown[], handle?: string): ParseResul
     try {
       const raw = toRaw(t);
       if (handle && raw.author.handle.toLowerCase() !== handle.toLowerCase()) continue;
-      byId.set(raw.id, raw);
+      const prev = byId.get(raw.id);
+      byId.set(raw.id, prev ? mergeVersions(prev, raw) : raw);
     } catch (e) {
       skipped.push({ id: t.rest_id, reason: (e as Error).message });
     }

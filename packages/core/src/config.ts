@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { parse } from "yaml";
 import { z } from "zod";
+import { collectRange, type TimeRange } from "./time.ts";
 
 const TopicSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/, "主题 id 用小写字母、数字、连字符"),
@@ -24,6 +25,8 @@ const TopicsFile = z.object({
 const DigestFile = z.object({
   send_time: z.string().regex(/^\d{2}:\d{2}$/).default("07:00"),
   timezone: z.string().default("Asia/Shanghai"),
+  /** previous_day：只取前一天（按 timezone 的 0:00–24:00）发布的推文；rolling：最近 window_hours 小时 */
+  collect_window: z.enum(["previous_day", "rolling"]).default("previous_day"),
   window_hours: z.number().positive().default(24),
   digest: z.object({
     total_items: z.number().int().min(1).max(30).default(10),
@@ -123,4 +126,10 @@ let cached: AppConfig | undefined;
 export function getConfig(): AppConfig {
   cached ??= loadConfig();
   return cached;
+}
+
+/** 本次运行要处理的推文发布时间范围（见 digest.yaml 的 collect_window） */
+export function runRange(config: AppConfig, runDate: string, now = new Date()): TimeRange {
+  const d = config.digest;
+  return collectRange({ mode: d.collect_window, timezone: d.timezone, windowHours: d.window_hours }, runDate, now);
 }

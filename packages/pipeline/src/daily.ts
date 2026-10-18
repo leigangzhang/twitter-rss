@@ -1,5 +1,5 @@
 import { parseArgs } from "node:util";
-import { loadConfig, localDate } from "@xrss/core";
+import { loadConfig, localDate, runRange } from "@xrss/core";
 import { createDb, migrateDb } from "@xrss/core/db";
 import { createClaudeReviewer, createRuleOnlyReviewer } from "./ai.ts";
 import { pickCandidates } from "./candidates.ts";
@@ -27,21 +27,24 @@ const { values } = parseArgs({
 const config = loadConfig();
 const now = new Date();
 const date = values.date ?? localDate(now, config.digest.timezone);
-const since = new Date(now.getTime() - config.digest.window_hours * 3_600_000);
+const range = runRange(config, date, now);
 const dryRun = values["dry-run"]!;
 
 const db = createDb();
 await migrateDb(db);
 
-console.log(`▶ ${date}${dryRun ? "（试跑，不发送）" : ""}`);
+console.log(
+  `▶ ${date}${dryRun ? "（试跑，不发送）" : ""}，处理 ${range.since.toISOString()} ~ ${range.until.toISOString()} 发布的推文${config.digest.collect_window === "previous_day" ? `（${range.contentDate}）` : ""}`,
+);
 
-const ing = await ingest(db, config, date, since);
-console.log(`  入库：${ing.files} 个账号文件，${ing.received} 条推文 → 保存 ${ing.stored}，规则排除 ${ing.filtered}，超出时间窗 ${ing.tooOld}`);
+const ing = await ingest(db, config, date, range);
+console.log(`  入库：${ing.files} 个账号文件，${ing.received} 条推文 → 保存 ${ing.stored}，规则排除 ${ing.filtered}，不在时间范围 ${ing.outOfRange}${ing.refetched ? `，补抓全文后重新评审 ${ing.refetched}` : ""}`);
 for (const f of ing.invalidFiles) console.warn(`  ⚠ 文件格式不符 ${f.file}：\n${f.error}`);
 for (const h of ing.unknownAccounts) console.warn(`  ⚠ ${h} 不在 topics.yaml 中，已忽略`);
 for (const b of ing.blocked) console.warn(`  ⚠ 采集异常 @${b.handle}：${b.status}${b.error ? `（${b.error}）` : ""}`);
+if (ing.truncated > 0) console.warn(`  ⚠ ${ing.truncated} 条长推文仍是截断版（未补抓详情页），邮件中会提示"全文较长"`);
 
-const candidates = await pickCandidates(db, config, since, now);
+const candidates = await pickCandidates(db, config, range);
 console.log(`  候选：${candidates.length} 条送去评审`);
 
 const reviewer = values["skip-ai"]
@@ -52,7 +55,7 @@ console.log(`  评审：完成 ${rev.reviewed} 条${rev.failed.length ? `，失�
 for (const f of rev.failed.slice(0, 5)) console.warn(`  ⚠ ${f.id}：${f.error}`);
 
 const mailer = dryRun ? undefined : createResendMailer();
-const sent = await sendDigests(db, config, { date, since, now, dryRun, mailer });
+const sent = await sendDigests(db, config, { date, range, now, dryRun, mailer });
 if (dryRun) {
   console.log(`  邮件预览：`);
   for (const p of sent.previews) console.log(`    ${p}`);
