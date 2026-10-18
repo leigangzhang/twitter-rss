@@ -97,6 +97,12 @@ export function DailyDigest({ view }: { view: DigestView }) {
               <Link href={view.links.unsubscribe} style={{ color: color.link }}>退订</Link>
             </Text>
             <Text style={{ fontSize: 12, lineHeight: "20px", color: color.muted, margin: 0 }}>
+              {view.personalLinks ? null : (
+                <>
+                  修改设置或退订时，在打开的页面输入你的邮箱，我们会把专属链接发给你
+                  <br />
+                </>
+              )}
               内容版权归原作者所有 · 翻译与视频说明由 AI 生成，可能有误
               <br />
               你收到这封邮件是因为订阅了精选晨报

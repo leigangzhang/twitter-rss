@@ -177,5 +177,6 @@ export function sampleDigest(lang: Lang): DigestView {
     scannedCount: 186,
     groups,
     links: { manage: "#", switchLang: "#", unsubscribe: "#", rss: "#" },
+    personalLinks: true,
   };
 }

@@ -37,6 +37,14 @@ thread:
 languages: [zh, orig]
 default_language: zh
 
+mail:
+  # 主题组合和语言完全相同的订阅者收到的内容一样，合并成一封邮件用密送（BCC）发出，减少 SMTP 发信次数。
+  # 合并邮件里不能放每个人专属的管理/退订链接，改为通用入口：在网页输入邮箱，系统把专属链接发到该邮箱。
+  # 只有一个人的组合仍单独发送，带专属链接。
+  group_identical: true
+  bcc_batch_size: 20       # 每封最多密送多少人（QQ 邮箱对单封收件人数有限制，不建议调太大）
+  send_interval_ms: 1500   # 两封邮件之间的间隔
+
 rss:
   items_per_feed: 30       # 每个 Feed 保留最近多少条
 

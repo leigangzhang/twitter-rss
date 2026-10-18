@@ -3,8 +3,9 @@ import type { DigestView } from "@xrss/core";
 import { createElement } from "react";
 import { ConfirmEmail, type ConfirmEmailProps } from "./ConfirmEmail.tsx";
 import { DailyDigest } from "./DailyDigest.tsx";
+import { ManageLinkEmail, type ManageLinkEmailProps } from "./ManageLinkEmail.tsx";
 
-export { ConfirmEmail, DailyDigest };
+export { ConfirmEmail, DailyDigest, ManageLinkEmail };
 export { TweetCard } from "./TweetCard.tsx";
 export * from "./smtp.ts";
 
@@ -30,4 +31,11 @@ export async function renderConfirm(props: ConfirmEmailProps): Promise<RenderedE
   const element = createElement(ConfirmEmail, props);
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })]);
   return { subject: "确认订阅精选晨报", html, text };
+}
+
+export async function renderManageLink(props: ManageLinkEmailProps): Promise<RenderedEmail> {
+  const element = createElement(ManageLinkEmail, props);
+  const [html, text] = await Promise.all([render(element), render(element, { plainText: true })]);
+  const subject = { manage: "你的订阅管理链接", unsubscribe: "确认退订精选晨报", lang: "切换精选晨报的阅读语言" }[props.action];
+  return { subject, html, text };
 }

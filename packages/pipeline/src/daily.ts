@@ -76,7 +76,7 @@ let mailer: ReturnType<typeof createSmtpMailer> | undefined;
 if (!dryRun) {
   const smtp = smtpConfigFromEnv();
   if (!smtp) throw new Error("缺少 SMTP_USER 或 SMTP_PASS（QQ 邮箱授权码）。试跑请加 --dry-run。");
-  mailer = createSmtpMailer(smtp);
+  mailer = createSmtpMailer(smtp, { intervalMs: config.digest.mail.send_interval_ms });
 }
 const sent = await sendDigests(db, config, { date, range, now, dryRun, mailer });
 mailer?.close();
@@ -84,7 +84,9 @@ if (dryRun) {
   console.log(`  邮件预览：`);
   for (const p of sent.previews) console.log(`    ${p}`);
 } else {
-  console.log(`  发送：成功 ${sent.sent}，今日已发过 ${sent.alreadySent}，无内容跳过 ${sent.skippedEmpty}，失败 ${sent.failed.length}`);
+  console.log(
+    `  发送：送达 ${sent.sent} 人，共 ${sent.messages} 封邮件（${sent.sharedGroups} 组合并发送），今日已发过 ${sent.alreadySent}，无内容跳过 ${sent.skippedEmpty}，失败 ${sent.failed.length}`,
+  );
   for (const f of sent.failed) console.warn(`  ⚠ ${f.email}：${f.error}`);
 }
 

@@ -189,6 +189,12 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.5
+      '@types/smtp-server':
+        specifier: ^3.5.13
+        version: 3.5.13
+      smtp-server:
+        specifier: ^3.19.23
+        version: 3.19.23
       tsx:
         specifier: ^4.20.0
         version: 4.23.15

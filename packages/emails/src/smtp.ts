@@ -1,7 +1,10 @@
 import nodemailer from "nodemailer";
 
 export interface OutgoingMail {
-  to: string;
+  /** 收件人；合并发送时填发件人自己，真正的收件人放在 bcc 里，彼此看不到 */
+  to: string | string[];
+  /** 密送收件人 */
+  bcc?: string[];
   subject: string;
   html: string;
   text: string;
@@ -9,7 +12,9 @@ export interface OutgoingMail {
 }
 
 export interface Mailer {
-  send(mail: OutgoingMail): Promise<{ id: string }>;
+  /** 发件邮箱地址（合并发送时作为"收件人"，真正的收件人在密送里） */
+  readonly address: string;
+  send(mail: OutgoingMail): Promise<{ id: string; accepted: string[]; rejected: string[] }>;
   close(): void;
 }
 
@@ -55,13 +60,15 @@ export function createSmtpMailer(cfg: SmtpConfig, opts: { intervalMs?: number } 
   });
   const interval = opts.intervalMs ?? 1500;
   let last = 0;
+  const addr = (a: unknown) => (typeof a === "string" ? a : ((a as { address?: string })?.address ?? String(a)));
   return {
+    address: cfg.user,
     async send(mail) {
       const wait = last + interval - Date.now();
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
       last = Date.now();
       const info = await transport.sendMail({ from: cfg.from, ...mail });
-      return { id: info.messageId };
+      return { id: info.messageId, accepted: (info.accepted ?? []).map(addr), rejected: (info.rejected ?? []).map(addr) };
     },
     close() {
       transport.close();

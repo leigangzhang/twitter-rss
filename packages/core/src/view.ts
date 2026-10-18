@@ -147,6 +147,11 @@ export interface DigestView {
   scannedCount: number;
   groups: Array<{ topic: Pick<Topic, "id" | "name" | "color">; items: CardView[] }>;
   links: { manage: string; switchLang: string; unsubscribe: string; rss: string };
+  /**
+   * true：链接是收件人专属的（单独发送）；false：合并发送的通用链接，
+   * 点击后需要输入邮箱，系统再把专属链接发到该邮箱
+   */
+  personalLinks: boolean;
 }
 
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];

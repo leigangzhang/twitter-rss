@@ -55,6 +55,16 @@ const DigestFile = z.object({
   rss: z.object({
     items_per_feed: z.number().int().min(1).default(30),
   }),
+  mail: z
+    .object({
+      /** 主题组合和语言完全相同的订阅者内容一样，合并成一封邮件用密送发出，减少 SMTP 发信次数 */
+      group_identical: z.boolean().default(true),
+      /** 每封合并邮件最多密送多少人，超过时分成多封 */
+      bcc_batch_size: z.number().int().min(1).max(100).default(20),
+      /** 两封邮件之间的间隔（毫秒） */
+      send_interval_ms: z.number().int().min(0).default(1500),
+    })
+    .prefault({}),
   curation: z
     .object({
       /** 只有这些类型的内容能进入邮件 */
