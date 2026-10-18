@@ -68,6 +68,42 @@ const DigestFile = z.object({
 });
 export type DigestConfig = z.infer<typeof DigestFile>;
 
+const Range = z.tuple([z.number().min(0), z.number().min(0)]).refine(([a, b]) => a <= b, "范围的第一个数不能大于第二个数");
+
+const CrawlFile = z.object({
+  active_hours: z.tuple([z.number().int().min(0).max(24), z.number().int().min(0).max(24)]).default([6, 23]),
+  start_jitter_min: Range.default([0, 20]),
+  budget: z
+    .object({
+      max_accounts_per_run: z.number().int().min(1).default(40),
+      max_page_loads_per_run: z.number().int().min(1).default(80),
+      max_detail_per_run: z.number().int().min(0).default(25),
+      max_scrolls_per_account: z.number().int().min(1).default(6),
+    })
+    .prefault({}),
+  pacing: z
+    .object({
+      account_delay_sec: Range.default([8, 25]),
+      detail_delay_sec: Range.default([6, 18]),
+      scroll_pause_ms: Range.default([1200, 3500]),
+      long_break_every: Range.default([6, 10]),
+      long_break_sec: Range.default([60, 180]),
+    })
+    .prefault({}),
+  min_interval_hours: z.number().min(0).default(20),
+  cooldown: z
+    .object({
+      rate_limited_hours: z.number().min(0).default(24),
+      captcha_hours: z.number().min(0).default(48),
+      error_hours: z.number().min(0).default(6),
+      login_required: z.union([z.literal("manual"), z.number().min(0)]).default("manual"),
+      backoff_multiplier: z.number().min(1).default(2),
+      max_hours: z.number().min(1).default(168),
+    })
+    .prefault({}),
+});
+export type CrawlConfig = z.infer<typeof CrawlFile>;
+
 export interface AppConfig {
   topics: Topic[];
   digest: DigestConfig;
@@ -75,6 +111,8 @@ export interface AppConfig {
   accountTopics: Map<string, string[]>;
   /** 所有需要采集的账号（去重） */
   accounts: string[];
+  /** config/crawl.yaml：采集节流策略（文件不存在时用默认值） */
+  crawl: CrawlConfig;
   /** config/curation.md：精选标准，原样放进给大模型的提示词，可以直接编辑 */
   curationGuide: string;
   configDir: string;
@@ -115,6 +153,10 @@ export function loadConfig(configDir = resolveConfigDir()): AppConfig {
   const digestParsed = DigestFile.safeParse(readYaml(digestPath));
   if (!digestParsed.success) throw new Error(formatIssues(digestPath, digestParsed.error));
 
+  const crawlPath = join(configDir, "crawl.yaml");
+  const crawlParsed = CrawlFile.safeParse(existsSync(crawlPath) ? (readYaml(crawlPath) ?? {}) : {});
+  if (!crawlParsed.success) throw new Error(formatIssues(crawlPath, crawlParsed.error));
+
   const { topics } = topicsParsed.data;
   const accountTopics = new Map<string, string[]>();
   for (const topic of topics) {
@@ -130,6 +172,7 @@ export function loadConfig(configDir = resolveConfigDir()): AppConfig {
     digest: digestParsed.data,
     accountTopics,
     accounts: [...accountTopics.keys()],
+    crawl: crawlParsed.data,
     curationGuide: existsSync(join(configDir, "curation.md")) ? readFileSync(join(configDir, "curation.md"), "utf8").trim() : "",
     configDir,
   };

@@ -1,0 +1,34 @@
+# 采集节流策略：控制访问 X 的频率和总量，出现异常立即停止并自动冷却。
+# 目的是让采集接近正常人浏览的强度、尽量少触发限流，而不是绕过 X 的检测：
+# 不做浏览器指纹伪装、不换 IP、不轮换多个账号、不自动处理验证码。
+
+# 只在本地时间这个时段内开始采集（24 小时制，含开始不含结束）
+active_hours: [6, 23]
+
+# 开始采集前随机等待（分钟），避免每天同一时刻准点访问
+start_jitter_min: [0, 20]
+
+budget:
+  max_accounts_per_run: 40      # 账号超过时，按"最久没采集"优先轮转，其余留到下次
+  max_page_loads_per_run: 80    # 每次打开页面总数上限（主页 + 详情页）
+  max_detail_per_run: 25        # 详情页补抓上限（按互动量从高到低）
+  max_scrolls_per_account: 6    # 每个主页最多向下滚动几次
+
+pacing:
+  account_delay_sec: [8, 25]    # 两个账号主页之间的停留
+  detail_delay_sec: [6, 18]     # 两个详情页之间的停留
+  scroll_pause_ms: [1200, 3500] # 两次滚动之间的停顿
+  long_break_every: [6, 10]     # 每打开这么多个页面，休息一次
+  long_break_sec: [60, 180]     # 休息时长
+
+# 同一账号两次采集的最短间隔（小时）
+min_interval_hours: 20
+
+# 采集端报告异常后的冷却期，期间 pnpm plan 不会安排采集
+cooldown:
+  rate_limited_hours: 24        # 限流 / 内容加载不出
+  captcha_hours: 48             # 出现人机验证
+  error_hours: 6                # 其他异常
+  login_required: manual        # 登录失效：需要人工重新登录后运行 pnpm crawl:reset
+  backoff_multiplier: 2         # 连续出现异常时，冷却期按倍数增加
+  max_hours: 168                # 冷却期上限（7 天）

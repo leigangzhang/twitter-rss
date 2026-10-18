@@ -16,3 +16,4 @@ data/out/
 data/logs/
 *.tsbuildinfo
 next-env.d.ts
+data/crawl-state.json
