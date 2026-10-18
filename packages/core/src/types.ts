@@ -167,9 +167,10 @@ export const AiResult = z.object({
     .object({
       text: z.string(),
       thread: z.array(z.string()).default([]),
-      quotedText: z.string().optional(),
-      linkTitle: z.string().optional(),
-      linkDescription: z.string().optional(),
+      // 模型会把“没有翻译”显式返回成 null，而不仅是省略字段
+      quotedText: z.string().nullish(),
+      linkTitle: z.string().nullish(),
+      linkDescription: z.string().nullish(),
     })
     .nullable(),
   /** 视频或含文字图片的中文说明，没有则为 null */

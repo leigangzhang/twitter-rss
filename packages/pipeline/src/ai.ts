@@ -149,6 +149,9 @@ export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
       model,
       max_tokens: 3000,
       temperature: 0.2,
+      // DeepSeek 默认开启思考模式，而思考模式不接受强制 tool_choice；
+      // 这里需要稳定的结构化结果，因此显式走非思考模式。
+      thinking: { type: "disabled" },
       system,
       tools: [{ name: REVIEW_TOOL, description: "提交对这条推文的评审结果", input_schema: inputSchema }],
       tool_choice: { type: "tool", name: REVIEW_TOOL },
@@ -216,6 +219,7 @@ export function createLlmEditor(opts: LlmOptions = {}): Editor {
         model,
         max_tokens: 4000,
         temperature: 0,
+        thinking: { type: "disabled" },
         system,
         tools: [{ name: EDIT_TOOL, description: "提交需要剔除的重复推文", input_schema: inputSchema }],
         tool_choice: { type: "tool", name: EDIT_TOOL },

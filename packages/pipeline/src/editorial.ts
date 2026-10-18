@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type AppConfig, CATEGORY_LABELS, findRepoRoot, type TimeRange } from "@xrss/core";
-import { type Db, deliveries, tweets } from "@xrss/core/db";
+import { type Db, deliveries, tweets, type TweetRow } from "@xrss/core/db";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import type { Editor } from "./ai.ts";
 
@@ -62,21 +62,19 @@ export async function runEditorial(db: Db, config: AppConfig, range: TimeRange, 
  * 精选报告 data/out/<日期>/curation.md：列出入选和被剔除的推文及理由，
  * 用来检查 AI 的判断、调整 config/curation.md。
  */
-export async function writeCurationReport(db: Db, config: AppConfig, range: TimeRange, date: string): Promise<string> {
-  const rows = await db
-    .select()
-    .from(tweets)
-    .where(and(gte(tweets.createdAt, range.since), lt(tweets.createdAt, range.until), inArray(tweets.handle, config.accounts)));
-
-  const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
-  const line = (t: (typeof rows)[number]) => {
+export function renderCurationReport(rows: TweetRow[], range: TimeRange, date: string): string {
+  const oneLine = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
+  const line = (t: TweetRow) => {
     const ai = t.ai;
     const head = `- [@${t.handle}](${t.raw.url})`;
     if (!ai) return `${head} ${t.raw.text.replace(/\s+/g, " ").slice(0, 80)}${t.filterReason ? ` — ${t.filterReason}` : ""}`;
     const tags = [CATEGORY_LABELS[ai.category] ?? ai.category, `${ai.quality} 分`, t.finalScore !== null ? `综合 ${t.finalScore.toFixed(2)}` : null]
       .filter(Boolean)
       .join(" · ");
-    return `${head}（${tags}）${oneLine(ai.summary)}\n  - 理由：${oneLine(ai.reason)}${t.status === "rejected" ? `\n  - ${t.filterReason}` : ""}`;
+    // 早期 --skip-ai 的结果没有 summary/reason；报告遇到旧数据也要能生成。
+    const summary = oneLine(ai.summary) || t.raw.text.replace(/\s+/g, " ").slice(0, 80);
+    const reason = oneLine(ai.reason) || "未记录理由";
+    return `${head}（${tags}）${summary}\n  - 理由：${reason}${t.status === "rejected" ? `\n  - ${t.filterReason}` : ""}`;
   };
 
   const kept = rows.filter((t) => t.status === "scored").sort((a, b) => (b.finalScore ?? 0) - (a.finalScore ?? 0));
@@ -84,7 +82,7 @@ export async function writeCurationReport(db: Db, config: AppConfig, range: Time
   const filtered = rows.filter((t) => t.status === "filtered");
   const pending = rows.filter((t) => t.status === "new" || t.status === "failed");
 
-  const md = [
+  return [
     `# 精选报告 ${date}`,
     "",
     `内容日期：${range.contentDate}　共 ${rows.length} 条：通过 ${kept.length}，AI 剔除 ${rejected.length}，规则排除 ${filtered.length}，未评审 ${pending.length}`,
@@ -108,7 +106,15 @@ export async function writeCurationReport(db: Db, config: AppConfig, range: Time
     ...pending.map(line),
     "",
   ].join("\n");
+}
 
+export async function writeCurationReport(db: Db, config: AppConfig, range: TimeRange, date: string): Promise<string> {
+  const rows = await db
+    .select()
+    .from(tweets)
+    .where(and(gte(tweets.createdAt, range.since), lt(tweets.createdAt, range.until), inArray(tweets.handle, config.accounts)));
+
+  const md = renderCurationReport(rows, range, date);
   const dir = join(findRepoRoot(), "data", "out", date);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, "curation.md");

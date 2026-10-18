@@ -61,7 +61,7 @@ beforeAll(async () => {
                 topicId: "unknown",
                 summary: "一条示例",
                 reason: "一手经验",
-                zh: { text: "你好", thread: [] },
+                zh: { text: "你好", thread: [], quotedText: null, linkTitle: null, linkDescription: null },
                 mediaNote: null,
               },
             },
@@ -92,10 +92,20 @@ describe("createLlmReviewer（DeepSeek Anthropic 兼容接口）", () => {
     requests.length = 0;
     const reviewer = createLlmReviewer({ apiKey: "sk-test", baseURL, guide: "只要最佳实践" });
     const result = await reviewer.review(tweet, [{ id: "ai", name: "AI" }]);
-    expect(result).toMatchObject({ verdict: "keep", category: "best_practice", quality: 8, topicId: "ai", zh: { text: "你好" } });
+    expect(result).toMatchObject({
+      verdict: "keep",
+      category: "best_practice",
+      quality: 8,
+      topicId: "ai",
+      zh: { text: "你好", quotedText: null, linkTitle: null, linkDescription: null },
+    });
     expect(requests[0]!.body.system).toContain("只要最佳实践");
     expect(requests[0]).toMatchObject({ path: "/v1/messages", auth: "sk-test" });
-    expect(requests[0]!.body).toMatchObject({ model: "deepseek-flash", tool_choice: { type: "tool", name: "submit_review" } });
+    expect(requests[0]!.body).toMatchObject({
+      model: "deepseek-flash",
+      thinking: { type: "disabled" },
+      tool_choice: { type: "tool", name: "submit_review" },
+    });
     expect(requests[0]!.body.messages[0].content[0]).toEqual({ type: "image", source: { type: "url", url: "https://example.com/p.jpg" } });
   });
 
@@ -152,5 +162,9 @@ describe("精选规则", () => {
     const item = (id: string) => ({ id, author: "@a", topicId: "ai", category: "industry_trend" as const, quality: 7, summary: id });
     const result = await editor.edit([item("a"), item("b")], []);
     expect(result.drops.map((d) => d.id)).toEqual(["b"]);
+    expect(requests.at(-1)!.body).toMatchObject({
+      thinking: { type: "disabled" },
+      tool_choice: { type: "tool", name: "submit_editorial" },
+    });
   });
 });
