@@ -1,10 +1,12 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { type InboxFile, loadConfig, localDate } from "@xrss/core";
+import { type InboxFile, loadConfig, localDate, loadDotEnv } from "@xrss/core";
 import { type DetailTarget, detailTargets, parseXGraphQL } from "./parsers/x-graphql.ts";
 import { inboxDir } from "./paths.ts";
 import type { CrawlPlan } from "./plan.ts";
+
+loadDotEnv();
 
 /**
  * 把 Browser Skill 抓到的原始网络响应转成标准采集文件 data/inbox/<日期>/<handle>.json，

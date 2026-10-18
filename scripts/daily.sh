@@ -28,14 +28,14 @@ fi
 
 pnpm -s plan
 
-# 采集：调用装有 Browser Skill 的 Agent，按 packages/collector/AGENT_PROMPT.md 执行。
-# 在 .env 里设置 COLLECT_CMD，例如：
-#   COLLECT_CMD='claude -p "$(cat packages/collector/AGENT_PROMPT.md)" --permission-mode acceptEdits'
-if [ -n "${COLLECT_CMD:-}" ]; then
-  echo "开始采集"
+# 采集：默认用 scripts/collect.sh（Claude Code + Browser Skill，模型为 DeepSeek deepseek-flash）。
+# 想换别的 Agent，在 .env 里设置 COLLECT_CMD；设为 none 则跳过采集，只处理 data/inbox 里已有的文件。
+COLLECT_CMD="${COLLECT_CMD:-scripts/collect.sh}"
+if [ "$COLLECT_CMD" != "none" ]; then
+  echo "开始采集：$COLLECT_CMD"
   bash -c "$COLLECT_CMD"
 else
-  echo "未设置 COLLECT_CMD，跳过采集，只处理 data/inbox 里已有的文件"
+  echo "COLLECT_CMD=none，跳过采集"
 fi
 
 # 采集端保存的原始响应统一再解析一次（已解析过也没关系），确保详情页补抓的全文被合并

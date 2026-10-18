@@ -61,9 +61,9 @@ pnpm pipeline:dry --skip-ai                 # 不调用 AI、不发邮件，邮�
 
 补跑某一天：`pnpm pipeline:dry --skip-ai --date 2026-10-19`（处理 10 月 18 日的内容，读取 `data/inbox/2026-10-19/`）。
 
-### 验证 Claude 评审和 Resend 发信
+### 验证 AI 评审和 Resend 发信
 
-1. 在 `.env` 填好 `ANTHROPIC_API_KEY`，运行 `pnpm pipeline:dry`（去掉 `--skip-ai`）。
+1. 在 `.env` 填好 `DEEPSEEK_API_KEY`，运行 `pnpm pipeline:dry`（去掉 `--skip-ai`）。
    终端会显示评审完成和失败的条数；打开 `data/out/<日期>/sample-zh.html` 检查译文和视频说明。
    已评审过的推文不会重复评审；想重来一遍，删掉 `data/app.db` 后重新运行。
 2. 在 Resend 验证发信域名，`.env` 填好 `RESEND_API_KEY` 和 `MAIL_FROM`。
@@ -83,10 +83,21 @@ pnpm pipeline:dry --skip-ai                 # 不调用 AI、不发邮件，邮�
 
 > 用浏览器自动化抓取 X 不符合 X 的服务条款，请自行评估风险，仅用于个人或小范围场景。
 
+## 大模型（DeepSeek）
+
+所有用到大模型的地方都通过 [DeepSeek 的 Anthropic 兼容接口](https://api-docs.deepseek.com/guides/anthropic_api) 调用 `deepseek-flash`：
+
+| 用途 | 位置 | 配置 |
+|---|---|---|
+| 评审打分、翻译、视频/图片说明 | `packages/pipeline/src/ai.ts` | `.env` 的 `DEEPSEEK_API_KEY`、`LLM_MODEL` |
+| 采集 Agent（Claude Code + Browser Skill） | `scripts/collect.sh` | 同上，脚本把 Claude Code 的 `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` / 各档模型都指向 DeepSeek |
+
+换模型只改 `.env` 的 `LLM_MODEL`（如 `deepseek-v4-pro`）；换成其他兼容 Anthropic 接口的服务，再设置 `LLM_BASE_URL`。
+
 ## 每日定时（macOS）
 
 ```bash
-# .env 中设置 COLLECT_CMD，指向调用 Browser Skill 的 Agent 命令
+# 采集默认调用 scripts/collect.sh；要换别的 Agent，在 .env 中设置 COLLECT_CMD
 sed "s|__ROOT__|$PWD|g" scripts/launchd/com.xrss.daily.plist > ~/Library/LaunchAgents/com.xrss.daily.plist
 launchctl load ~/Library/LaunchAgents/com.xrss.daily.plist
 ```
@@ -96,7 +107,7 @@ launchctl load ~/Library/LaunchAgents/com.xrss.daily.plist
 ## 选稿规则
 
 - **规则粗筛**：排除回复、纯转发、过短内容；规则分 = 互动表现相对作者自己近 30 天中位数（避免大号天然占优）
-- **AI 评审**：每个主题取规则分前 N 条（`candidates_per_topic`）送 Claude，返回质量分、所属主题、中文翻译、视频/图片说明
+- **AI 评审**：每个主题取规则分前 N 条（`candidates_per_topic`）送大模型（默认 DeepSeek `deepseek-flash`），返回质量分、所属主题、中文翻译、视频/图片说明
 - **最终分** = (0.7 × 质量分 + 0.3 × 规则分) × 媒体权重（视频默认 0.6）
 - **选稿**：每个订阅主题保底 `min_per_topic` 条，其余按分数补足到 `total_items`；按主题分区，当天没内容的主题不显示
 

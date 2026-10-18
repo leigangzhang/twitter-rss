@@ -1,8 +1,11 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { getConfig, type Lang } from "@xrss/core";
+import { getConfig, type Lang, loadDotEnv } from "@xrss/core";
 import { getDb, migrateDb } from "@xrss/core/db";
 import { Resend } from "resend";
+
+// 网站和命令行共用仓库根目录的 .env
+loadDotEnv();
 
 let ready: Promise<void> | undefined;
 

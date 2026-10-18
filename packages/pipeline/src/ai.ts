@@ -32,34 +32,64 @@ export interface Reviewer {
   review(tweet: RawTweet, topics: Pick<Topic, "id" | "name">[]): Promise<AiResult>;
 }
 
-export function createClaudeReviewer(apiKey = process.env.ANTHROPIC_API_KEY, model = process.env.AI_MODEL || "claude-haiku-5-5"): Reviewer {
-  if (!apiKey) throw new Error("缺少 ANTHROPIC_API_KEY。没有 API Key 时可以加 --skip-ai 用规则分试跑。");
-  const client = new Anthropic({ apiKey });
+/** DeepSeek 的 Anthropic 兼容接口：https://api-docs.deepseek.com/guides/anthropic_api */
+export const DEEPSEEK_ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic";
+
+export interface LlmOptions {
+  apiKey?: string;
+  baseURL?: string;
+  model?: string;
+}
+
+/**
+ * 用 Anthropic Messages 接口调用大模型做评审。默认走 DeepSeek（deepseek-flash），
+ * 通过 LLM_BASE_URL / LLM_MODEL 可以换成其他兼容 Anthropic 接口的服务。
+ */
+export function createLlmReviewer({
+  apiKey = process.env.DEEPSEEK_API_KEY,
+  baseURL = process.env.LLM_BASE_URL || DEEPSEEK_ANTHROPIC_BASE_URL,
+  model = process.env.LLM_MODEL || "deepseek-flash",
+}: LlmOptions = {}): Reviewer {
+  if (!apiKey) throw new Error("缺少 DEEPSEEK_API_KEY。没有 API Key 时可以加 --skip-ai 用规则分试跑。");
+  const client = new Anthropic({ apiKey, baseURL });
   const inputSchema = z.toJSONSchema(AiResult, { io: "input" }) as Anthropic.Tool.InputSchema;
+
+  async function call(tweet: RawTweet, topics: Pick<Topic, "id" | "name">[], withImages: boolean) {
+    // 图片和视频封面一并给模型看（最多 3 张），用于生成 mediaNote
+    const images: Anthropic.ImageBlockParam[] = withImages
+      ? tweet.media.slice(0, 3).map((m) => ({ type: "image", source: { type: "url", url: m.url } }))
+      : [];
+    return client.messages.create({
+      model,
+      max_tokens: 2000,
+      system: SYSTEM,
+      tools: [{ name: TOOL_NAME, description: "提交对这条推文的评审结果", input_schema: inputSchema }],
+      tool_choice: { type: "tool", name: TOOL_NAME },
+      messages: [
+        {
+          role: "user",
+          content: [
+            ...images,
+            {
+              type: "text",
+              text: `候选主题：${JSON.stringify(topics)}\n\n推文：\n${JSON.stringify(tweetPayload(tweet), null, 2)}`,
+            },
+          ],
+        },
+      ],
+    });
+  }
 
   return {
     async review(tweet, topics) {
-      // 图片和视频封面一并给模型看（最多 3 张），用于生成 mediaNote
-      const images: Anthropic.ImageBlockParam[] = tweet.media.slice(0, 3).map((m) => ({ type: "image", source: { type: "url", url: m.url } }));
-      const response = await client.messages.create({
-        model,
-        max_tokens: 2000,
-        system: SYSTEM,
-        tools: [{ name: TOOL_NAME, description: "提交对这条推文的评审结果", input_schema: inputSchema }],
-        tool_choice: { type: "tool", name: TOOL_NAME },
-        messages: [
-          {
-            role: "user",
-            content: [
-              ...images,
-              {
-                type: "text",
-                text: `候选主题：${JSON.stringify(topics)}\n\n推文：\n${JSON.stringify(tweetPayload(tweet), null, 2)}`,
-              },
-            ],
-          },
-        ],
-      });
+      let response: Anthropic.Message;
+      try {
+        response = await call(tweet, topics, true);
+      } catch (e) {
+        // 图片读取失败或模型不接受图片时，退回纯文字评审，不让一张图拖垮整条推文
+        if (tweet.media.length === 0) throw e;
+        response = await call(tweet, topics, false);
+      }
       const block = response.content.find((b) => b.type === "tool_use");
       if (!block || block.type !== "tool_use") throw new Error("模型没有返回评审结果");
       const parsed = AiResult.safeParse(block.input);

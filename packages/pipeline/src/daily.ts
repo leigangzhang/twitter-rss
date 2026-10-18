@@ -1,12 +1,14 @@
 import { parseArgs } from "node:util";
-import { loadConfig, localDate, runRange } from "@xrss/core";
+import { loadConfig, localDate, runRange, loadDotEnv } from "@xrss/core";
 import { createDb, migrateDb } from "@xrss/core/db";
-import { createClaudeReviewer, createRuleOnlyReviewer } from "./ai.ts";
+import { createLlmReviewer, createRuleOnlyReviewer } from "./ai.ts";
 import { pickCandidates } from "./candidates.ts";
 import { sendDigests } from "./digest.ts";
 import { ingest } from "./ingest.ts";
 import { createResendMailer } from "./mailer.ts";
 import { reviewCandidates } from "./review.ts";
+
+loadDotEnv();
 
 /**
  * 每日流水线：入库 → 规则粗筛 → AI 评审 → 按订阅者选稿 → 发送邮件
@@ -49,7 +51,7 @@ console.log(`  候选：${candidates.length} 条送去评审`);
 
 const reviewer = values["skip-ai"]
   ? createRuleOnlyReviewer(new Map(candidates.map((c) => [c.id, c.ruleScore ?? 0])))
-  : createClaudeReviewer();
+  : createLlmReviewer();
 const rev = await reviewCandidates(db, config, candidates, reviewer);
 console.log(`  评审：完成 ${rev.reviewed} 条${rev.failed.length ? `，失败 ${rev.failed.length} 条` : ""}`);
 for (const f of rev.failed.slice(0, 5)) console.warn(`  ⚠ ${f.id}：${f.error}`);
