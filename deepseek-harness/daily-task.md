@@ -23,7 +23,7 @@ pnpm plan
 
 阅读 `packages/collector/AGENT_PROMPT.md`，使用 Browser Skill 的工具（`bsk_*`）严格按说明执行：
 
-1. 按清单里的等待时间（用 `sleep`）逐个打开账号主页，保存 `UserOriginalsTimeline` / `UserTweets` 的网络响应到 `data/inbox/<今天>/raw/`；
+1. 按清单里的等待时间（用 `sleep`）逐个打开账号主页，保存 `UserOriginalsTimeline` / `UserTweets` 的网络响应到 `data/inbox/<今天>/raw/`，账号资料 `UserByScreenName` 存为 `raw/<handle>-profile.json`（用于头像）；
 2. 运行 `pnpm --filter @xrss/collector parse`；
 3. 按 `data/inbox/<今天>/detail-needed.json` 的 `scheduled` 逐条打开推文详情页（`stop` 不为空时跳过），保存 `TweetDetail` 响应；
 4. 再运行一次 `pnpm --filter @xrss/collector parse`。
