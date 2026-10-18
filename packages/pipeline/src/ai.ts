@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { AiResult, type ContentCategory, type RawTweet, type Topic } from "@xrss/core";
+import { AiResult, type ContentCategory, type LinkDigest, type RawTweet, type Topic } from "@xrss/core";
 import { z } from "zod";
 
 /** DeepSeek 的 Anthropic 兼容接口：https://api-docs.deepseek.com/guides/anthropic_api */
@@ -39,6 +39,10 @@ ${guide || DEFAULT_GUIDE}
    保留专有名词、代码、数字和 @账号，不添加原文没有的内容。原文已是中文时 zh 为 null。drop 的内容也要照常翻译。
 8. 如果有视频，或图片里有对理解推文很重要的文字/图表，用一两句中文写 mediaNote，说明它展示了什么；
    只根据你能看到的封面、图片和推文内容来写，不确定时说"根据封面和推文推测"。没有则为 null。
+
+linkedArticle 是推文（或引用推文）所附外部文章的标题、简介和正文开头（fetched 为 false 时只有标题和简介）。
+推文主要是在分享这篇文章时，按文章本身的价值判断类型和去留：实践复盘、技术博客、研究报告等有实质内容的可以保留，
+营销软文、空洞的新闻转述仍然剔除。summary 要概括推文和文章合起来讲了什么。
 
 线程（thread）是作者本人的连续推文，与正文一起作为一个整体评审。引用推文（quoted）是作者在评论的对象：
 作者只是转发并附一句"值得一读"时，价值主要来自被引用的内容，要看作者有没有增量。`;
@@ -87,7 +91,20 @@ export interface EditorialItem {
   summary: string;
 }
 
-function tweetPayload(t: RawTweet) {
+/** 推文里外部文章的内容，帮助判断"转发链接 + 一句话"这类推文的真实价值 */
+function articlePayload(a: LinkDigest | undefined) {
+  if (!a || a.status === "skipped") return undefined;
+  return {
+    site: a.siteName,
+    title: a.title,
+    description: a.description,
+    // 正文开头 2000 字足够判断价值，控制成本
+    excerpt: a.excerpt?.slice(0, 2000),
+    fetched: a.status === "fetched",
+  };
+}
+
+function tweetPayload(t: RawTweet, article?: LinkDigest) {
   return {
     author: `${t.author.name} (@${t.author.handle})`,
     lang: t.lang,
@@ -98,11 +115,13 @@ function tweetPayload(t: RawTweet) {
     links: t.links.map((l) => ({ kind: l.kind, url: l.expandedUrl, title: l.title, description: l.description })),
     media: t.media.map((m) => ({ type: m.type, durationSec: m.durationSec, altText: m.altText })),
     metrics: t.metrics,
+    linkedArticle: articlePayload(article),
   };
 }
 
 export interface Reviewer {
-  review(tweet: RawTweet, topics: Pick<Topic, "id" | "name">[]): Promise<AiResult>;
+  /** article：推文（或引用推文）里外部文章的抓取结果，可选 */
+  review(tweet: RawTweet, topics: Pick<Topic, "id" | "name">[], article?: LinkDigest): Promise<AiResult>;
 }
 
 export interface Editor {
@@ -140,7 +159,7 @@ export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
   const system = reviewSystemPrompt(opts.guide ?? "");
   const inputSchema = z.toJSONSchema(AiResult, { io: "input" }) as Anthropic.Tool.InputSchema;
 
-  async function call(tweet: RawTweet, topics: Pick<Topic, "id" | "name">[], withImages: boolean) {
+  async function call(tweet: RawTweet, topics: Pick<Topic, "id" | "name">[], withImages: boolean, article?: LinkDigest) {
     // 图片和视频封面一并给模型看（最多 3 张），用于生成 mediaNote
     const images: Anthropic.ImageBlockParam[] = withImages
       ? tweet.media.slice(0, 3).map((m) => ({ type: "image", source: { type: "url", url: m.url } }))
@@ -162,7 +181,7 @@ export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
             ...images,
             {
               type: "text",
-              text: `候选主题：${JSON.stringify(topics)}\n\n推文：\n${JSON.stringify(tweetPayload(tweet), null, 2)}`,
+              text: `候选主题：${JSON.stringify(topics)}\n\n推文：\n${JSON.stringify(tweetPayload(tweet, article), null, 2)}`,
             },
           ],
         },
@@ -171,14 +190,14 @@ export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
   }
 
   return {
-    async review(tweet, topics) {
+    async review(tweet, topics, article) {
       let response: Anthropic.Message;
       try {
-        response = await call(tweet, topics, true);
+        response = await call(tweet, topics, true, article);
       } catch (e) {
         // 图片读取失败或模型不接受图片时，退回纯文字评审，不让一张图拖垮整条推文
         if (tweet.media.length === 0) throw e;
-        response = await call(tweet, topics, false);
+        response = await call(tweet, topics, false, article);
       }
       const parsed = AiResult.safeParse(toolInput(response, REVIEW_TOOL));
       if (!parsed.success) throw new Error(`评审结果格式不符：${z.prettifyError(parsed.error)}`);
@@ -257,6 +276,63 @@ export function createRuleOnlyReviewer(ruleScores: Map<string, number>): Reviewe
         zh: null,
         mediaNote: null,
       };
+    },
+  };
+}
+
+/** 外部文章的中文图文摘要 */
+export const ArticleSummary = z.object({
+  /** 中文标题（原标题已是中文时照抄） */
+  titleZh: z.string(),
+  /** 2–3 句中文概要：文章讲了什么、结论是什么 */
+  summary: z.string(),
+  /** 3–5 条要点：具体做法、数据、结论，每条一句 */
+  points: z.array(z.string()).max(6),
+});
+export type ArticleSummary = z.infer<typeof ArticleSummary>;
+
+export interface Summarizer {
+  summarize(article: LinkDigest, context: { tweetText: string }): Promise<ArticleSummary>;
+}
+
+const SUMMARY_TOOL = "submit_article_summary";
+
+const SUMMARY_SYSTEM = `你是一份中文科技日报的编辑。读者没有时间打开原文，需要你把推文里分享的外部文章总结成中文图文摘要。
+要求：
+1. titleZh：把标题翻译成简洁的中文；原标题已是中文时照抄。
+2. summary：2–3 句话，说清这篇文章讲了什么、核心结论或做法是什么。不要写"本文介绍了"这类空话。
+3. points：3–5 条要点，每条一句话，优先写具体做法、步骤、数据、工具名和结论；不要重复 summary。
+4. 只根据给你的标题、简介和正文写，不要编造正文里没有的信息。正文缺失时只根据标题和简介写，points 可以少于 3 条。
+5. 保留专有名词、产品名、代码和数字。`;
+
+/** 为进入邮件的外部文章生成中文标题、概要和要点 */
+export function createLlmSummarizer(opts: LlmOptions = {}): Summarizer {
+  const client = createClient(opts);
+  const model = modelOf(opts);
+  const inputSchema = z.toJSONSchema(ArticleSummary, { io: "input" }) as Anthropic.Tool.InputSchema;
+  return {
+    async summarize(article, context) {
+      const payload = {
+        url: article.finalUrl ?? article.url,
+        site: article.siteName,
+        title: article.title,
+        description: article.description,
+        text: article.excerpt?.slice(0, 10_000),
+        sharedWith: context.tweetText.slice(0, 500),
+      };
+      const response = await client.messages.create({
+        model,
+        max_tokens: 1500,
+        temperature: 0.2,
+        thinking: { type: "disabled" },
+        system: SUMMARY_SYSTEM,
+        tools: [{ name: SUMMARY_TOOL, description: "提交文章的中文摘要", input_schema: inputSchema }],
+        tool_choice: { type: "tool", name: SUMMARY_TOOL },
+        messages: [{ role: "user", content: `文章：\n${JSON.stringify(payload, null, 2)}` }],
+      });
+      const parsed = ArticleSummary.safeParse(toolInput(response, SUMMARY_TOOL));
+      if (!parsed.success) throw new Error(`摘要格式不符：${z.prettifyError(parsed.error)}`);
+      return { ...parsed.data, points: parsed.data.points.filter((p) => p.trim()).slice(0, 5) };
     },
   };
 }

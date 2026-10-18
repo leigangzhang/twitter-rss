@@ -17,7 +17,8 @@ describe("parseXGraphQL", () => {
 
   it("长推文取全文，媒体链接去掉，t.co 还原", () => {
     const t = byId["1900000000000000003"]!;
-    expect(t.text).toBe("Full long text that is longer than 280 characters would be here. Read more: https://www.example.org/study");
+    // 结尾的外链以文章卡片展示，不在正文里重复
+    expect(t.text).toBe("Full long text that is longer than 280 characters would be here. Read more:");
     expect(t.author).toEqual({ handle: "mirachen_ml", name: "Mira Chen", avatarUrl: "https://pbs.twimg.com/profile_images/1/a_bigger.jpg" });
     expect(t.createdAt).toBe("2026-10-18T01:12:00.000Z");
     expect(t.metrics).toMatchObject({ likes: 23000, reposts: 3104, quotes: 88, views: 120345 });
@@ -106,5 +107,71 @@ describe("长推文截断与详情页补抓", () => {
     const a = parseXGraphQL([sample.timeline, ...sample.details], "fixture_author").tweets;
     const b = parseXGraphQL([...sample.details, sample.timeline], "fixture_author").tweets;
     expect(b).toEqual(a);
+  });
+});
+
+describe("引用推文里的外部链接", () => {
+  const user = (screen_name: string, name: string) => ({ user_results: { result: { core: { screen_name, name } } } });
+  const response = {
+    data: {
+      tweet_results: {
+        result: {
+          __typename: "Tweet",
+          rest_id: "1900000000000000300",
+          core: user("devs", "Devs"),
+          quoted_status_result: {
+            result: {
+              __typename: "Tweet",
+              rest_id: "1900000000000000299",
+              core: user("eng", "Engineer"),
+              card: {
+                legacy: {
+                  url: "https://t.co/post1",
+                  binding_values: [
+                    { key: "title", value: { string_value: "Maintaining software with agents" } },
+                    { key: "domain", value: { string_value: "developers.example.com" } },
+                    { key: "thumbnail_image_original", value: { image_value: { url: "https://pbs.twimg.com/card_img/9.jpg" } } },
+                  ],
+                },
+              },
+              legacy: {
+                id_str: "1900000000000000299",
+                created_at: "Sat Oct 17 20:00:00 +0000 2026",
+                full_text: "Software maintenance is changing. Here's how we do this. https://t.co/post1",
+                entities: { urls: [{ url: "https://t.co/post1", expanded_url: "https://developers.example.com/blog/maintaining" }] },
+              },
+            },
+          },
+          legacy: {
+            id_str: "1900000000000000300",
+            created_at: "Sun Oct 18 05:50:00 +0000 2026",
+            full_text: "Here's how our engineers do it: https://t.co/q",
+            quoted_status_permalink: { url: "https://t.co/q", expanded: "https://twitter.com/eng/status/1900000000000000299" },
+            favorite_count: 1913,
+            retweet_count: 130,
+            reply_count: 98,
+            quote_count: 0,
+            entities: { urls: [{ url: "https://t.co/q", expanded_url: "https://twitter.com/eng/status/1900000000000000299" }] },
+          },
+        },
+      },
+    },
+  };
+
+  it("保留被引用推文里的链接和卡片，正文结尾的链接不重复显示", () => {
+    const { tweets } = parseXGraphQL([response], "devs");
+    expect(tweets[0]!.text).toBe("Here's how our engineers do it:");
+    expect(tweets[0]!.quoted).toMatchObject({
+      text: "Software maintenance is changing. Here's how we do this.",
+      links: [
+        {
+          kind: "web",
+          expandedUrl: "https://developers.example.com/blog/maintaining",
+          title: "Maintaining software with agents",
+          domain: "developers.example.com",
+          imageUrl: "https://pbs.twimg.com/card_img/9.jpg",
+        },
+      ],
+    });
   });
 });

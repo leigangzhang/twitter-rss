@@ -1,7 +1,7 @@
 import type { DigestConfig, Topic } from "./config.ts";
 import { xWeightedLength } from "./scoring.ts";
 import { compactNumber, displayTime, localDate } from "./time.ts";
-import { type AiResult, CATEGORY_LABELS, type Lang, type MediaKind, type RawTweet } from "./types.ts";
+import { type AiResult, CATEGORY_LABELS, type Lang, type Link, type LinkDigest, type MediaKind, type RawTweet } from "./types.ts";
 
 /** 邮件卡片和 RSS 条目共用的展示数据，语言已确定，模板里不再判断 */
 export interface CardView {
@@ -27,11 +27,30 @@ export interface CardView {
   video?: { thumbUrl?: string; duration?: string };
   /** AI 生成的中文说明（视频、含文字的图片） */
   mediaNote?: string;
-  quoted?: { name: string; handle: string; text: string };
+  quoted?: { name: string; handle: string; text: string; url: string; article?: ArticleView };
+  /** X 长文，或抓不到正文、也没有摘要的普通链接 */
   link?: { kind: "web" | "x_article"; url: string; title?: string; description?: string; domain?: string; imageUrl?: string };
+  /** 推文自己附带的外部文章（图文摘要）；引用推文里的文章在 quoted.article */
+  article?: ArticleView;
   likes: string;
   reposts: string;
   ctaLabel: string;
+}
+
+/** 外部文章的图文摘要卡片 */
+export interface ArticleView {
+  url: string;
+  site?: string;
+  /** 展示标题：中文版用中文标题，原文版用原标题 */
+  title: string;
+  /** 展示标题与原标题不同时显示原标题 */
+  originalTitle?: string;
+  /** AI 概要；没有时用网页简介 */
+  summary?: string;
+  /** 是否为 AI 生成的概要（否则是网页自带的简介） */
+  aiSummary: boolean;
+  points: string[];
+  imageUrl?: string;
 }
 
 export interface TweetForView {
@@ -40,6 +59,34 @@ export interface TweetForView {
   kind: MediaKind;
   raw: RawTweet;
   ai: AiResult | null;
+  /** 推文或引用推文里外部文章的抓取结果和摘要 */
+  article?: LinkDigest;
+}
+
+/** 推文里要展示成文章卡片的那条链接：优先推文自己的外链，其次引用推文里的外链 */
+export function primaryArticle(raw: RawTweet): { link: Link; source: "tweet" | "quoted" } | null {
+  const own = raw.links.find((l) => l.kind === "web");
+  if (own) return { link: own, source: "tweet" };
+  const quoted = raw.quoted?.links.find((l) => l.kind === "web");
+  if (quoted) return { link: quoted, source: "quoted" };
+  return null;
+}
+
+function toArticleView(link: Link, d: LinkDigest | undefined, lang: Lang, zhTitle?: string | null, zhDesc?: string | null): ArticleView | undefined {
+  const original = d?.title ?? link.title;
+  const title = (lang === "zh" ? (d?.titleZh ?? zhTitle) : undefined) ?? original;
+  if (!title) return undefined;
+  const aiSummary = Boolean(d?.summary);
+  return {
+    url: d?.finalUrl ?? link.expandedUrl,
+    site: d?.siteName ?? link.domain,
+    title,
+    originalTitle: original && original !== title ? original : undefined,
+    summary: d?.summary ?? (lang === "zh" ? (zhDesc ?? undefined) : undefined) ?? d?.description ?? link.description,
+    aiSummary,
+    points: d?.points ?? [],
+    imageUrl: d?.imageUrl ?? link.imageUrl,
+  };
 }
 
 const LANG_NAMES: Record<string, string> = {
@@ -89,6 +136,8 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
   else if (raw.textTruncated || xWeightedLength(raw.text) > 280) badge = "长文";
 
   const link = raw.links[0];
+  const primary = primaryArticle(raw);
+  const ownArticle = primary?.source === "tweet" ? toArticleView(primary.link, t.article, opts.lang, zh?.linkTitle, zh?.linkDescription) : undefined;
   return {
     id: raw.id,
     url: raw.url,
@@ -117,9 +166,16 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
       : undefined,
     mediaNote: t.ai?.mediaNote ?? undefined,
     quoted: raw.quoted
-      ? { name: raw.quoted.author.name, handle: raw.quoted.author.handle, text: zh?.quotedText ?? raw.quoted.text }
+      ? {
+          name: raw.quoted.author.name,
+          handle: raw.quoted.author.handle,
+          text: zh?.quotedText ?? raw.quoted.text,
+          url: raw.quoted.url,
+          article: primary?.source === "quoted" ? toArticleView(primary.link, t.article, opts.lang, zh?.linkTitle, zh?.linkDescription) : undefined,
+        }
       : undefined,
-    link: link
+    article: ownArticle,
+    link: link && !ownArticle
       ? {
           kind: link.kind,
           url: link.expandedUrl,

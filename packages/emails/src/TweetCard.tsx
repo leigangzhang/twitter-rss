@@ -1,7 +1,7 @@
 /** @jsxRuntime automatic @jsxImportSource react */
 // 本包也会被其他包的 tsx 进程直接加载，这里显式指定 JSX 运行时
 import { Column, Img, Link, Row, Section, Text } from "@react-email/components";
-import type { CardView } from "@xrss/core";
+import type { ArticleView, CardView } from "@xrss/core";
 import { CONTENT_WIDTH, color, font } from "./theme.ts";
 
 const meta = { fontFamily: font.mono, fontSize: 12, color: color.muted, margin: 0, lineHeight: "18px" } as const;
@@ -150,14 +150,77 @@ function Video({ card }: { card: CardView }) {
   );
 }
 
+/**
+ * 外部文章的图文摘要：封面、来源、标题、概要、要点、阅读原文。
+ * width 是卡片可用宽度，用来给封面图设置像素宽度（部分邮件客户端不认百分比）。
+ */
+function ArticleCard({ article, width }: { article: ArticleView; width: number }) {
+  return (
+    <Section style={{ border: `1px solid ${color.line}`, borderRadius: 10, marginTop: 12, backgroundColor: "#FFFFFF" }}>
+      {article.imageUrl ? (
+        <Link href={article.url} style={{ display: "block" }}>
+          <Img
+            src={article.imageUrl}
+            alt={article.title}
+            width={width - 2}
+            style={{ width: "100%", maxWidth: width - 2, height: "auto", display: "block", borderRadius: "10px 10px 0 0" }}
+          />
+        </Link>
+      ) : null}
+      <Section style={{ padding: "14px 16px 16px" }}>
+        <Text style={{ ...meta, fontSize: 11, margin: "0 0 6px" }}>{article.site ? `${article.site} · 文章` : "文章"}</Text>
+        <Link href={article.url} style={{ textDecoration: "none" }}>
+          <Text style={{ fontSize: 16, fontWeight: 700, lineHeight: "24px", color: color.ink, margin: 0 }}>{article.title}</Text>
+        </Link>
+        {article.originalTitle ? (
+          <Text style={{ fontSize: 12, lineHeight: "18px", color: color.muted, margin: "2px 0 0" }}>{article.originalTitle}</Text>
+        ) : null}
+        {article.summary ? (
+          <Text style={{ fontSize: 14, lineHeight: "24px", color: color.body, margin: "10px 0 0" }}>{article.summary}</Text>
+        ) : null}
+        {article.points.length > 0 ? (
+          <Section style={{ marginTop: 8 }}>
+            {article.points.map((p, i) => (
+              <Row key={i}>
+                <Column style={{ width: 16, verticalAlign: "top", fontSize: 14, lineHeight: "24px", color: color.link }}>•</Column>
+                <Column style={{ verticalAlign: "top" }}>
+                  <Text style={{ fontSize: 14, lineHeight: "24px", color: color.body, margin: 0 }}>{p}</Text>
+                </Column>
+              </Row>
+            ))}
+          </Section>
+        ) : null}
+        <Row style={{ marginTop: 12 }}>
+          <Column>
+            <Link href={article.url} style={{ fontSize: 13, fontWeight: 700, color: color.link }}>
+              阅读原文 ↗
+            </Link>
+          </Column>
+          {article.aiSummary ? (
+            <Column align="right">
+              <Text style={{ ...meta, fontSize: 11 }}>摘要由 AI 生成</Text>
+            </Column>
+          ) : null}
+        </Row>
+      </Section>
+    </Section>
+  );
+}
+
 function Quoted({ card }: { card: CardView }) {
   if (!card.quoted) return null;
   return (
-    <Section style={{ border: `1px solid ${color.line}`, borderRadius: 10, padding: "14px 16px", marginTop: 14 }}>
+    <Section style={{ border: `1px solid ${color.line}`, borderRadius: 10, padding: "14px 16px", marginTop: 14, backgroundColor: "#FBFBFC" }}>
       <Text style={{ fontSize: 13, fontWeight: 700, color: color.ink, margin: "0 0 6px" }}>
-        {card.quoted.name} <span style={{ ...meta, fontWeight: 400 }}>@{card.quoted.handle} · 引用</span>
+        {card.quoted.name}{" "}
+        <Link href={card.quoted.url} style={{ ...meta, fontWeight: 400, textDecoration: "none" }}>
+          @{card.quoted.handle} · 引用
+        </Link>
       </Text>
-      <Text style={{ fontSize: 14, lineHeight: "24px", color: color.body, margin: 0, whiteSpace: "pre-line" }}>{card.quoted.text}</Text>
+      {card.quoted.text ? (
+        <Text style={{ fontSize: 14, lineHeight: "24px", color: color.body, margin: 0, whiteSpace: "pre-line" }}>{card.quoted.text}</Text>
+      ) : null}
+      {card.quoted.article ? <ArticleCard article={card.quoted.article} width={CONTENT_WIDTH - 34} /> : null}
     </Section>
   );
 }
@@ -233,7 +296,7 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
       {card.kind === "image" && card.mediaNote ? <NoteBlock label="图片说明（AI 生成）" text={card.mediaNote} /> : null}
       <Video card={card} />
       <Quoted card={card} />
-      <LinkPreview card={card} />
+      {card.article ? <ArticleCard article={card.article} width={CONTENT_WIDTH} /> : <LinkPreview card={card} />}
 
       <Row style={{ marginTop: 14 }}>
         <Column>

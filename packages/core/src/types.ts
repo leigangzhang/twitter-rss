@@ -62,6 +62,8 @@ export const QuotedTweet = z.object({
   text: z.string(),
   createdAt: z.iso.datetime({ offset: true }).optional(),
   media: z.array(Media).default([]),
+  /** 被引用推文里的链接（含 X 卡片的标题、简介、封面） */
+  links: z.array(Link).default([]),
 });
 export type QuotedTweet = z.infer<typeof QuotedTweet>;
 
@@ -177,3 +179,31 @@ export const AiResult = z.object({
   mediaNote: z.string().nullable(),
 });
 export type AiResult = z.infer<typeof AiResult>;
+
+/**
+ * 推文或引用推文中外部文章的图文摘要。按链接缓存，同一篇文章只抓取、总结一次。
+ * 抓取在评审前完成（供初审判断价值），中文摘要在通过精选后生成。
+ */
+export const LinkDigest = z.object({
+  url: z.string(),
+  /** 跳转后的最终地址 */
+  finalUrl: z.string().optional(),
+  siteName: z.string().optional(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  imageUrl: z.string().optional(),
+  /** 正文开头的一段，用于评审和总结（不在邮件里显示） */
+  excerpt: z.string().optional(),
+  /** 提取到的正文字数 */
+  textLength: z.number().int().nonnegative().default(0),
+  /** fetched：抓取成功；failed：抓取失败（只能用 X 卡片信息）；skipped：不抓取的链接 */
+  status: z.enum(["fetched", "failed", "skipped"]),
+  error: z.string().optional(),
+  fetchedAt: z.string(),
+  /** AI 生成的中文标题、概要和要点 */
+  titleZh: z.string().optional(),
+  summary: z.string().optional(),
+  points: z.array(z.string()).default([]),
+  summarizedAt: z.string().optional(),
+});
+export type LinkDigest = z.infer<typeof LinkDigest>;

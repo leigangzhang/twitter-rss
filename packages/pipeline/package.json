@@ -10,10 +10,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
+    "@mozilla/readability": "^0.6.0",
     "@xrss/collector": "workspace:*",
     "@xrss/core": "workspace:*",
     "@xrss/emails": "workspace:*",
     "drizzle-orm": "^0.44.0",
+    "linkedom": "^0.18.13",
     "zod": "^4.0.0"
   },
   "devDependencies": {

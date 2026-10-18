@@ -1,10 +1,15 @@
-import { type AiResult, type DigestView, type Lang, RawTweet, dateLabel, localDate, mediaKind, toCardView } from "@xrss/core";
+import { type AiResult, type LinkDigest, type DigestView, type Lang, RawTweet, dateLabel, localDate, mediaKind, toCardView } from "@xrss/core";
 
 /** 预览用的示例数据（虚构博主），与设计稿内容一致 */
 const now = new Date("2026-10-18T07:00:00+08:00");
 const tz = "Asia/Shanghai";
 
-const samples: Array<{ topicId: string; raw: unknown; ai: AiResult }> = [
+/** 预览用的封面图（内嵌 SVG，只用于本地预览；真实邮件里是文章的 og:image 地址） */
+const COVER = `data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7DD3FC"/><stop offset="0.5" stop-color="#3B82F6"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs><rect width="1200" height="630" fill="url(#g)"/><rect x="420" y="190" width="360" height="250" rx="18" fill="none" stroke="#fff" stroke-opacity="0.7" stroke-width="3"/></svg>',
+)}`;
+
+const samples: Array<{ topicId: string; raw: unknown; ai: AiResult; article?: LinkDigest }> = [
   {
     topicId: "ai",
     raw: {
@@ -76,16 +81,34 @@ const samples: Array<{ topicId: string; raw: unknown; ai: AiResult }> = [
         url: "https://x.com/lenaortiz/status/1900000000000000090",
         author: { handle: "lenaortiz", name: "Lena Ortiz" },
         text: "New post: what the upcoming fee market update means for rollups, wallets and everyday users, with worked examples.",
+        links: [
+          {
+            kind: "web",
+            url: "https://t.co/abc",
+            expandedUrl: "https://example-research.xyz/fee-market",
+            domain: "example-research.xyz",
+          },
+        ],
       },
-      links: [
-        {
-          url: "https://t.co/abc",
-          expandedUrl: "https://example-research.xyz/fee-market",
-          domain: "example-research.xyz",
-          title: "The fee market update, explained with examples",
-          description: "A section-by-section look at how the new fee mechanism affects rollups, wallets and users.",
-        },
+    },
+    article: {
+      url: "https://example-research.xyz/fee-market",
+      finalUrl: "https://example-research.xyz/fee-market",
+      siteName: "example-research.xyz",
+      title: "The fee market update, explained with examples",
+      description: "A section-by-section look at how the new fee mechanism affects rollups, wallets and users.",
+      imageUrl: COVER,
+      status: "fetched",
+      fetchedAt: "2026-10-18T03:40:00Z",
+      textLength: 9800,
+      titleZh: "费用市场调整详解：附实例演算",
+      summary: "文章逐项拆解了新的费用机制：基础费改为按区块用量动态调整，小费只用于排序。作者用三笔真实交易演算，说明普通转账成本基本不变，高峰期的 Rollup 提交成本会明显下降。",
+      points: [
+        "基础费按上一个区块的用量自动调整，用户不再需要手动估价",
+        "Rollup 批量提交在高峰期可节省约三成费用（文中三组实测）",
+        "钱包需要在 11 月前更新费用估算接口，否则会多付小费",
       ],
+      summarizedAt: "2026-10-18T06:00:00Z",
     },
     ai: {
       verdict: "keep",
@@ -163,7 +186,10 @@ const topics = [
 export function sampleDigest(lang: Lang): DigestView {
   const cards = samples.map((s) => {
     const raw = RawTweet.parse(s.raw);
-    return toCardView({ id: raw.id, topicId: s.topicId, kind: mediaKind(raw), raw, ai: s.ai }, { lang, timezone: tz, videoMode: "summary", maxThreadParts: 8, now });
+    return toCardView(
+      { id: raw.id, topicId: s.topicId, kind: mediaKind(raw), raw, ai: s.ai, article: s.article },
+      { lang, timezone: tz, videoMode: "summary", maxThreadParts: 8, now },
+    );
   });
   const groups = topics.map((topic) => ({ topic, items: cards.filter((c) => c.topicId === topic.id) }));
   return {

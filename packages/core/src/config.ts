@@ -55,6 +55,18 @@ const DigestFile = z.object({
   rss: z.object({
     items_per_feed: z.number().int().min(1).default(30),
   }),
+  links: z
+    .object({
+      /** 抓取推文（含引用推文）里的外部文章，取标题、封面和正文 */
+      fetch: z.boolean().default(true),
+      /** 对通过精选的推文里的文章，用大模型生成中文标题、概要和要点 */
+      summarize: z.boolean().default(true),
+      timeout_ms: z.number().int().min(1000).default(12000),
+      max_bytes: z.number().int().min(10_000).default(3_000_000),
+      /** 这些域名不抓取（需要登录或没有正文） */
+      skip_domains: z.array(z.string()).default(["x.com", "twitter.com", "t.co"]),
+    })
+    .prefault({}),
   mail: z
     .object({
       /** 主题组合和语言完全相同的订阅者内容一样，合并成一封邮件用密送发出，减少 SMTP 发信次数 */

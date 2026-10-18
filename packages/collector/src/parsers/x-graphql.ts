@@ -99,7 +99,12 @@ function textOf(tweet: Obj, legacy: Obj): { text: string; truncated: boolean } {
     // X 长文会以卡片形式展示，正文里不再重复它的链接
     text = text.split(u.url).join(X_ARTICLE.test(u.expanded_url) ? "" : u.expanded_url);
   }
-  return { text: decodeEntities(text).trim(), truncated };
+  // 正文最后的外部链接会以文章卡片展示，不在正文里重复（正文中间的链接保留）
+  let body = decodeEntities(text).trim();
+  for (const u of legacy.entities?.urls ?? []) {
+    if (u.expanded_url && body.endsWith(u.expanded_url)) body = body.slice(0, -u.expanded_url.length).trim();
+  }
+  return { text: body, truncated };
 }
 
 /** TweetDetail 中 X 长文的标题、摘要和封面（时间线接口通常没有） */
@@ -154,6 +159,7 @@ function quotedOf(tweet: Obj): QuotedTweet | undefined {
     text: textOf(q, q.legacy).text,
     createdAt: q.legacy.created_at ? new Date(q.legacy.created_at).toISOString() : undefined,
     media: mediaOf(q.legacy),
+    links: linksOf(q, q.legacy),
   };
 }
 

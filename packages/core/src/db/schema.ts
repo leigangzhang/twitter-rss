@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
-import type { AiResult, Lang, MediaKind, RawTweet } from "../types.ts";
+import type { AiResult, Lang, LinkDigest, MediaKind, RawTweet } from "../types.ts";
 
 const now = sql`(unixepoch() * 1000)`;
 
@@ -76,6 +76,13 @@ export const deliveries = sqliteTable(
   },
   (t) => [uniqueIndex("deliveries_sub_date").on(t.subscriberId, t.digestDate)],
 );
+
+/** 外部文章的抓取结果和 AI 摘要，按链接缓存 */
+export const linkDigests = sqliteTable("link_digests", {
+  url: text("url").primaryKey(),
+  data: text("data", { mode: "json" }).$type<LinkDigest>().notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
+});
 
 export type TweetRow = typeof tweets.$inferSelect;
 export type SubscriberRow = typeof subscribers.$inferSelect;

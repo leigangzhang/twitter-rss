@@ -6,6 +6,8 @@ import {
   type DigestView,
   findRepoRoot,
   type Lang,
+  type LinkDigest,
+  primaryArticle,
   monthDayLabel,
   selectForSubscriber,
   startOfLocalDay,
@@ -15,6 +17,7 @@ import {
 import { type Db, deliveries, subscribers, tweets, type SubscriberRow, type TweetRow } from "@xrss/core/db";
 import { GMAIL_CLIP_BYTES, renderDigest } from "@xrss/emails";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
+import { loadDigests } from "./links.ts";
 import type { Mailer } from "./mailer.ts";
 
 const siteBase = () => (process.env.SITE_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -58,6 +61,8 @@ interface DigestContext {
   now: Date;
   range: TimeRange;
   scored: TweetRow[];
+  /** 文章链接 → 抓取结果和摘要 */
+  articles: Map<string, LinkDigest>;
   /** 窗口内每个账号的新推文数，用于"从 N 条新推文中筛选" */
   scannedByHandle: Map<string, number>;
 }
@@ -93,7 +98,11 @@ export function buildView(
       const topic = config.topics.find((t) => t.id === g.topicId)!;
       return {
         topic: { id: topic.id, name: topic.name, color: topic.color },
-        items: g.items.map(({ row }) => toCardView({ id: row.id, topicId: row.topicId!, kind: row.kind, raw: row.raw, ai: row.ai }, viewOpts)),
+        items: g.items.map(({ row }) => {
+          const p = primaryArticle(row.raw);
+          const article = p ? ctx.articles.get(p.link.expandedUrl) : undefined;
+          return toCardView({ id: row.id, topicId: row.topicId!, kind: row.kind, raw: row.raw, ai: row.ai, article }, viewOpts);
+        }),
       };
     }),
     links,
@@ -137,7 +146,9 @@ export async function sendDigests(
       .from(tweets)
       .where(and(eq(tweets.status, "scored"), gte(tweets.createdAt, opts.range.since), lt(tweets.createdAt, opts.range.until)))
   ).filter((t) => t.topicId && (t.ai?.quality ?? 0) >= config.digest.filters.min_quality);
-  const ctx: DigestContext = { config, date: opts.date, now: opts.now, range: opts.range, scored, scannedByHandle };
+  const articleUrls = scored.map((t) => primaryArticle(t.raw)?.link.expandedUrl).filter((u): u is string => Boolean(u));
+  const articles = await loadDigests(db, articleUrls);
+  const ctx: DigestContext = { config, date: opts.date, now: opts.now, range: opts.range, scored, articles, scannedByHandle };
 
   const active = await db.select().from(subscribers).where(eq(subscribers.status, "active"));
   const outDir = join(findRepoRoot(), "data", "out", opts.date);

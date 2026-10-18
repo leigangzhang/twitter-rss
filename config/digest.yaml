@@ -37,6 +37,14 @@ thread:
 languages: [zh, orig]
 default_language: zh
 
+# 推文或引用推文里的外部文章：抓取标题、封面和正文，在邮件里生成图文摘要
+links:
+  fetch: true              # 抓取文章（普通 HTTP 请求，不经过 X）
+  summarize: true          # 对进入邮件的文章，用 DeepSeek 生成中文标题、概要和 3–5 条要点
+  timeout_ms: 12000
+  max_bytes: 3000000
+  skip_domains: [x.com, twitter.com, t.co]   # 需要登录或没有正文的站点不抓取
+
 mail:
   # 主题组合和语言完全相同的订阅者收到的内容一样，合并成一封邮件用密送（BCC）发出，减少 SMTP 发信次数。
   # 合并邮件里不能放每个人专属的管理/退订链接，改为通用入口：在网页输入邮箱，系统把专属链接发到该邮箱。

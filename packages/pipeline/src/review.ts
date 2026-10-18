@@ -1,4 +1,4 @@
-import { type AiResult, type AppConfig, CATEGORY_LABELS, DROP_REASON_LABELS, finalScore } from "@xrss/core";
+import { type AiResult, type AppConfig, CATEGORY_LABELS, DROP_REASON_LABELS, finalScore, type LinkDigest } from "@xrss/core";
 import { type Db, tweets, type TweetRow } from "@xrss/core/db";
 import { eq } from "drizzle-orm";
 import type { Reviewer } from "./ai.ts";
@@ -36,7 +36,7 @@ export async function reviewCandidates(
   config: AppConfig,
   candidates: TweetRow[],
   reviewer: Reviewer,
-  opts: { strict: boolean; concurrency?: number },
+  opts: { strict: boolean; concurrency?: number; articles?: Map<string, LinkDigest> },
 ): Promise<ReviewStats> {
   const concurrency = opts.concurrency ?? 4;
   const stats: ReviewStats = { kept: 0, rejected: 0, reviewed: 0, failed: [] };
@@ -46,7 +46,7 @@ export async function reviewCandidates(
     const allowed = (config.accountTopics.get(row.handle) ?? []).map((id) => topicById.get(id)!).map((t) => ({ id: t.id, name: t.name }));
     if (allowed.length === 0) return;
     try {
-      const ai = await reviewer.review(row.raw, allowed);
+      const ai = await reviewer.review(row.raw, allowed, opts.articles?.get(row.id));
       const rejectReason = gate(ai, config, opts.strict);
       if (rejectReason) stats.rejected++;
       else stats.kept++;
