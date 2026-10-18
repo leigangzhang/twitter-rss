@@ -113,6 +113,13 @@ export const InboxFile = z.object({
    */
   status: z.enum(["ok", "rate_limited", "login_required", "captcha", "error"]).default("ok"),
   error: z.string().optional(),
+  /** 账号资料：没有新推文时也记录，订阅页用来显示头像 */
+  profile: z
+    .object({
+      name: z.string().optional(),
+      avatarUrl: z.url().optional(),
+    })
+    .optional(),
   tweets: z.array(RawTweet).default([]),
 });
 export type InboxFile = z.infer<typeof InboxFile>;

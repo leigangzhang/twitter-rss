@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { detailTargets, parseXGraphQL } from "../src/parsers/x-graphql.ts";
+import { detailTargets, findProfile, parseXGraphQL, smallAvatar } from "../src/parsers/x-graphql.ts";
 
 const fixture = JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "user-tweets.json"), "utf8"));
 const liveFixture = JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "user-originals-live.json"), "utf8"));
@@ -173,5 +173,37 @@ describe("引用推文里的外部链接", () => {
         },
       ],
     });
+  });
+});
+
+describe("账号资料（头像）", () => {
+  it("从 UserByScreenName 响应里取头像，前一天没发推也能拿到", () => {
+    const profileResponse = {
+      data: {
+        user: {
+          result: {
+            __typename: "User",
+            rest_id: "1",
+            core: { screen_name: "DarioAmodei", name: "Dario Amodei" },
+            avatar: { image_url: "https://pbs.twimg.com/profile_images/9/abc_normal.jpg" },
+          },
+        },
+      },
+    };
+    expect(findProfile([{ data: {} }, profileResponse], "darioamodei")).toEqual({
+      name: "Dario Amodei",
+      avatarUrl: "https://pbs.twimg.com/profile_images/9/abc_bigger.jpg",
+    });
+    expect(findProfile([profileResponse], "someone_else")).toBeUndefined();
+  });
+
+  it("时间线响应里的作者资料也算", () => {
+    expect(findProfile([fixture], "mirachen_ml")).toEqual({ name: "Mira Chen", avatarUrl: "https://pbs.twimg.com/profile_images/1/a_bigger.jpg" });
+  });
+
+  it("头像统一换成 _bigger 尺寸", () => {
+    expect(smallAvatar("https://pbs.twimg.com/profile_images/1/a_400x400.jpg")).toBe("https://pbs.twimg.com/profile_images/1/a_bigger.jpg");
+    expect(smallAvatar("https://pbs.twimg.com/profile_images/1/a_bigger.png")).toBe("https://pbs.twimg.com/profile_images/1/a_bigger.png");
+    expect(smallAvatar(undefined)).toBeUndefined();
   });
 });

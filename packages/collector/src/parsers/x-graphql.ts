@@ -33,6 +33,11 @@ function unwrap(result: unknown): Obj | null {
   return isObj(result.legacy) ? result : null;
 }
 
+/** X 头像统一取 73px 的 _bigger 尺寸：订阅页和邮件里够清晰，体积小 */
+export function smallAvatar(url: string | undefined): string | undefined {
+  return url?.replace(/_(normal|mini|200x200|400x400)\.(jpe?g|png|webp)$/i, "_bigger.$2");
+}
+
 function authorOf(tweet: Obj) {
   const u: Obj = tweet.core?.user_results?.result ?? {};
   const handle: string | undefined = u.core?.screen_name ?? u.legacy?.screen_name;
@@ -41,8 +46,34 @@ function authorOf(tweet: Obj) {
   return {
     handle: handle ?? "",
     name: name ?? handle ?? "",
-    avatarUrl: avatar?.replace("_normal.", "_bigger."),
+    avatarUrl: smallAvatar(avatar),
   };
+}
+
+/**
+ * 在任意 GraphQL 响应里找这个账号的资料（显示名、头像）。
+ * 时间线、详情页、UserByScreenName 里的用户对象都算，所以前一天没发推也能拿到头像。
+ */
+export function findProfile(responses: unknown[], handle: string): { name?: string; avatarUrl?: string } | undefined {
+  const want = handle.toLowerCase();
+  let found: { name?: string; avatarUrl?: string } | undefined;
+  const visit = (node: unknown, depth: number): void => {
+    if (found?.avatarUrl || depth > 40 || !node || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (const n of node) visit(n, depth + 1);
+      return;
+    }
+    const o = node as Obj;
+    const screen: unknown = o.core?.screen_name ?? o.legacy?.screen_name;
+    if (typeof screen === "string" && screen.toLowerCase() === want) {
+      const avatar: string | undefined = o.avatar?.image_url ?? o.legacy?.profile_image_url_https;
+      const name: string | undefined = o.core?.name ?? o.legacy?.name;
+      if (avatar || name) found = { name: name ?? found?.name, avatarUrl: smallAvatar(avatar) ?? found?.avatarUrl };
+    }
+    for (const v of Object.values(o)) visit(v, depth + 1);
+  };
+  for (const r of responses) visit(r, 0);
+  return found;
 }
 
 function mediaOf(legacy: Obj): Media[] {

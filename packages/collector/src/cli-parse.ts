@@ -5,7 +5,7 @@ import { engagement, InboxFile, loadConfig, loadDotEnv, localDate } from "@xrss/
 import { type DetailCandidate, scheduleDetails } from "./details.ts";
 import { loadState, recordRun, saveState } from "./health.ts";
 import { readInbox } from "./inbox.ts";
-import { detailTargets, parseXGraphQL } from "./parsers/x-graphql.ts";
+import { detailTargets, findProfile, parseXGraphQL } from "./parsers/x-graphql.ts";
 import { inboxDir } from "./paths.ts";
 import type { CrawlPlan } from "./plan.ts";
 import { createRandom } from "./random.ts";
@@ -76,6 +76,7 @@ for (const [handle, files] of groups) {
     handle,
     status: keepStatus ? previous!.status : "ok",
     error: keepStatus ? previous!.error : undefined,
+    profile: findProfile(responses, handle) ?? previous?.profile,
     tweets,
   };
   writeFileSync(outPath, `${JSON.stringify(file, null, 2)}\n`);

@@ -25,7 +25,7 @@
 2. 按 `accounts` 的顺序，对每个账号：
    1. 如果 `longBreakBeforeSec` 大于 0，先 `sleep <longBreakBeforeSec>`；再 `sleep <waitBeforeSec>`。
    2. 在**同一个标签页**里打开 `url`，等待时间线加载完成。不要同时打开多个标签页。
-   3. 读取网络响应：地址里包含 `UserOriginalsTimeline`（个人主页"帖子"页）或 `UserTweets` 的 GraphQL 响应，原样保存到 `data/inbox/<日期>/raw/<handle>-<序号>.json`。
+   3. 读取网络响应：地址里包含 `UserOriginalsTimeline`（个人主页"帖子"页）或 `UserTweets` 的 GraphQL 响应，原样保存到 `data/inbox/<日期>/raw/<handle>-<序号>.json`；打开主页时地址里包含 `UserByScreenName` 的响应（账号资料，含头像）保存为 `raw/<handle>-profile.json`，前一天没发推的账号也要保存。
    4. 按 `scrollPausesMs` 依次向下滚动：每次滚动前等待对应的毫秒数，数组用完就不再滚动。满足以下任一条件时提前停止滚动：
       - 出现了 `lastSeenId` 或更早的推文；
       - 出现了早于 `since` 的推文（置顶推文除外）。
@@ -70,6 +70,12 @@ pnpm --filter @xrss/collector parse
 ## 只能读取页面内容时
 
 如果拿不到网络响应，直接按 `schemas/inbox-file.schema.json` 写出 `data/inbox/<日期>/<handle>.json`：`text` 要是完整正文（长推文点开"显示更多"），图片填地址，视频填封面和时长，引用推文填 `quoted`，作者本人的连续推文填 `thread`，数字按显示换算（"2.3万"→23000，"1.2K"→1200）。节奏要求同上。
+
+无论有没有新推文，都要写上账号资料 `profile`：`name` 是主页上的显示名，`avatarUrl` 是主页头像图片的地址（`<img>` 的 `src`，形如 `https://pbs.twimg.com/profile_images/.../xxx_400x400.jpg`）；每条推文的 `author.avatarUrl` 也填同一个地址。订阅页靠它显示博主头像。
+
+```json
+{ "source": "tencent-browser-skill", "collectedAt": "2026-10-18T22:31:00Z", "handle": "someone", "status": "ok", "profile": { "name": "Some One", "avatarUrl": "https://pbs.twimg.com/profile_images/1/a_400x400.jpg" }, "tweets": [] }
+```
 
 ## 绝对不要做的事
 

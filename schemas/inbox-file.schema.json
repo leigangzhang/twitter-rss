@@ -29,6 +29,18 @@
     "error": {
       "type": "string"
     },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "avatarUrl": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
     "tweets": {
       "type": "array",
       "items": {
@@ -69,6 +81,10 @@
           },
           "text": {
             "type": "string"
+          },
+          "textTruncated": {
+            "default": false,
+            "type": "boolean"
           },
           "lang": {
             "type": "string"
@@ -174,6 +190,14 @@
             "items": {
               "type": "object",
               "properties": {
+                "kind": {
+                  "default": "web",
+                  "type": "string",
+                  "enum": [
+                    "web",
+                    "x_article"
+                  ]
+                },
                 "url": {
                   "type": "string"
                 },
@@ -279,6 +303,47 @@
                   "required": [
                     "type",
                     "url"
+                  ]
+                }
+              },
+              "links": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "default": "web",
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "x_article"
+                      ]
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "expandedUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "imageUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "expandedUrl"
                   ]
                 }
               }

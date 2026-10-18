@@ -36,8 +36,8 @@ afterAll(() => new Promise<void>((r) => server.close(() => r())));
 const repoConfig = loadConfig(join(import.meta.dirname, "..", "..", "..", "config"));
 // 测试自带主题，不依赖 config/topics.yaml 里的真实博主
 const topics = [
-  { id: "ai", name: "AI", color: "#1F5FD6", accounts: ["sama"] },
-  { id: "crypto", name: "加密", color: "#B85A0A", accounts: ["cellinlab"] },
+  { id: "ai", name: "AI", color: "#1F5FD6", aliases: [], accounts: ["sama"] },
+  { id: "crypto", name: "加密", color: "#B85A0A", aliases: [], accounts: ["cellinlab"] },
 ];
 const config = {
   ...repoConfig,

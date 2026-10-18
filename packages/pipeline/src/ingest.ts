@@ -1,4 +1,4 @@
-import { readInbox } from "@xrss/collector";
+import { readInbox, smallAvatar } from "@xrss/collector";
 import { type AppConfig, engagement, mediaKind, passesFilters, type TimeRange } from "@xrss/core";
 import { accounts, type Db, tweets } from "@xrss/core/db";
 import { eq, sql } from "drizzle-orm";
@@ -53,7 +53,9 @@ export async function ingest(db: Db, config: AppConfig, date: string, range: Tim
     const [existing] = await db.select().from(accounts).where(eq(accounts.handle, file.handle));
     // 只记录范围结束前的推文：今天新发的推文明天还要采集，不能被当作"已看过"
     const newest = own.filter((t) => new Date(t.createdAt) < range.until).reduce<string | null>((m, t) => maxId(m, t.id), null);
-    const profile = own[0]?.author;
+    // 采集文件里的账号资料优先；没有时从推文作者信息里找（取带头像的那条）
+    const fromTweets = own.find((t) => t.author.avatarUrl)?.author ?? own[0]?.author;
+    const profile = { name: file.profile?.name ?? fromTweets?.name, avatarUrl: smallAvatar(file.profile?.avatarUrl ?? fromTweets?.avatarUrl) };
     await db
       .insert(accounts)
       .values({
