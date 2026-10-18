@@ -6,32 +6,38 @@ import { z } from "zod";
 export const DEEPSEEK_ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic";
 
 /** config/curation.md 缺失时使用的精选标准（与仓库里的默认文件一致的精简版） */
-const DEFAULT_GUIDE = `## 要保留的四类内容
-- best_practice 最佳实践与应用：具体可操作、读者能照着做的做法，要有细节。
+const DEFAULT_GUIDE = `## 读者
+有一定技术背景的产品、研发和 AI 爱好者，大多不是大模型研究者。
+## 要保留的内容
+- best_practice 最佳实践与用法：读者能照着试的做法，有一两个具体细节即可。
 - real_problem 真实世界问题：一线的实际问题、事故复盘、带数据的观察。
-- industry_trend 行业趋势与解读：重要事件 + 为什么重要、影响谁、接下来会怎样；只转述新闻不算。
-- expert_insight 行业领袖与专家思考：有论证的原创判断、反直觉洞察、经验提炼的原则。
+- new_release 新发布与新能力：新模型、产品、功能、开源项目，说清能做什么、有什么不同。
+- showcase 应用案例与灵感：用 AI 做出的真实作品和新用法。
+- industry_trend 行业趋势与解读：事件 + 一点解读或背景。
+- expert_insight 专家思考：有理由的原创判断和洞察。
 ## 要剔除
 preachy 说教、obvious 显而易见、shallow 没有思考、repost 纯搬运、duplicate 重复、promo 推广、chitchat 闲聊。
-拿不准时剔除；具体胜过抽象；增量胜过转述；不因作者名气放宽标准。`;
+有用或有启发就保留，拿不准时有具体信息的保留打 3 分；读得懂比专业更重要。
+## 打分（5 分制）
+5 必读，4 值得读，3 有收获（保留最低分），2 价值低，1 不推荐。`;
 
 /** 第一步：逐条评审 */
 export function reviewSystemPrompt(guide: string): string {
-  return `你是一份 X（Twitter）每日精选邮件的资深编辑，只为读者挑出真正有价值的内容。读者是中文用户，希望不打开 X 就能读懂每条推文。
+  return `你是一份 X（原 Twitter）每日精选邮件的资深编辑，为读者挑出对他们有用、有启发的内容。读者是中文用户，希望不打开 X 就能读懂每条推文。
 
-下面是这份邮件的精选标准，必须严格执行：
+下面是这份邮件的精选标准，请按它判断：
 
 <curation_guide>
 ${guide || DEFAULT_GUIDE}
 </curation_guide>
 
 对给你的这条推文，按顺序完成：
-1. 先判断它是什么类型（category）：best_practice / real_problem / industry_trend / expert_insight，都不是则为 other。
-   看实质内容而不是话题：讲 AI 的空话仍然是 other。
-2. 再判断去留（verdict）：符合上面四类之一且有实质内容才 keep；否则 drop，并在 dropReason 里选最主要的原因
+1. 先判断它是什么类型（category）：best_practice / real_problem / new_release / showcase / industry_trend / expert_insight，
+   都不是则为 other。看实质内容而不是话题：讲 AI 的空话仍然是 other。
+2. 再判断去留（verdict）：属于上面六类之一、对读者有用或有启发就 keep；否则 drop，并在 dropReason 里选最主要的原因
    （preachy / obvious / shallow / repost / duplicate / promo / chitchat / other）。keep 时 dropReason 为 null。
    category 为 other 时 verdict 必须是 drop。
-3. 打质量分 quality（0–10），按标准里的打分参考；drop 的内容不超过 4 分。
+3. 打质量分 quality：1–5 的整数（5 分制），按标准里的打分说明。keep 的至少 3 分，drop 的不超过 2 分。
 4. 从给定的候选主题里选一个最贴近的 topicId。
 5. summary：用一句 30–60 字的中文概括这条推文讲了什么（事实 + 观点），后面会用它判断不同推文是否重复。
 6. reason：用一句中文说明你的判断理由，指出它属于哪类、具体价值在哪里，或者为什么剔除。
@@ -50,7 +56,7 @@ linkedArticle 是推文（或引用推文）所附外部文章的标题、简介
 
 /** 第二步：编辑终审（同一天的候选放在一起看） */
 export function editorSystemPrompt(guide: string): string {
-  return `你是一份 X（Twitter）每日精选邮件的主编。下面是今天已经通过初审的候选推文，每条都有类型、分数和一句话摘要。
+  return `你是一份 X（原 Twitter）每日精选邮件的主编。下面是今天已经通过初审的候选推文，每条都有类型、分数和一句话摘要。
 初审已经判断过单条内容的价值，你的任务只有一个：去掉重复。
 
 <curation_guide>
@@ -68,6 +74,11 @@ ${guide || DEFAULT_GUIDE}
 }
 
 const REVIEW_TOOL = "submit_review";
+
+/** 模型要填的评审结果：5 分制整数分，scale 由程序补上 */
+export const ReviewOutput = AiResult.omit({ scale: true }).extend({
+  quality: z.number().int().min(1).max(5).describe("5 分制：5 必读，4 值得读，3 有收获，2 价值低，1 不推荐"),
+});
 const EDIT_TOOL = "submit_editorial";
 
 export const EditorialResult = z.object({
@@ -157,7 +168,7 @@ export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
   const client = createClient(opts);
   const model = modelOf(opts);
   const system = reviewSystemPrompt(opts.guide ?? "");
-  const inputSchema = z.toJSONSchema(AiResult, { io: "input" }) as Anthropic.Tool.InputSchema;
+  const inputSchema = z.toJSONSchema(ReviewOutput, { io: "input" }) as Anthropic.Tool.InputSchema;
 
   async function call(tweet: RawTweet, topics: Pick<Topic, "id" | "name">[], withImages: boolean, article?: LinkDigest) {
     // 图片和视频封面一并给模型看（最多 3 张），用于生成 mediaNote
@@ -199,9 +210,9 @@ export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
         if (tweet.media.length === 0) throw e;
         response = await call(tweet, topics, false, article);
       }
-      const parsed = AiResult.safeParse(toolInput(response, REVIEW_TOOL));
+      const parsed = ReviewOutput.safeParse(toolInput(response, REVIEW_TOOL));
       if (!parsed.success) throw new Error(`评审结果格式不符：${z.prettifyError(parsed.error)}`);
-      return normalizeReview(parsed.data, tweet, topics);
+      return normalizeReview({ ...parsed.data, scale: 5 }, tweet, topics);
     },
   };
 }
@@ -215,11 +226,15 @@ export function normalizeReview(r: AiResult, tweet: RawTweet, topics: Pick<Topic
     result.verdict = "drop";
     result.dropReason ??= "other";
   }
+  // 5 分制：保留的至少 3 分，剔除的不超过 2 分
+  result.scale = 5;
+  result.quality = Math.min(5, Math.max(1, Math.round(result.quality)));
   if (result.verdict === "drop") {
     result.dropReason ??= "other";
-    result.quality = Math.min(result.quality, 4);
+    result.quality = Math.min(result.quality, 2);
   } else {
     result.dropReason = null;
+    result.quality = Math.max(result.quality, 3);
   }
   return result;
 }
@@ -269,7 +284,8 @@ export function createRuleOnlyReviewer(ruleScores: Map<string, number>): Reviewe
         verdict: "keep",
         category: "other",
         dropReason: null,
-        quality: Math.round((5 + rule * 5) * 10) / 10,
+        quality: Math.round(3 + rule * 2),
+        scale: 5,
         topicId: topics[0]!.id,
         summary: tweet.text.slice(0, 60),
         reason: "规则分（未调用 AI）",

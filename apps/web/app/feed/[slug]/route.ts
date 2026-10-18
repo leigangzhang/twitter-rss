@@ -1,4 +1,4 @@
-import { type ArticleView, type CardView, type Lang, primaryArticle, resolveTopicId, toCardView } from "@xrss/core";
+import { type ArticleView, type CardView, type Lang, primaryArticle, qualityOf, resolveTopicId, toCardView } from "@xrss/core";
 import { linkDigests, tweets } from "@xrss/core/db";
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { Feed } from "feed";
@@ -15,7 +15,7 @@ function articleHtml(a: ArticleView): string {
 /** RSS 条目正文：与邮件卡片同样的内容，用简单 HTML 呈现 */
 function cardHtml(c: CardView): string {
   const total = c.parts.length + c.moreParts;
-  const more = c.truncated ? `…</p><p><a href="${esc(c.url)}">全文较长，在 X 上阅读全文</a>` : "";
+  const more = c.truncated ? `…</p><p><a href="${esc(c.url)}">全文较长，在 X（原 Twitter）上阅读全文</a>` : "";
   const parts =
     c.parts.length === 1
       ? `<p>${esc(c.parts[0]!).replace(/\n/g, "<br>")}${more}</p>`
@@ -25,7 +25,7 @@ function cardHtml(c: CardView): string {
   const quoted = c.quoted
     ? `<blockquote><strong>${esc(c.quoted.name)}</strong> <a href="${esc(c.quoted.url)}">@${esc(c.quoted.handle)}</a><br>${esc(c.quoted.text)}${c.quoted.article ? articleHtml(c.quoted.article) : ""}</blockquote>`
     : "";
-  const linkTitle = c.link?.title ?? (c.link?.kind === "x_article" ? "在 X 上阅读这篇长文" : undefined);
+  const linkTitle = c.link?.title ?? (c.link?.kind === "x_article" ? "在 X（原 Twitter）上阅读这篇长文" : undefined);
   const link = c.link && linkTitle ? `<p>🔗 <a href="${esc(c.link.url)}">${esc(linkTitle)}</a>${c.link.description ? `<br>${esc(c.link.description)}` : ""}</p>` : "";
   const meta = `<p><small>${c.categoryLabel ? `【${c.categoryLabel}】` : ""}@${esc(c.author.handle)}${c.translatedFrom ? ` · ${c.translatedFrom}` : ""} · ♡ ${c.likes} · ⇄ ${c.reposts} · <a href="${esc(c.url)}">${c.ctaLabel}</a></small></p>`;
   return parts + images + note + quoted + (c.article ? articleHtml(c.article) : link) + meta;
@@ -48,13 +48,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
     .where(and(eq(tweets.status, "scored"), inArray(tweets.topicId, [topic.id, ...topic.aliases]), gte(tweets.createdAt, new Date(Date.now() - 30 * 86_400_000))))
     .orderBy(desc(tweets.createdAt))
     .limit(cfg.digest.rss.items_per_feed * 3);
-  const items = rows.filter((r) => (r.ai?.quality ?? 0) >= cfg.digest.filters.min_quality).slice(0, cfg.digest.rss.items_per_feed);
+  const items = rows.filter((r) => qualityOf(r.ai) >= cfg.digest.filters.min_quality).slice(0, cfg.digest.rss.items_per_feed);
 
   const feed = new Feed({
     id: siteUrl(`/feed/${slug}`),
     link: siteUrl("/"),
     title: `精选晨报 · ${topic.name}${lang === "zh" ? "（中文）" : "（原文）"}`,
-    description: `每日精选 ${topic.name} 主题的 X 推文`,
+    description: `每日精选 ${topic.name} 主题的 X（原 Twitter）推文`,
     language: lang === "zh" ? "zh-CN" : undefined,
     copyright: "内容版权归原作者所有",
     updated: items[0]?.createdAt ?? new Date(),

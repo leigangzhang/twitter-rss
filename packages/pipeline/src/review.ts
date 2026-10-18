@@ -1,4 +1,4 @@
-import { type AiResult, type AppConfig, CATEGORY_LABELS, DROP_REASON_LABELS, finalScore, type LinkDigest } from "@xrss/core";
+import { type AiResult, type AppConfig, CATEGORY_LABELS, DROP_REASON_LABELS, finalScore, type LinkDigest, qualityOf } from "@xrss/core";
 import { type Db, tweets, type TweetRow } from "@xrss/core/db";
 import { eq } from "drizzle-orm";
 import type { Reviewer } from "./ai.ts";
@@ -16,7 +16,7 @@ export function gate(ai: AiResult, config: AppConfig, strict: boolean): string |
   if (!strict) return null;
   if (ai.verdict === "drop") return `初审剔除：${DROP_REASON_LABELS[ai.dropReason ?? "other"]}`;
   if (!config.digest.curation.allowed_categories.includes(ai.category)) return `初审剔除：类型为${CATEGORY_LABELS[ai.category]}`;
-  if (ai.quality < config.digest.filters.min_quality) return `初审剔除：质量分 ${ai.quality} 低于 ${config.digest.filters.min_quality}`;
+  if (qualityOf(ai) < config.digest.filters.min_quality) return `初审剔除：质量分 ${qualityOf(ai)} 低于 ${config.digest.filters.min_quality}`;
   return null;
 }
 
@@ -57,7 +57,7 @@ export async function reviewCandidates(
           filterReason: rejectReason,
           ai,
           topicId: ai.topicId,
-          finalScore: finalScore(ai.quality, row.ruleScore ?? 0, row.kind, config.digest.media_weight),
+          finalScore: finalScore(qualityOf(ai), row.ruleScore ?? 0, row.kind, config.digest.media_weight),
           processedAt: new Date(),
         })
         .where(eq(tweets.id, row.id));

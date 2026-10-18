@@ -19,7 +19,7 @@ filters:
   include_replies: false   # 回复别人的推文
   include_reposts: false   # 纯转发
   min_text_length: 20      # 正文过短（且无图片、无引用、无外链）时丢弃
-  min_quality: 5           # AI 质量分（0–10）低于此值不进入邮件
+  min_quality: 3           # AI 质量分（5 分制：5 必读 / 4 值得读 / 3 有收获）低于此值不进入邮件
 
 media_weight:
   text: 1.0
@@ -63,8 +63,8 @@ rss:
 
 # LLM 精选（详细标准写在 config/curation.md，可直接修改）
 curation:
-  # 只有这几类内容能进入邮件：best_practice 最佳实践与应用 / real_problem 真实世界问题 /
-  # industry_trend 行业趋势与解读 / expert_insight 行业领袖与专家思考
-  allowed_categories: [best_practice, real_problem, industry_trend, expert_insight]
+  # 只有这几类内容能进入邮件：best_practice 最佳实践与用法 / real_problem 真实世界问题 /
+  # new_release 新发布与新能力 / showcase 应用案例与灵感 / industry_trend 行业趋势与解读 / expert_insight 专家思考
+  allowed_categories: [best_practice, real_problem, new_release, showcase, industry_trend, expert_insight]
   editor_pass: true        # 单条评审后再做一次"编辑终审"：同一事件/同一观点只留最好的一条
   recent_days: 3           # 终审时对照最近 3 天已发过的内容，避免隔天重复

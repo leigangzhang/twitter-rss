@@ -128,8 +128,9 @@ export function SubscribeForm({ topics, defaultLang, maxAvatars = 7, manage }: P
               每天一封邮件，
               <br />
               读完你关心的 X
+              <span className="ml-2 align-middle text-[0.45em] font-bold tracking-normal text-muted">（原 Twitter）</span>
             </h1>
-            <p className="m-0 text-[17px] leading-relaxed text-muted">从你选的主题里，每天早上 7 点精选 8–10 条推文。完整内容直接在邮件里读，不用打开 X。</p>
+            <p className="m-0 text-[17px] leading-relaxed text-muted">从你选的主题里，每天早上 7 点精选 8–10 条推文。完整内容直接在邮件里读，不用打开 X（原 Twitter）。</p>
           </div>
         )}
 

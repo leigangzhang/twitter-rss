@@ -50,7 +50,7 @@ function TruncatedHint({ card }: { card: CardView }) {
   if (!card.truncated) return null;
   return (
     <Text style={{ ...meta, marginTop: 8 }}>
-      全文较长，<Link href={card.url} style={{ color: color.link }}>在 X 上阅读全文</Link>
+      全文较长，<Link href={card.url} style={{ color: color.link }}>在 X（原 Twitter）上阅读全文</Link>
     </Text>
   );
 }
@@ -83,7 +83,7 @@ function Parts({ card }: { card: CardView }) {
       ))}
       {card.moreParts > 0 ? (
         <Text style={{ ...meta, paddingLeft: 36 }}>
-          另有 {card.moreParts} 条，<Link href={card.url} style={{ color: color.link }}>在 X 上查看</Link>
+          另有 {card.moreParts} 条，<Link href={card.url} style={{ color: color.link }}>在 X（原 Twitter）上查看</Link>
         </Text>
       ) : null}
     </>
@@ -134,7 +134,7 @@ function NoteBlock({ label, text }: { label: string; text: string }) {
 function Video({ card }: { card: CardView }) {
   if (!card.video) return null;
   if (!card.video.thumbUrl) return card.mediaNote ? <NoteBlock label="视频说明（AI 生成）" text={card.mediaNote} /> : null;
-  const note = card.mediaNote ?? "视频内容请在 X 上观看。";
+  const note = card.mediaNote ?? "视频内容请在 X（原 Twitter）上观看。";
   return (
     <Row style={{ marginTop: 14 }}>
       <Column style={{ width: 146, verticalAlign: "top" }}>
@@ -241,7 +241,7 @@ function LinkPreview({ card }: { card: CardView }) {
           ) : null}
           <Column style={{ padding: "12px 14px", verticalAlign: "middle" }}>
             <Text style={{ fontSize: 14, fontWeight: 700, lineHeight: "21px", color: color.ink, margin: "0 0 4px" }}>
-              {link.title ?? (link.kind === "x_article" ? "在 X 上阅读这篇长文" : link.url)}
+              {link.title ?? (link.kind === "x_article" ? "在 X（原 Twitter）上阅读这篇长文" : link.url)}
             </Text>
             {link.description ? <Text style={{ fontSize: 13, lineHeight: "20px", color: color.muted, margin: "0 0 4px" }}>{link.description}</Text> : null}
             {link.domain ? <Text style={{ ...meta, fontSize: 11 }}>{link.domain}</Text> : null}

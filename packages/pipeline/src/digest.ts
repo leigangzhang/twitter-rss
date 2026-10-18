@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   normalizeTopicIds,
+  qualityOf,
   resolveTopicId,
   type AppConfig,
   dateLabel,
@@ -150,7 +151,7 @@ export async function sendDigests(
   )
     // 主题合并后，旧推文上的旧主题 id 映射到新主题
     .map((t) => ({ ...t, topicId: resolveTopicId(config, t.topicId) ?? null }))
-    .filter((t) => t.topicId && (t.ai?.quality ?? 0) >= config.digest.filters.min_quality);
+    .filter((t) => t.topicId && qualityOf(t.ai) >= config.digest.filters.min_quality);
   const articleUrls = scored.map((t) => primaryArticle(t.raw)?.link.expandedUrl).filter((u): u is string => Boolean(u));
   const articles = await loadDigests(db, articleUrls);
   const ctx: DigestContext = { config, date: opts.date, now: opts.now, range: opts.range, scored, articles, scannedByHandle };

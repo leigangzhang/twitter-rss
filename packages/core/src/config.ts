@@ -31,6 +31,8 @@ const TopicsFile = z.object({
     }, "aliases 不能与主题 id 或其他主题的 aliases 重复"),
 });
 
+const KEEP_CATEGORIES = ["best_practice", "real_problem", "new_release", "showcase", "industry_trend", "expert_insight"] as const;
+
 const DigestFile = z.object({
   send_time: z.string().regex(/^\d{2}:\d{2}$/).default("07:00"),
   timezone: z.string().default("Asia/Shanghai"),
@@ -46,7 +48,7 @@ const DigestFile = z.object({
     include_replies: z.boolean().default(false),
     include_reposts: z.boolean().default(false),
     min_text_length: z.number().int().min(0).default(20),
-    min_quality: z.number().min(0).max(10).default(5),
+    min_quality: z.number().min(1).max(5).default(3),
   }),
   media_weight: z.object({
     text: z.number().min(0).default(1),
@@ -96,13 +98,13 @@ const DigestFile = z.object({
   curation: z
     .object({
       /** 只有这些类型的内容能进入邮件 */
-      allowed_categories: z.array(ContentCategory).min(1).default(["best_practice", "real_problem", "industry_trend", "expert_insight"]),
+      allowed_categories: z.array(ContentCategory).min(1).default([...KEEP_CATEGORIES]),
       /** 单条评审后，再让模型把当天全部候选放在一起做一次终审（去重、去同一事件） */
       editor_pass: z.boolean().default(true),
       /** 终审时对照最近几天已经发过的内容，避免隔天重复 */
       recent_days: z.number().int().min(0).default(3),
     })
-    .default({ allowed_categories: ["best_practice", "real_problem", "industry_trend", "expert_insight"], editor_pass: true, recent_days: 3 }),
+    .default({ allowed_categories: [...KEEP_CATEGORIES], editor_pass: true, recent_days: 3 }),
 });
 export type DigestConfig = z.infer<typeof DigestFile>;
 

@@ -129,12 +129,14 @@ export type MediaKind = "text" | "image" | "video";
 export type Lang = "zh" | "orig";
 
 /** 读者想看的四类高价值内容；other 表示不属于这四类 */
-export const ContentCategory = z.enum(["best_practice", "real_problem", "industry_trend", "expert_insight", "other"]);
+export const ContentCategory = z.enum(["best_practice", "real_problem", "new_release", "showcase", "industry_trend", "expert_insight", "other"]);
 export type ContentCategory = z.infer<typeof ContentCategory>;
 
 export const CATEGORY_LABELS: Record<ContentCategory, string> = {
   best_practice: "最佳实践",
   real_problem: "真实问题",
+  new_release: "新发布",
+  showcase: "应用案例",
   industry_trend: "趋势解读",
   expert_insight: "专家观点",
   other: "其他",
@@ -155,6 +157,12 @@ export const DROP_REASON_LABELS: Record<DropReason, string> = {
   other: "其他",
 };
 
+/** 统一换算成 5 分制（旧数据是 10 分制），保留一位小数 */
+export function qualityOf(ai: { quality: number; scale?: number } | null | undefined): number {
+  if (!ai) return 0;
+  return ai.scale === 5 ? ai.quality : Math.round((ai.quality / 2) * 10) / 10;
+}
+
 /** AI 评审结果：价值判断 + 中文版内容 + 说明 */
 export const AiResult = z.object({
   /** keep：值得推荐；drop：剔除 */
@@ -163,8 +171,13 @@ export const AiResult = z.object({
   category: ContentCategory,
   /** verdict 为 drop 时的主要原因，keep 时为 null */
   dropReason: DropReason.nullable(),
-  /** 0–10。9–10 必读，7–8 值得读，5–6 普通，0–4 不推荐（drop 的内容不超过 4） */
+  /**
+   * 质量分。现在是 5 分制（scale 为 5）：5 必读，4 值得读，3 有收获，2 价值低，1 不推荐；保留的至少 3 分。
+   * 旧数据没有 scale，是 0–10 分制。读取时一律用 qualityOf() 换算成 5 分制。
+   */
   quality: z.number().min(0).max(10),
+  /** 5：5 分制；缺省：旧的 10 分制 */
+  scale: z.literal(5).optional(),
   /** 从该账号所属主题中选一个最贴近的 */
   topicId: z.string(),
   /** 一句话中文摘要（30–60 字），说清这条讲了什么，用于终审去重 */

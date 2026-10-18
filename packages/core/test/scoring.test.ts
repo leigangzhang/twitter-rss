@@ -50,3 +50,13 @@ describe("scoring", () => {
     expect(compactNumber(110_000)).toBe("11万");
   });
 });
+
+describe("qualityOf", () => {
+  it("5 分制原样返回，旧的 10 分制折半", async () => {
+    const { qualityOf } = await import("../src/types.ts");
+    expect(qualityOf({ quality: 4, scale: 5 })).toBe(4);
+    expect(qualityOf({ quality: 7 })).toBe(3.5);
+    expect(qualityOf({ quality: 5.9 })).toBe(3);
+    expect(qualityOf(null)).toBe(0);
+  });
+});

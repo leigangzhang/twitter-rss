@@ -57,7 +57,7 @@ beforeAll(async () => {
                 verdict: "keep",
                 category: "best_practice",
                 dropReason: null,
-                quality: 8,
+                quality: 4,
                 topicId: "unknown",
                 summary: "一条示例",
                 reason: "一手经验",
@@ -95,7 +95,8 @@ describe("createLlmReviewer（DeepSeek Anthropic 兼容接口）", () => {
     expect(result).toMatchObject({
       verdict: "keep",
       category: "best_practice",
-      quality: 8,
+      quality: 4,
+      scale: 5,
       topicId: "ai",
       zh: { text: "你好", quotedText: null, linkTitle: null, linkDescription: null },
     });
@@ -115,7 +116,7 @@ describe("createLlmReviewer（DeepSeek Anthropic 兼容接口）", () => {
     const reviewer = createLlmReviewer({ apiKey: "sk-test", baseURL });
     const result = await reviewer.review(tweet, [{ id: "ai", name: "AI" }]);
     rejectImages = false;
-    expect(result.quality).toBe(8);
+    expect(result).toMatchObject({ quality: 4, scale: 5 });
     expect(requests).toHaveLength(2);
     expect(requests[1]!.body.messages[0].content.every((b: any) => b.type === "text")).toBe(true);
   });
@@ -130,7 +131,7 @@ describe("精选规则", () => {
     verdict: "keep" as const,
     category: "expert_insight" as const,
     dropReason: null,
-    quality: 8,
+    quality: 4,
     topicId: "ai",
     summary: "s",
     reason: "r",
@@ -144,9 +145,12 @@ describe("精选规则", () => {
     expect(editorSystemPrompt("")).toContain("same_event");
   });
 
-  it("类型为 other 时强制剔除，剔除的内容分数不超过 4", () => {
-    expect(normalizeReview({ ...base, category: "other" }, tweet, [{ id: "ai" }])).toMatchObject({ verdict: "drop", dropReason: "other", quality: 4 });
-    expect(normalizeReview({ ...base, verdict: "drop", dropReason: "preachy", quality: 7 }, tweet, [{ id: "ai" }])).toMatchObject({ quality: 4 });
+  it("类型为 other 时强制剔除，剔除的内容不超过 2 分、保留的至少 3 分（5 分制）", () => {
+    expect(normalizeReview({ ...base, category: "other" }, tweet, [{ id: "ai" }])).toMatchObject({ verdict: "drop", dropReason: "other", quality: 2, scale: 5 });
+    expect(normalizeReview({ ...base, verdict: "drop", dropReason: "preachy", quality: 4 }, tweet, [{ id: "ai" }])).toMatchObject({ quality: 2 });
+    // 保留的至少 3 分
+    expect(normalizeReview({ ...base, quality: 1 }, tweet, [{ id: "ai" }])).toMatchObject({ verdict: "keep", quality: 3 });
+    expect(normalizeReview({ ...base, category: "showcase" }, tweet, [{ id: "ai" }])).toMatchObject({ verdict: "keep", quality: 4 });
     expect(normalizeReview({ ...base, dropReason: "shallow" }, tweet, [{ id: "ai" }]).dropReason).toBeNull();
   });
 

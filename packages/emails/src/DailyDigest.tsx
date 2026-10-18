@@ -47,7 +47,7 @@ export function DailyDigest({ view }: { view: DigestView }) {
             </Row>
             <Text style={{ fontSize: 30, fontWeight: 900, lineHeight: "39px", color: color.ink, margin: "18px 0 8px" }}>{view.periodLabel ? `${view.periodLabel}值得读的 ${view.total} 条` : `今天值得读的 ${view.total} 条`}</Text>
             <Text style={{ fontSize: 14, lineHeight: "22px", color: color.muted, margin: "0 0 16px" }}>
-              来自你订阅的 {view.topicCount} 个主题、{view.accountCount} 位博主 · 从{view.periodLabel ? `${view.periodLabel}发布的 ` : " "}{view.scannedCount} 条新推文中筛选
+              来自你订阅的 {view.topicCount} 个主题、{view.accountCount} 位 X（原 Twitter）博主 · 从{view.periodLabel ? `${view.periodLabel}发布的 ` : " "}{view.scannedCount} 条新推文中筛选
               {view.lang === "zh" ? " · 中文版（AI 翻译）" : " · 原文版"}
             </Text>
             <Text style={{ margin: 0, lineHeight: "34px" }}>

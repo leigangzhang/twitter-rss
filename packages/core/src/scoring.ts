@@ -51,7 +51,7 @@ export function passesFilters(t: RawTweet, cfg: DigestConfig["filters"]): Filter
 
 /** 最终分（0–1 × 媒体权重）：AI 质量分占 70%，互动表现占 30% */
 export function finalScore(quality: number, rule: number, kind: MediaKind, weights: DigestConfig["media_weight"]): number {
-  return (0.7 * (quality / 10) + 0.3 * rule) * weights[kind];
+  return (0.7 * (quality / 5) + 0.3 * rule) * weights[kind];
 }
 
 /**

@@ -181,7 +181,7 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
           url: link.expandedUrl,
           title: zh?.linkTitle ?? link.title,
           description: zh?.linkDescription ?? link.description,
-          domain: link.kind === "x_article" ? "X 长文" : link.domain,
+          domain: link.kind === "x_article" ? "X（原 Twitter）长文" : link.domain,
           imageUrl: link.imageUrl,
         }
       : undefined,

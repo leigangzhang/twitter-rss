@@ -1,6 +1,7 @@
 import { parseArgs } from "node:util";
 import { loadConfig, localDate, runRange, loadDotEnv } from "@xrss/core";
-import { createDb, migrateDb } from "@xrss/core/db";
+import { createDb, migrateDb, tweets } from "@xrss/core/db";
+import { and, gte, inArray, lt } from "drizzle-orm";
 import { createLlmEditor, createLlmReviewer, createLlmSummarizer, createRuleOnlyReviewer } from "./ai.ts";
 import { fetchCandidateArticles, summarizeArticles } from "./links.ts";
 import { runEditorial, writeCurationReport } from "./editorial.ts";
@@ -19,11 +20,13 @@ loadDotEnv();
  *   pnpm pipeline:dry             试跑：不发邮件，把邮件写到 data/out/<日期>/
  *   pnpm pipeline --skip-ai       不调用 AI，只用规则分（不翻译）
  *   pnpm pipeline --date 2026-10-18
+ *   pnpm pipeline:dry --rereview  已评审过的推文按当前精选标准重新评审（调整 curation.md 后对比效果）
  */
 const { values } = parseArgs({
   options: {
     "dry-run": { type: "boolean", default: false },
     "skip-ai": { type: "boolean", default: false },
+    rereview: { type: "boolean", default: false },
     date: { type: "string" },
   },
 });
@@ -47,6 +50,16 @@ for (const f of ing.invalidFiles) console.warn(`  ⚠ 文件格式不符 ${f.fil
 for (const h of ing.unknownAccounts) console.warn(`  ⚠ ${h} 不在 topics.yaml 中，已忽略`);
 for (const b of ing.blocked) console.warn(`  ⚠ 采集异常 @${b.handle}：${b.status}${b.error ? `（${b.error}）` : ""}`);
 if (ing.truncated > 0) console.warn(`  ⚠ ${ing.truncated} 条长推文仍是截断版（未补抓详情页），邮件中会提示"全文较长"`);
+
+if (values.rereview) {
+  // 时间范围内已评审过的推文清空评审结果，重新排队
+  const reset = await db
+    .update(tweets)
+    .set({ status: "new", ai: null, finalScore: null, topicId: null, filterReason: null })
+    .where(and(inArray(tweets.status, ["scored", "rejected"]), gte(tweets.createdAt, range.since), lt(tweets.createdAt, range.until)))
+    .returning({ id: tweets.id });
+  console.log(`  重新评审：${reset.length} 条已评审的推文按当前标准重新排队`);
+}
 
 const candidates = await pickCandidates(db, config, range);
 console.log(`  候选：${candidates.length} 条送去评审`);

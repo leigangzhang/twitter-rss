@@ -3,8 +3,8 @@ import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "精选晨报 · 每天一封，读完你关心的 X",
-  description: "按主题精选 X 上的优质推文，每天早上发到你的邮箱，支持中文翻译和 RSS。",
+  title: "精选晨报 · 每天一封，读完你关心的 X（原 Twitter）",
+  description: "按主题精选 X（原 Twitter）上的优质推文，每天早上发到你的邮箱，支持中文翻译和 RSS。",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

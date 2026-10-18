@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type AppConfig, CATEGORY_LABELS, findRepoRoot, type TimeRange } from "@xrss/core";
+import { type AppConfig, CATEGORY_LABELS, findRepoRoot, qualityOf, type TimeRange } from "@xrss/core";
 import { type Db, deliveries, tweets, type TweetRow } from "@xrss/core/db";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import type { Editor } from "./ai.ts";
@@ -45,7 +45,7 @@ export async function runEditorial(db: Db, config: AppConfig, range: TimeRange, 
     author: `@${t.handle}`,
     topicId: t.topicId ?? "",
     category: t.ai?.category ?? "other",
-    quality: t.ai?.quality ?? 0,
+    quality: qualityOf(t.ai),
     summary: t.ai?.summary || t.raw.text.slice(0, 80),
   }));
   const result = await editor.edit(items, recent);
@@ -68,7 +68,7 @@ export function renderCurationReport(rows: TweetRow[], range: TimeRange, date: s
     const ai = t.ai;
     const head = `- [@${t.handle}](${t.raw.url})`;
     if (!ai) return `${head} ${t.raw.text.replace(/\s+/g, " ").slice(0, 80)}${t.filterReason ? ` — ${t.filterReason}` : ""}`;
-    const tags = [CATEGORY_LABELS[ai.category] ?? ai.category, `${ai.quality} 分`, t.finalScore !== null ? `综合 ${t.finalScore.toFixed(2)}` : null]
+    const tags = [CATEGORY_LABELS[ai.category] ?? ai.category, `${qualityOf(ai)}/5 分`, t.finalScore !== null ? `综合 ${t.finalScore.toFixed(2)}` : null]
       .filter(Boolean)
       .join(" · ");
     // 早期 --skip-ai 的结果没有 summary/reason；报告遇到旧数据也要能生成。
@@ -86,6 +86,8 @@ export function renderCurationReport(rows: TweetRow[], range: TimeRange, date: s
     `# 精选报告 ${date}`,
     "",
     `内容日期：${range.contentDate}　共 ${rows.length} 条：通过 ${kept.length}，AI 剔除 ${rejected.length}，规则排除 ${filtered.length}，未评审 ${pending.length}`,
+    "",
+    `AI 分数分布（5 分制）：${[5, 4, 3, 2, 1].map((n) => `${n} 分 ${rows.filter((t) => t.ai && Math.round(qualityOf(t.ai)) === n).length}`).join("，")}`,
     "",
     `## 通过精选（${kept.length}）`,
     "",
