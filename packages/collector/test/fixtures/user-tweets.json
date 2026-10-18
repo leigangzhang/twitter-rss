@@ -1,0 +1,173 @@
+{
+  "_comment": "手工构造的 UserTweets 响应样本，结构参照 X 网页接口。拿到真实响应后请补充一份真实样本。",
+  "data": {
+    "user": {
+      "result": {
+        "timeline": {
+          "timeline": {
+            "instructions": [
+              {
+                "type": "TimelineAddEntries",
+                "entries": [
+                  {
+                    "entryId": "tweet-1900000000000000003",
+                    "content": {
+                      "itemContent": {
+                        "tweet_results": {
+                          "result": {
+                            "__typename": "Tweet",
+                            "rest_id": "1900000000000000003",
+                            "core": { "user_results": { "result": { "core": { "screen_name": "MiraChen_ML", "name": "Mira Chen" }, "avatar": { "image_url": "https://pbs.twimg.com/profile_images/1/a_normal.jpg" } } } },
+                            "views": { "count": "120345" },
+                            "note_tweet": { "note_tweet_results": { "result": { "text": "Full long text that is longer than 280 characters would be here. Read more: https://t.co/link1" } } },
+                            "card": {
+                              "legacy": {
+                                "url": "https://t.co/link1",
+                                "binding_values": [
+                                  { "key": "title", "value": { "string_value": "Long context study" } },
+                                  { "key": "description", "value": { "string_value": "What we found." } },
+                                  { "key": "domain", "value": { "string_value": "example.org" } },
+                                  { "key": "thumbnail_image_original", "value": { "image_value": { "url": "https://pbs.twimg.com/card_img/1.jpg" } } }
+                                ]
+                              }
+                            },
+                            "legacy": {
+                              "id_str": "1900000000000000003",
+                              "created_at": "Sat Oct 18 01:12:00 +0000 2026",
+                              "full_text": "Truncated text… https://t.co/link1 https://t.co/media1",
+                              "display_text_range": [0, 35],
+                              "lang": "en",
+                              "conversation_id_str": "1900000000000000003",
+                              "favorite_count": 23000,
+                              "retweet_count": 3104,
+                              "reply_count": 210,
+                              "quote_count": 88,
+                              "bookmark_count": 900,
+                              "entities": { "urls": [{ "url": "https://t.co/link1", "expanded_url": "https://www.example.org/study", "display_url": "example.org/study" }] },
+                              "extended_entities": {
+                                "media": [
+                                  {
+                                    "type": "video",
+                                    "url": "https://t.co/media1",
+                                    "media_url_https": "https://pbs.twimg.com/ext_tw_video_thumb/1/pu/img/v.jpg",
+                                    "original_info": { "width": 1280, "height": 720 },
+                                    "video_info": { "duration_millis": 408000 }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "entryId": "tweet-1900000000000000004",
+                    "content": {
+                      "itemContent": {
+                        "tweet_results": {
+                          "result": {
+                            "__typename": "Tweet",
+                            "rest_id": "1900000000000000004",
+                            "core": { "user_results": { "result": { "core": { "screen_name": "MiraChen_ML", "name": "Mira Chen" } } } },
+                            "legacy": {
+                              "id_str": "1900000000000000004",
+                              "created_at": "Sat Oct 18 01:13:00 +0000 2026",
+                              "full_text": "@MiraChen_ML Second part of the thread &amp; more.",
+                              "display_text_range": [13, 50],
+                              "conversation_id_str": "1900000000000000003",
+                              "in_reply_to_status_id_str": "1900000000000000003",
+                              "in_reply_to_screen_name": "MiraChen_ML",
+                              "favorite_count": 500, "retweet_count": 20, "reply_count": 3, "quote_count": 0,
+                              "entities": { "urls": [] }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "entryId": "tweet-1900000000000000002",
+                    "content": {
+                      "itemContent": {
+                        "tweet_results": {
+                          "result": {
+                            "__typename": "TweetWithVisibilityResults",
+                            "tweet": {
+                              "rest_id": "1900000000000000002",
+                              "core": { "user_results": { "result": { "legacy": { "screen_name": "MiraChen_ML", "name": "Mira Chen" } } } },
+                              "quoted_status_result": {
+                                "result": {
+                                  "__typename": "Tweet",
+                                  "rest_id": "1800000000000000001",
+                                  "core": { "user_results": { "result": { "core": { "screen_name": "TheoPark", "name": "Theo Park" } } } },
+                                  "legacy": {
+                                    "id_str": "1800000000000000001",
+                                    "created_at": "Fri Oct 17 08:00:00 +0000 2026",
+                                    "full_text": "Quoted original text",
+                                    "entities": { "urls": [] }
+                                  }
+                                }
+                              },
+                              "legacy": {
+                                "id_str": "1900000000000000002",
+                                "created_at": "Fri Oct 17 22:00:00 +0000 2026",
+                                "full_text": "Worth reading. https://t.co/quote1",
+                                "conversation_id_str": "1900000000000000002",
+                                "quoted_status_permalink": { "url": "https://t.co/quote1", "expanded": "https://twitter.com/TheoPark/status/1800000000000000001" },
+                                "favorite_count": 10, "retweet_count": 1, "reply_count": 0, "quote_count": 0,
+                                "entities": { "urls": [{ "url": "https://t.co/quote1", "expanded_url": "https://twitter.com/TheoPark/status/1800000000000000001" }] }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "entryId": "tweet-1900000000000000001",
+                    "content": {
+                      "itemContent": {
+                        "tweet_results": {
+                          "result": {
+                            "__typename": "Tweet",
+                            "rest_id": "1900000000000000001",
+                            "core": { "user_results": { "result": { "core": { "screen_name": "MiraChen_ML", "name": "Mira Chen" } } } },
+                            "legacy": {
+                              "id_str": "1900000000000000001",
+                              "created_at": "Fri Oct 17 20:00:00 +0000 2026",
+                              "full_text": "RT @someone: reposted",
+                              "retweeted_status_result": { "result": {} },
+                              "favorite_count": 0, "retweet_count": 5, "reply_count": 0, "quote_count": 0,
+                              "entities": { "urls": [] }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "entryId": "promoted-tweet-1",
+                    "content": {
+                      "itemContent": {
+                        "promotedMetadata": { "advertiser_results": {} },
+                        "tweet_results": {
+                          "result": {
+                            "__typename": "Tweet",
+                            "rest_id": "1999999999999999999",
+                            "core": { "user_results": { "result": { "core": { "screen_name": "MiraChen_ML", "name": "Ad" } } } },
+                            "legacy": { "id_str": "1999999999999999999", "created_at": "Sat Oct 18 01:00:00 +0000 2026", "full_text": "Buy now", "entities": { "urls": [] } }
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

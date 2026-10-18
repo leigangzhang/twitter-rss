@@ -1,0 +1,23 @@
+{
+  "name": "twitter-rss",
+  "private": true,
+  "version": "0.1.0",
+  "description": "X 精选晨报：按主题跟踪博主，AI 过滤，每日邮件 + RSS",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @xrss/web dev",
+    "build": "pnpm --filter @xrss/web build",
+    "plan": "pnpm --filter @xrss/collector plan",
+    "pipeline": "pnpm --filter @xrss/pipeline run daily",
+    "pipeline:dry": "pnpm --filter @xrss/pipeline run daily --dry-run",
+    "email:preview": "pnpm --filter @xrss/emails preview",
+    "db:migrate": "pnpm --filter @xrss/core db:migrate",
+    "schema": "pnpm --filter @xrss/core schema",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  }
+}

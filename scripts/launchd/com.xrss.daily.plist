@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS 定时任务：每天 06:20 启动（脚本内再随机等待 0–30 分钟，7 点前后发出邮件）。
+  安装：
+    sed "s|__ROOT__|$PWD|g" scripts/launchd/com.xrss.daily.plist > ~/Library/LaunchAgents/com.xrss.daily.plist
+    launchctl load ~/Library/LaunchAgents/com.xrss.daily.plist
+  卸载：
+    launchctl unload ~/Library/LaunchAgents/com.xrss.daily.plist
+  电脑睡眠时错过的任务会在唤醒后补跑一次。
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.xrss.daily</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__ROOT__/scripts/daily.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>6</integer>
+    <key>Minute</key>
+    <integer>20</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__ROOT__/data/logs/launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__ROOT__/data/logs/launchd.err.log</string>
+</dict>
+</plist>

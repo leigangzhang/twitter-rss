@@ -1,0 +1,38 @@
+# 每日精选规则
+
+# 发送时间（北京时间），只用于 launchd 定时任务模板和邮件标题日期
+send_time: "07:00"
+timezone: Asia/Shanghai
+
+# 只看最近多少小时内发布的推文
+window_hours: 24
+
+digest:
+  total_items: 10        # 每封邮件精选条数，常用 8–10
+  min_per_topic: 1       # 每个已订阅主题至少保底几条（当天有合格内容时）
+  candidates_per_topic: 15  # 规则粗筛后，每个主题送给 AI 打分的条数上限，控制 AI 成本
+
+filters:
+  include_replies: false   # 回复别人的推文
+  include_reposts: false   # 纯转发
+  min_text_length: 20      # 正文过短（且无图片、无引用、无外链）时丢弃
+  min_quality: 5           # AI 质量分（0–10）低于此值不进入邮件
+
+media_weight:
+  text: 1.0
+  image: 1.0
+  video: 0.6               # 视频降权
+
+video_mode: summary        # summary：只发文字说明 | thumbnail：缩略图 + 文字说明
+
+thread:
+  merge: true              # 合并作者本人的连续推文
+  max_parts: 8             # 超过时只显示前 N 条，并注明"另有 N 条"
+
+# 订阅者可选语言：zh = AI 翻译成中文，只显示译文；orig = 保留原文
+# AI 生成的视频说明、图片说明始终用中文
+languages: [zh, orig]
+default_language: zh
+
+rss:
+  items_per_feed: 30       # 每个 Feed 保留最近多少条

@@ -1,0 +1,17 @@
+node_modules/
+.next/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+
+# 运行数据：采集结果、本地数据库、生成的邮件预览
+data/inbox/*
+!data/inbox/.gitkeep
+data/*.db
+data/*.db-*
+data/out/
+data/logs/
+*.tsbuildinfo
+next-env.d.ts
