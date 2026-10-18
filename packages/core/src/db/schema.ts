@@ -12,6 +12,10 @@ export const accounts = sqliteTable("accounts", {
   /** 上次采集到的最新推文 ID，采集端遇到它就停止滚动 */
   lastSeenId: text("last_seen_id"),
   lastCollectedAt: integer("last_collected_at", { mode: "timestamp_ms" }),
+  /** 已入库内容覆盖到的时间点：下次采集从这里补收（轮转到的账号不会丢内容） */
+  coveredUntil: integer("covered_until", { mode: "timestamp_ms" }),
+  /** 时间线上看到的最新一条推文的发布时间，用来判断账号是否还活跃 */
+  lastTweetAt: integer("last_tweet_at", { mode: "timestamp_ms" }),
   lastStatus: text("last_status"),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
 });
@@ -36,12 +40,15 @@ export const tweets = sqliteTable(
     topicId: text("topic_id"),
     finalScore: real("final_score"),
     collectedAt: integer("collected_at", { mode: "timestamp_ms" }).notNull().default(now),
+    /** 首次入库的运行日期（YYYY-MM-DD）：同一天入库的推文一起评审和发送，包括补收的前几天内容 */
+    batchDate: text("batch_date"),
     processedAt: integer("processed_at", { mode: "timestamp_ms" }),
   },
   (t) => [
     index("tweets_handle_created").on(t.handle, t.createdAt),
     index("tweets_topic_score").on(t.topicId, t.finalScore),
     index("tweets_status").on(t.status),
+    index("tweets_batch").on(t.batchDate),
   ],
 );
 

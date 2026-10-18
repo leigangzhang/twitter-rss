@@ -4,6 +4,7 @@ import { type Db, linkDigests, tweets, type TweetRow } from "@xrss/core/db";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import { parseHTML } from "linkedom";
 import type { Summarizer } from "./ai.ts";
+import { inBatch } from "./batch.ts";
 
 export { primaryArticle } from "@xrss/core";
 
@@ -223,7 +224,7 @@ export async function summarizeArticles(
   const rows = await db
     .select()
     .from(tweets)
-    .where(and(eq(tweets.status, "scored"), gte(tweets.createdAt, range.since), lt(tweets.createdAt, range.until)));
+    .where(and(eq(tweets.status, "scored"), inBatch(range)));
   const wanted = new Map<string, { link: Link; tweetText: string }>();
   for (const row of rows) {
     const p = primaryArticle(row.raw);

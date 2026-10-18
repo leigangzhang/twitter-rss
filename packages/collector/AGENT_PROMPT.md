@@ -1,6 +1,6 @@
 # 每日 X 采集任务（由 DeepSeek Harness 定时任务调用 Browser Skill 执行）
 
-你要用 Browser Skill（https://github.com/Tencent/BrowserSkill，工具名为 `bsk_*`）操作本机 Chrome（已登录 X 的专用账号），按采集清单抓取博主**前一天**发布的推文，并按约定格式写成文件。
+你要用 Browser Skill（https://github.com/Tencent/BrowserSkill，工具名为 `bsk_*`）操作本机 Chrome（已登录 X 的专用账号），按采集清单抓取博主**前一天**（以及上次没轮到的那几天）发布的推文，并按约定格式写成文件。
 
 **最重要的原则：慢、少、遇到问题就停。** 清单里的等待时间、滚动次数、页面数上限都已经算好，照做即可，不要为了加快速度省略等待，也不要多开页面。
 
@@ -14,7 +14,8 @@
 | `startDelaySec` | 开始前先等待的秒数 |
 | `budget.maxPageLoads` | 本次最多打开的页面数（主页 + 详情页），到达后立即结束 |
 | `accounts` | 已排好顺序的账号，每个带 `waitBeforeSec`、`longBreakBeforeSec`、`scrollPausesMs` |
-| `since` / `until` | 只要这个时间段内发布的推文（前一天北京时间 0:00–24:00） |
+| `since` / `until` | 本次的时间范围（前一天北京时间 0:00–24:00），晚于 `until` 的推文不要 |
+| `accounts[].since` | **每个账号自己的起点**：上次没轮到的账号会早于全局 `since`，要把这几天的推文也收进来 |
 | `lastSeenId` | 遇到这个 ID 或更早的推文就停止滚动 |
 
 等待用 shell 命令 `sleep <秒数>`，不要用其他方式代替。
@@ -28,7 +29,7 @@
    3. 读取网络响应：地址里包含 `UserOriginalsTimeline`（个人主页"帖子"页）或 `UserTweets` 的 GraphQL 响应，原样保存到 `data/inbox/<日期>/raw/<handle>-<序号>.json`；打开主页时地址里包含 `UserByScreenName` 的响应（账号资料，含头像）保存为 `raw/<handle>-profile.json`，前一天没发推的账号也要保存。
    4. 按 `scrollPausesMs` 依次向下滚动：每次滚动前等待对应的毫秒数，数组用完就不再滚动。满足以下任一条件时提前停止滚动：
       - 出现了 `lastSeenId` 或更早的推文；
-      - 出现了早于 `since` 的推文（置顶推文除外）。
+      - 出现了早于这个账号 `since`（`accounts[].since`，不是全局的 `since`）的推文（置顶推文除外）。
 
       晚于 `until` 的推文（今天新发的）不用管，明天会采集到。
    5. 每打开一个页面计数加 1；达到 `budget.maxPageLoads` 立即结束采集。

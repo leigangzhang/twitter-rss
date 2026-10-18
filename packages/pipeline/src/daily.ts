@@ -10,6 +10,7 @@ import { sendDigests } from "./digest.ts";
 import { ingest } from "./ingest.ts";
 import { createSmtpMailer, smtpConfigFromEnv } from "./mailer.ts";
 import { reviewCandidates } from "./review.ts";
+import { inBatch } from "./batch.ts";
 
 loadDotEnv();
 
@@ -45,7 +46,7 @@ console.log(
 );
 
 const ing = await ingest(db, config, date, range);
-console.log(`  入库：${ing.files} 个账号文件，${ing.received} 条推文 → 保存 ${ing.stored}，规则排除 ${ing.filtered}，不在时间范围 ${ing.outOfRange}${ing.refetched ? `，补抓全文后重新评审 ${ing.refetched}` : ""}`);
+console.log(`  入库：${ing.files} 个账号文件，${ing.received} 条推文 → 保存 ${ing.stored}，规则排除 ${ing.filtered}，不在时间范围 ${ing.outOfRange}${ing.caughtUp ? `，补收前几天 ${ing.caughtUp}` : ""}${ing.refetched ? `，补抓全文后重新评审 ${ing.refetched}` : ""}`);
 for (const f of ing.invalidFiles) console.warn(`  ⚠ 文件格式不符 ${f.file}：\n${f.error}`);
 for (const h of ing.unknownAccounts) console.warn(`  ⚠ ${h} 不在 topics.yaml 中，已忽略`);
 for (const b of ing.blocked) console.warn(`  ⚠ 采集异常 @${b.handle}：${b.status}${b.error ? `（${b.error}）` : ""}`);
@@ -56,7 +57,7 @@ if (values.rereview) {
   const reset = await db
     .update(tweets)
     .set({ status: "new", ai: null, finalScore: null, topicId: null, filterReason: null })
-    .where(and(inArray(tweets.status, ["scored", "rejected"]), gte(tweets.createdAt, range.since), lt(tweets.createdAt, range.until)))
+    .where(and(inArray(tweets.status, ["scored", "rejected"]), inBatch(range)))
     .returning({ id: tweets.id });
   console.log(`  重新评审：${reset.length} 条已评审的推文按当前标准重新排队`);
 }

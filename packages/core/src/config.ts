@@ -131,6 +131,38 @@ const CrawlFile = z.object({
     })
     .prefault({}),
   min_interval_hours: z.number().min(0).default(20),
+  /** 轮转到的账号最多补收多少天前的内容（从上次入库覆盖到的时间点开始） */
+  catch_up_days: z.number().int().min(1).max(14).default(4),
+  /** 按账号近期内容质量分档，决定采集频率 */
+  account_quality: z
+    .object({
+      /** 统计最近多少天评审过的推文 */
+      stats_days: z.number().int().min(1).default(30),
+      /** 评审过的推文少于这个数时，样本不足，按"普通"处理 */
+      min_samples: z.number().int().min(1).default(6),
+      /** 保留率（AI 判为保留的比例）达到这个值为"优质" */
+      good_keep_rate: z.number().min(0).max(1).default(0.35),
+      /** 保留率低于这个值为"低质" */
+      poor_keep_rate: z.number().min(0).max(1).default(0.12),
+      /** 超过这么多天没发推的账号视为"不活跃"，按低质的频率采集 */
+      inactive_days: z.number().int().min(1).default(14),
+      /** 各档采集间隔（小时）：优质每次都采，普通约隔天，低质约 3 天一次 */
+      interval_hours: z
+        .object({
+          good: z.number().min(0).default(20),
+          normal: z.number().min(0).default(44),
+          poor: z.number().min(0).default(68),
+        })
+        .prefault({}),
+      /** 样本足够且保留率低于这个值时，在报告里建议从 topics.yaml 移出（不会自动删除） */
+      suggest_remove: z
+        .object({
+          min_samples: z.number().int().min(1).default(20),
+          max_keep_rate: z.number().min(0).max(1).default(0.05),
+        })
+        .prefault({}),
+    })
+    .prefault({}),
   cooldown: z
     .object({
       rate_limited_hours: z.number().min(0).default(24),
@@ -143,6 +175,15 @@ const CrawlFile = z.object({
     .prefault({}),
 });
 export type CrawlConfig = z.infer<typeof CrawlFile>;
+
+/** 低质账号的采集间隔超过补收天数时，中间的内容会丢，提前报错 */
+function checkCrawl(c: CrawlConfig): string | null {
+  const longest = Math.max(...Object.values(c.account_quality.interval_hours));
+  if (longest >= c.catch_up_days * 24) {
+    return `account_quality.interval_hours 最长 ${longest} 小时，需要小于 catch_up_days（${c.catch_up_days} 天 = ${c.catch_up_days * 24} 小时），否则轮转期间的内容会丢失`;
+  }
+  return null;
+}
 
 export interface AppConfig {
   topics: Topic[];
@@ -211,6 +252,8 @@ export function loadConfig(configDir = resolveConfigDir()): AppConfig {
   const crawlPath = join(configDir, "crawl.yaml");
   const crawlParsed = CrawlFile.safeParse(existsSync(crawlPath) ? (readYaml(crawlPath) ?? {}) : {});
   if (!crawlParsed.success) throw new Error(formatIssues(crawlPath, crawlParsed.error));
+  const crawlProblem = checkCrawl(crawlParsed.data);
+  if (crawlProblem) throw new Error(`${crawlPath} 配置有误：${crawlProblem}`);
 
   const { topics } = topicsParsed.data;
   const accountTopics = new Map<string, string[]>();

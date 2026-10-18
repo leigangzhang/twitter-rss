@@ -1,6 +1,7 @@
 import { type AppConfig, median, ruleScore, type TimeRange } from "@xrss/core";
 import { type Db, tweets, type TweetRow } from "@xrss/core/db";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
+import { inBatch } from "./batch.ts";
 
 const BASELINE_DAYS = 30;
 
@@ -12,7 +13,7 @@ export async function pickCandidates(db: Db, config: AppConfig, range: TimeRange
   const fresh = await db
     .select()
     .from(tweets)
-    .where(and(eq(tweets.status, "new"), gte(tweets.createdAt, range.since), lt(tweets.createdAt, range.until), inArray(tweets.handle, config.accounts)));
+    .where(and(eq(tweets.status, "new"), inBatch(range), inArray(tweets.handle, config.accounts)));
   if (fresh.length === 0) return [];
 
   const handles = [...new Set(fresh.map((t) => t.handle))];

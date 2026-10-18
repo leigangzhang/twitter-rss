@@ -11,7 +11,8 @@
     "parse": "tsx src/cli-parse.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "crawl": "tsx src/cli-crawl.ts"
+    "crawl": "tsx src/cli-crawl.ts",
+    "accounts": "tsx src/cli-accounts.ts"
   },
   "dependencies": {
     "@xrss/core": "workspace:*",

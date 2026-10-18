@@ -4,6 +4,8 @@ import { type AppConfig, CATEGORY_LABELS, findRepoRoot, qualityOf, type TimeRang
 import { type Db, deliveries, tweets, type TweetRow } from "@xrss/core/db";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import type { Editor } from "./ai.ts";
+import { loadAccountQuality, renderAccountReport } from "@xrss/collector";
+import { inBatch } from "./batch.ts";
 
 const REASON_LABELS = { same_event: "同一事件", duplicate: "重复观点", repeat_recent: "近几天已发过" } as const;
 
@@ -20,7 +22,7 @@ export async function runEditorial(db: Db, config: AppConfig, range: TimeRange, 
   const today = await db
     .select()
     .from(tweets)
-    .where(and(eq(tweets.status, "scored"), gte(tweets.createdAt, range.since), lt(tweets.createdAt, range.until)));
+    .where(and(eq(tweets.status, "scored"), inBatch(range)));
   const stats: EditorialStats = { considered: today.length, dropped: [] };
   if (today.length === 0) return stats;
 
@@ -114,9 +116,11 @@ export async function writeCurationReport(db: Db, config: AppConfig, range: Time
   const rows = await db
     .select()
     .from(tweets)
-    .where(and(gte(tweets.createdAt, range.since), lt(tweets.createdAt, range.until), inArray(tweets.handle, config.accounts)));
+    .where(and(inBatch(range), inArray(tweets.handle, config.accounts)));
 
-  const md = renderCurationReport(rows, range, date);
+  // 附上账号质量分档：哪些账号多采、哪些少采、哪些建议移出
+  const quality = await loadAccountQuality(db, config);
+  const md = `${renderCurationReport(rows, range, date)}\n## 账号质量\n\n${renderAccountReport(quality, config)}\n`;
   const dir = join(findRepoRoot(), "data", "out", date);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, "curation.md");

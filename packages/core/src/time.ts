@@ -35,6 +35,8 @@ export interface TimeRange {
   until: Date;
   /** 内容所属日期（previous_day 模式下为前一天），用于标题 */
   contentDate: string;
+  /** 运行日期（YYYY-MM-DD）。同一次运行入库的推文（含补收的前几天内容）一起处理 */
+  runDate?: string;
 }
 
 /**
@@ -48,10 +50,10 @@ export function collectRange(
   now = new Date(),
 ): TimeRange {
   if (opts.mode === "rolling") {
-    return { since: new Date(now.getTime() - opts.windowHours * 3_600_000), until: now, contentDate: runDate };
+    return { since: new Date(now.getTime() - opts.windowHours * 3_600_000), until: now, contentDate: runDate, runDate };
   }
   const contentDate = addDays(runDate, -1);
-  return { since: startOfLocalDay(contentDate, opts.timezone), until: startOfLocalDay(runDate, opts.timezone), contentDate };
+  return { since: startOfLocalDay(contentDate, opts.timezone), until: startOfLocalDay(runDate, opts.timezone), contentDate, runDate };
 }
 
 /** 邮件和卡片里显示的时间：今天显示 09:12，昨天显示"昨天 22:05"，更早显示 10月16日 */
@@ -69,4 +71,14 @@ export function displayTime(iso: string, timeZone: string, now = new Date()): st
 export function compactNumber(n: number): string {
   if (n >= 10_000) return `${(n / 10_000).toFixed(n >= 100_000 ? 0 : 1).replace(/\.0$/, "")}万`;
   return n.toLocaleString("en-US");
+}
+
+/**
+ * 某个账号这次要收的内容从哪里开始：上次入库覆盖到的时间点（没轮到的那几天也补上），
+ * 但最多往回 catchUpDays 天，至少包含本次时间范围。从没入库过的账号只收本次时间范围。
+ */
+export function catchUpSince(range: Pick<TimeRange, "since" | "until">, coveredUntil: Date | null | undefined, catchUpDays: number): Date {
+  if (!coveredUntil) return range.since;
+  const floor = range.until.getTime() - catchUpDays * 86_400_000;
+  return new Date(Math.min(range.since.getTime(), Math.max(coveredUntil.getTime(), floor)));
 }

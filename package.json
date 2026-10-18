@@ -14,6 +14,7 @@
     "plan": "pnpm --filter @xrss/collector plan",
     "crawl:status": "pnpm --filter @xrss/collector crawl status",
     "crawl:reset": "pnpm --filter @xrss/collector crawl reset",
+    "accounts": "pnpm --filter @xrss/collector accounts",
     "pipeline": "pnpm --filter @xrss/pipeline run daily",
     "pipeline:dry": "pnpm --filter @xrss/pipeline run daily --dry-run",
     "email:preview": "pnpm --filter @xrss/emails preview",

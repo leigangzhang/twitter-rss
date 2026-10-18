@@ -1,5 +1,5 @@
 import { readInbox, smallAvatar } from "@xrss/collector";
-import { type AppConfig, engagement, mediaKind, passesFilters, type TimeRange } from "@xrss/core";
+import { type AppConfig, catchUpSince, engagement, mediaKind, passesFilters, type TimeRange } from "@xrss/core";
 import { accounts, type Db, tweets } from "@xrss/core/db";
 import { eq, sql } from "drizzle-orm";
 
@@ -8,8 +8,10 @@ export interface IngestStats {
   received: number;
   stored: number;
   filtered: number;
-  /** 不在本次时间范围内（早于前一天，或是今天新发的） */
+  /** 不在本次时间范围内（早于补收起点，或是今天新发的） */
   outOfRange: number;
+  /** 补收的前几天内容（账号上次没轮到） */
+  caughtUp: number;
   /** 入库时仍是截断版的长推文 */
   truncated: number;
   /** 补抓到全文、需要重新评审的推文 */
@@ -34,6 +36,7 @@ export async function ingest(db: Db, config: AppConfig, date: string, range: Tim
     stored: 0,
     filtered: 0,
     outOfRange: 0,
+    caughtUp: 0,
     refetched: 0,
     truncated: 0,
     unknownAccounts: [],
@@ -56,6 +59,12 @@ export async function ingest(db: Db, config: AppConfig, date: string, range: Tim
     // 采集文件里的账号资料优先；没有时从推文作者信息里找（取带头像的那条）
     const fromTweets = own.find((t) => t.author.avatarUrl)?.author ?? own[0]?.author;
     const profile = { name: file.profile?.name ?? fromTweets?.name, avatarUrl: smallAvatar(file.profile?.avatarUrl ?? fromTweets?.avatarUrl) };
+    // 账号上次没轮到时，从上次覆盖到的时间点开始补收（最多 catch_up_days 天）
+    const since = catchUpSince(range, existing?.coveredUntil, config.crawl.catch_up_days);
+    // 只有正常采完才推进覆盖时间点；采到一半被限流的，下次从原来的位置继续补
+    const coveredUntil = file.status === "ok" ? new Date(Math.max(range.until.getTime(), existing?.coveredUntil?.getTime() ?? 0)) : existing?.coveredUntil;
+    const latest = own.reduce<number>((m, t) => Math.max(m, new Date(t.createdAt).getTime()), 0);
+    const lastTweetAt = latest ? new Date(Math.max(latest, existing?.lastTweetAt?.getTime() ?? 0)) : existing?.lastTweetAt;
     await db
       .insert(accounts)
       .values({
@@ -65,6 +74,8 @@ export async function ingest(db: Db, config: AppConfig, date: string, range: Tim
         lastSeenId: newest,
         lastCollectedAt: new Date(file.collectedAt),
         lastStatus: file.status,
+        coveredUntil,
+        lastTweetAt,
       })
       .onConflictDoUpdate({
         target: accounts.handle,
@@ -74,17 +85,21 @@ export async function ingest(db: Db, config: AppConfig, date: string, range: Tim
           lastSeenId: maxId(existing?.lastSeenId, newest),
           lastCollectedAt: new Date(file.collectedAt),
           lastStatus: file.status,
+          coveredUntil,
+          lastTweetAt,
           updatedAt: new Date(),
         },
       });
 
     for (const t of own) {
       const at = new Date(t.createdAt);
-      if (at < range.since || at >= range.until) {
+      const [prev] = await db.select().from(tweets).where(eq(tweets.id, t.id));
+      // 已入库的推文照常刷新（例如补抓到全文）；新推文只收补收起点之后、本次截止之前的
+      if (at >= range.until || (!prev && at < since)) {
         stats.outOfRange++;
         continue;
       }
-      const [prev] = await db.select().from(tweets).where(eq(tweets.id, t.id));
+      if (!prev && at < range.since) stats.caughtUp++;
       const verdict = passesFilters(t, config.digest.filters);
       if (!verdict.ok) stats.filtered++;
       if (verdict.ok && t.textTruncated) stats.truncated++;
@@ -99,6 +114,7 @@ export async function ingest(db: Db, config: AppConfig, date: string, range: Tim
           engagement: engagement(t),
           status: verdict.ok ? "new" : "filtered",
           filterReason: verdict.ok ? null : verdict.reason,
+          batchDate: range.runDate ?? null,
         })
         // 再次采集到同一条推文时只刷新内容和互动数据，不重置处理状态
         .onConflictDoUpdate({ target: tweets.id, set: { raw: sql`excluded.raw`, engagement: sql`excluded.engagement` } });

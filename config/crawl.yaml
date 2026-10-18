@@ -23,6 +23,23 @@ pacing:
 
 # 同一账号两次采集的最短间隔（小时）
 min_interval_hours: 20
+# 账号没轮到的那几天不会丢内容：下次采集时从上次入库覆盖到的时间点开始补收，最多往回这么多天
+catch_up_days: 4
+
+# 优 / 劣质账号：按最近 stats_days 天 AI 评审的保留率分档，优质账号多采、低质账号少采
+account_quality:
+  stats_days: 30
+  min_samples: 6           # 评审过的推文少于 6 条时样本不足，按"普通"处理
+  good_keep_rate: 0.35     # 保留率 ≥ 35%：优质
+  poor_keep_rate: 0.12     # 保留率 < 12%：低质
+  inactive_days: 14        # 超过 14 天没发推：不活跃，按低质的频率采集
+  interval_hours:          # 各档采集间隔，需小于 catch_up_days × 24
+    good: 20               # 每次都采
+    normal: 44             # 约隔天一次
+    poor: 68               # 约 3 天一次
+  suggest_remove:          # 报告里建议从 topics.yaml 移出（不会自动删除）
+    min_samples: 20
+    max_keep_rate: 0.05
 
 # 采集端报告异常后的冷却期，期间 pnpm plan 不会安排采集
 cooldown:

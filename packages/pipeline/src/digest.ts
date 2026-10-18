@@ -22,6 +22,7 @@ import { GMAIL_CLIP_BYTES, renderDigest } from "@xrss/emails";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import { loadDigests } from "./links.ts";
 import type { Mailer } from "./mailer.ts";
+import { inBatch } from "./batch.ts";
 
 const siteBase = () => (process.env.SITE_URL || "http://localhost:3000").replace(/\/$/, "");
 
@@ -139,7 +140,7 @@ export async function sendDigests(
   const windowRows = await db
     .select({ handle: tweets.handle, status: tweets.status, id: tweets.id })
     .from(tweets)
-    .where(and(gte(tweets.createdAt, opts.range.since), lt(tweets.createdAt, opts.range.until), inArray(tweets.handle, config.accounts)));
+    .where(and(inBatch(opts.range), inArray(tweets.handle, config.accounts)));
   const scannedByHandle = new Map<string, number>();
   for (const r of windowRows) scannedByHandle.set(r.handle, (scannedByHandle.get(r.handle) ?? 0) + 1);
 
@@ -147,7 +148,7 @@ export async function sendDigests(
     await db
       .select()
       .from(tweets)
-      .where(and(eq(tweets.status, "scored"), gte(tweets.createdAt, opts.range.since), lt(tweets.createdAt, opts.range.until)))
+      .where(and(eq(tweets.status, "scored"), inBatch(opts.range)))
   )
     // 主题合并后，旧推文上的旧主题 id 映射到新主题
     .map((t) => ({ ...t, topicId: resolveTopicId(config, t.topicId) ?? null }))

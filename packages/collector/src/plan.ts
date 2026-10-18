@@ -1,15 +1,23 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type AppConfig, type CrawlConfig, localDate, runRange } from "@xrss/core";
+import { type AppConfig, catchUpSince, type CrawlConfig, localDate, runRange } from "@xrss/core";
 import { accounts, type Db } from "@xrss/core/db";
 import { type CrawlState, checkGate } from "./health.ts";
 import { inboxDir } from "./paths.ts";
+import { type AccountQuality, type AccountTier, loadAccountQuality, TIER_LABELS } from "./quality.ts";
 import { createRandom, type Random } from "./random.ts";
 
 export interface PlannedAccount {
   handle: string;
   url: string;
   topics: string[];
+  /** 账号质量档位（决定采集频率） */
+  tier: AccountTier;
+  /**
+   * 这个账号要收到哪个时间点为止（含）：上次没轮到的那几天也要补上，
+   * 滚动到早于它的推文就停止。通常早于全局的 since。
+   */
+  since: string;
   /** 遇到这个 ID（或更早的推文）就停止滚动 */
   lastSeenId: string | null;
   /** 打开这个主页之前先等待的秒数（已随机化，直接照做） */
@@ -66,13 +74,15 @@ export function createBreaker(crawl: CrawlConfig, rng: Random) {
 export interface PlanInput {
   config: AppConfig;
   state: CrawlState;
-  known: Map<string, { lastSeenId: string | null; lastCollectedAt: Date | null }>;
+  known: Map<string, { lastSeenId: string | null; lastCollectedAt: Date | null; coveredUntil?: Date | null }>;
+  /** 账号质量分档；不传时都按"样本不足"（普通频率）处理 */
+  quality?: Map<string, AccountQuality>;
   now?: Date;
   seed?: number;
 }
 
 /** 生成采集清单（纯函数，便于测试） */
-export function makePlan({ config, state, known, now = new Date(), seed }: PlanInput): CrawlPlan {
+export function makePlan({ config, state, known, quality, now = new Date(), seed }: PlanInput): CrawlPlan {
   const tz = config.digest.timezone;
   const crawl = config.crawl;
   const date = localDate(now, tz);
@@ -97,31 +107,44 @@ export function makePlan({ config, state, known, now = new Date(), seed }: PlanI
   const gate = checkGate(state, crawl, tz, now);
   if (!gate.ok) return { ...base, skip: { reason: gate.reason, until: gate.until } };
 
-  // 距上次采集太近的账号先跳过；其余按"最久没采集"排序，超出预算的留到下次
-  const minGap = crawl.min_interval_hours * 3_600_000;
-  const deferred: CrawlPlan["deferred"] = [];
-  const eligible = config.accounts.filter((h) => {
+  // 每个账号按质量档位决定采集间隔（优质每次都采、低质约 3 天一次）；
+  // 到期的按"超期程度"排序（从没采过的最先），超出预算的留到下次，没轮到的内容下次补收
+  const q = crawl.account_quality;
+  const tierOf = (h: string): AccountTier => quality?.get(h)?.tier ?? "unrated";
+  const intervalOf = (h: string) => Math.max(crawl.min_interval_hours, quality?.get(h)?.intervalHours ?? q.interval_hours.normal);
+  const hoursSince = (h: string) => {
     const last = known.get(h)?.lastCollectedAt;
-    if (last && now.getTime() - last.getTime() < minGap) {
-      deferred.push({ handle: h, reason: `距上次采集不足 ${crawl.min_interval_hours} 小时` });
-      return false;
-    }
-    return true;
+    return last ? (now.getTime() - last.getTime()) / 3_600_000 : Number.POSITIVE_INFINITY;
+  };
+  const deferred: CrawlPlan["deferred"] = [];
+  const due = config.accounts.filter((h) => {
+    if (hoursSince(h) >= intervalOf(h)) return true;
+    deferred.push({ handle: h, reason: `${TIER_LABELS[tierOf(h)]}账号，每 ${intervalOf(h)} 小时采集一次，还没到时间` });
+    return false;
   });
   const capacity = Math.min(crawl.budget.max_accounts_per_run, crawl.budget.max_page_loads_per_run);
-  const ordered = [...eligible].sort((a, b) => (known.get(a)?.lastCollectedAt?.getTime() ?? 0) - (known.get(b)?.lastCollectedAt?.getTime() ?? 0));
-  for (const h of ordered.slice(capacity)) deferred.push({ handle: h, reason: "超出本次预算，下次优先安排" });
+  const overdue = (h: string) => hoursSince(h) / intervalOf(h);
+  const ordered = [...due].sort((a, b) => overdue(b) - overdue(a) || a.localeCompare(b));
+  for (const h of ordered.slice(capacity)) deferred.push({ handle: h, reason: "超出本次预算，下次优先安排（内容会补收）" });
 
   const breaker = createBreaker(crawl, rng);
-  const selected = rng.shuffle(ordered.slice(0, capacity)).map((handle, i) => ({
-    handle,
-    url: `https://x.com/${handle}`,
-    topics: config.accountTopics.get(handle) ?? [],
-    lastSeenId: known.get(handle)?.lastSeenId ?? null,
-    waitBeforeSec: i === 0 ? 0 : rng.int(crawl.pacing.account_delay_sec),
-    longBreakBeforeSec: i === 0 ? 0 : breaker(),
-    scrollPausesMs: Array.from({ length: crawl.budget.max_scrolls_per_account }, () => rng.int(crawl.pacing.scroll_pause_ms)),
-  }));
+  const selected = rng.shuffle(ordered.slice(0, capacity)).map((handle, i) => {
+    const since = catchUpSince(range, known.get(handle)?.coveredUntil, crawl.catch_up_days);
+    // 补收几天前的内容时多滚动几次（每多一天 +2 次，最多翻倍）
+    const extraDays = Math.max(0, Math.ceil((range.since.getTime() - since.getTime()) / 86_400_000));
+    const scrolls = Math.min(crawl.budget.max_scrolls_per_account * 2, crawl.budget.max_scrolls_per_account + extraDays * 2);
+    return {
+      handle,
+      url: `https://x.com/${handle}`,
+      topics: config.accountTopics.get(handle) ?? [],
+      tier: tierOf(handle),
+      since: since.toISOString(),
+      lastSeenId: known.get(handle)?.lastSeenId ?? null,
+      waitBeforeSec: i === 0 ? 0 : rng.int(crawl.pacing.account_delay_sec),
+      longBreakBeforeSec: i === 0 ? 0 : breaker(),
+      scrollPausesMs: Array.from({ length: scrolls }, () => rng.int(crawl.pacing.scroll_pause_ms)),
+    };
+  });
 
   return {
     ...base,
@@ -137,8 +160,9 @@ export function makePlan({ config, state, known, now = new Date(), seed }: PlanI
 
 export async function buildPlan(config: AppConfig, db: Db, state: CrawlState, now = new Date()): Promise<CrawlPlan> {
   const rows = await db.select().from(accounts);
-  const known = new Map(rows.map((a) => [a.handle, { lastSeenId: a.lastSeenId, lastCollectedAt: a.lastCollectedAt }]));
-  return makePlan({ config, state, known, now });
+  const known = new Map(rows.map((a) => [a.handle, { lastSeenId: a.lastSeenId, lastCollectedAt: a.lastCollectedAt, coveredUntil: a.coveredUntil }]));
+  const quality = await loadAccountQuality(db, config, now);
+  return makePlan({ config, state, known, quality, now });
 }
 
 export function writePlan(plan: CrawlPlan): string {
