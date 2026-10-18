@@ -53,6 +53,11 @@ mail:
   bcc_batch_size: 20       # 每封最多密送多少人（QQ 邮箱对单封收件人数有限制，不建议调太大）
   send_interval_ms: 1500   # 两封邮件之间的间隔
 
+# 订阅页
+subscribe_page:
+  max_avatars: 7              # 每个主题卡片最多显示几个博主头像，超出显示 +N
+  overwrite_existing: true    # 已订阅的邮箱重新提交订阅表单 = 直接改主题和语言（同时给该邮箱发变更通知）
+
 rss:
   items_per_feed: 30       # 每个 Feed 保留最近多少条
 

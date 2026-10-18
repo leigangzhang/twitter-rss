@@ -9,6 +9,10 @@ const TopicSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/, "主题 id 用小写字母、数字、连字符"),
   name: z.string().min(1),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+  /** 订阅页主题卡片上的一句话说明 */
+  description: z.string().optional(),
+  /** 并入本主题的旧主题 id：老订阅者的选择、旧推文和旧 RSS 地址都会映射到本主题 */
+  aliases: z.array(z.string()).default([]),
   accounts: z
     .array(z.string().regex(/^[A-Za-z0-9_]{1,15}$/, "X 账号最长 15 个字符，只含字母、数字、下划线，不带 @"))
     .min(1)
@@ -20,7 +24,11 @@ const TopicsFile = z.object({
   topics: z
     .array(TopicSchema)
     .min(1)
-    .refine((ts) => new Set(ts.map((t) => t.id)).size === ts.length, "主题 id 不能重复"),
+    .refine((ts) => new Set(ts.map((t) => t.id)).size === ts.length, "主题 id 不能重复")
+    .refine((ts) => {
+      const all = ts.flatMap((t) => [t.id, ...t.aliases]);
+      return new Set(all).size === all.length;
+    }, "aliases 不能与主题 id 或其他主题的 aliases 重复"),
 });
 
 const DigestFile = z.object({
@@ -55,6 +63,14 @@ const DigestFile = z.object({
   rss: z.object({
     items_per_feed: z.number().int().min(1).default(30),
   }),
+  subscribe_page: z
+    .object({
+      /** 每个主题卡片最多显示几个博主头像，超出部分显示为 +N */
+      max_avatars: z.number().int().min(1).max(30).default(7),
+      /** 已订阅的邮箱再次提交订阅表单时，直接用新选择覆盖主题和语言（会给该邮箱发一封变更通知） */
+      overwrite_existing: z.boolean().default(true),
+    })
+    .prefault({}),
   links: z
     .object({
       /** 抓取推文（含引用推文）里的外部文章，取标题、封面和正文 */
@@ -131,6 +147,8 @@ export interface AppConfig {
   digest: DigestConfig;
   /** 账号 → 所属主题 id（按 topics.yaml 中的顺序） */
   accountTopics: Map<string, string[]>;
+  /** 旧主题 id → 现在的主题 id（来自 topics.yaml 的 aliases） */
+  topicAliases: Map<string, string>;
   /** 所有需要采集的账号（去重） */
   accounts: string[];
   /** config/crawl.yaml：采集节流策略（文件不存在时用默认值） */
@@ -138,6 +156,19 @@ export interface AppConfig {
   /** config/curation.md：精选标准，原样放进给大模型的提示词，可以直接编辑 */
   curationGuide: string;
   configDir: string;
+}
+
+/** 把主题 id 换成现在的 id：旧 id 按 aliases 映射，已删除的丢掉，去重并保持 topics.yaml 中的顺序 */
+export function normalizeTopicIds(config: Pick<AppConfig, "topics" | "topicAliases">, ids: readonly string[]): string[] {
+  const wanted = new Set(ids.map((id) => config.topicAliases.get(id) ?? id));
+  return config.topics.map((t) => t.id).filter((id) => wanted.has(id));
+}
+
+/** 单个主题 id 换成现在的 id；找不到时返回 undefined */
+export function resolveTopicId(config: Pick<AppConfig, "topics" | "topicAliases">, id: string | null | undefined): string | undefined {
+  if (!id) return undefined;
+  const cur = config.topicAliases.get(id) ?? id;
+  return config.topics.some((t) => t.id === cur) ? cur : undefined;
 }
 
 /** 从当前目录向上查找包含 config/topics.yaml 的仓库根目录 */
@@ -189,10 +220,13 @@ export function loadConfig(configDir = resolveConfigDir()): AppConfig {
     }
   }
 
+  const topicAliases = new Map(topics.flatMap((t) => t.aliases.map((a) => [a, t.id] as const)));
+
   return {
     topics,
     digest: digestParsed.data,
     accountTopics,
+    topicAliases,
     accounts: [...accountTopics.keys()],
     crawl: crawlParsed.data,
     curationGuide: existsSync(join(configDir, "curation.md")) ? readFileSync(join(configDir, "curation.md"), "utf8").trim() : "",

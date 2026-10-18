@@ -48,7 +48,7 @@ export function RssList({ topics, site }: { topics: TopicOption[]; site: string 
           return (
             <li key={t.id} className="flex flex-wrap items-center gap-3 rounded-[10px] border border-line bg-white px-4 py-3">
               <span className="size-2 rounded-[2px]" style={{ background: t.color }} />
-              <span className="w-[110px] text-sm font-bold">{t.name}</span>
+              <span className="w-[220px] max-w-full text-sm font-bold">{t.name}</span>
               <a href={url} className="min-w-0 flex-[1_1_240px] font-mono text-[13px] break-all text-body">
                 {url}
               </a>

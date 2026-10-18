@@ -1,0 +1,26 @@
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { loadConfig, normalizeTopicIds, resolveTopicId } from "../src/config.ts";
+
+const config = loadConfig(join(import.meta.dirname, "..", "..", "..", "config"));
+
+describe("topics.yaml", () => {
+  it("合并成 5 个主题，100 个账号一个不少", () => {
+    expect(config.topics.map((t) => t.id)).toEqual(["labs", "research", "builders", "cn-insight", "cn-builders"]);
+    expect(config.accounts).toHaveLength(100);
+    expect(config.topics.every((t) => t.description)).toBe(true);
+  });
+
+  it("旧主题 id 映射到合并后的主题，按 topics.yaml 顺序去重", () => {
+    expect(normalizeTopicIds(config, ["cn-creative", "official-labs", "lab-leaders", "gone"])).toEqual(["labs", "cn-builders"]);
+    expect(normalizeTopicIds(config, ["research", "researchers"])).toEqual(["research"]);
+    expect(resolveTopicId(config, "open-source")).toBe("builders");
+    expect(resolveTopicId(config, "labs")).toBe("labs");
+    expect(resolveTopicId(config, "gone")).toBeUndefined();
+    expect(resolveTopicId(config, null)).toBeUndefined();
+  });
+
+  it("订阅页配置有默认值", () => {
+    expect(config.digest.subscribe_page).toEqual({ max_avatars: 7, overwrite_existing: true });
+  });
+});

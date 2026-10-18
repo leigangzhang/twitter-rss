@@ -1,3 +1,4 @@
+import { normalizeTopicIds } from "@xrss/core";
 import { subscribers } from "@xrss/core/db";
 import { eq } from "drizzle-orm";
 import { config, db } from "@/lib/server";
@@ -8,8 +9,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ token: string }
   const parsed = Preferences.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ message: parsed.error.issues[0]?.message ?? "参数有误" }, { status: 400 });
 
-  const known = new Set(config().topics.map((t) => t.id));
-  const topics = parsed.data.topics.filter((t) => known.has(t));
+  const topics = normalizeTopicIds(config(), parsed.data.topics);
   if (topics.length === 0) return Response.json({ message: "至少选择一个主题" }, { status: 400 });
 
   const d = await db();

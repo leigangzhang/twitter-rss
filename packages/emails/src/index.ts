@@ -4,8 +4,9 @@ import { createElement } from "react";
 import { ConfirmEmail, type ConfirmEmailProps } from "./ConfirmEmail.tsx";
 import { DailyDigest } from "./DailyDigest.tsx";
 import { ManageLinkEmail, type ManageLinkEmailProps } from "./ManageLinkEmail.tsx";
+import { PreferencesUpdatedEmail, type PreferencesUpdatedEmailProps } from "./PreferencesUpdatedEmail.tsx";
 
-export { ConfirmEmail, DailyDigest, ManageLinkEmail };
+export { ConfirmEmail, DailyDigest, ManageLinkEmail, PreferencesUpdatedEmail };
 export { TweetCard } from "./TweetCard.tsx";
 export * from "./smtp.ts";
 
@@ -38,4 +39,10 @@ export async function renderManageLink(props: ManageLinkEmailProps): Promise<Ren
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })]);
   const subject = { manage: "你的订阅管理链接", unsubscribe: "确认退订精选晨报", lang: "切换精选晨报的阅读语言" }[props.action];
   return { subject, html, text };
+}
+
+export async function renderPreferencesUpdated(props: PreferencesUpdatedEmailProps): Promise<RenderedEmail> {
+  const element = createElement(PreferencesUpdatedEmail, props);
+  const [html, text] = await Promise.all([render(element), render(element, { plainText: true })]);
+  return { subject: "精选晨报订阅设置已更新", html, text };
 }

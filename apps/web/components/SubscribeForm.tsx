@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import type { TopicOption } from "@/lib/server";
+import type { TopicAccount, TopicOption } from "@/lib/server";
 
 type Lang = "zh" | "orig";
 
 interface Props {
   topics: TopicOption[];
   defaultLang: Lang;
+  /** 每个主题最多显示几个头像，超出显示 +N（digest.yaml 的 subscribe_page.max_avatars） */
+  maxAvatars?: number;
   /** 管理偏好时传入：邮箱不可改，提交走 PUT */
   manage?: { token: string; email: string; topics: string[]; lang: Lang };
 }
@@ -39,18 +41,64 @@ function CheckBox({ on }: { on: boolean }) {
   );
 }
 
+/** 头像：采集过的用 X 头像，没有或加载失败时显示首字母 */
+function Avatar({ account, color }: { account: TopicAccount; color: string }) {
+  const [failed, setFailed] = useState(false);
+  const label = account.name ? `${account.name} @${account.handle}` : `@${account.handle}`;
+  const ring = "size-8 shrink-0 rounded-full ring-2 ring-white";
+  if (account.avatarUrl && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={account.avatarUrl} alt={label} title={label} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} className={`${ring} bg-[#E6E8EB] object-cover`} />
+    );
+  }
+  return (
+    <span role="img" aria-label={label} title={label} className={`${ring} flex items-center justify-center text-[11px] font-bold`} style={{ background: `${color}1F`, color }}>
+      {account.handle.replace(/^_+/, "").slice(0, 2).toUpperCase()}
+    </span>
+  );
+}
+
+/** 主题下的博主：头像从左到右叠放，超过 max 个只显示剩余人数；下面列出对应的 ID */
+function AccountStack({ accounts, color, max }: { accounts: TopicAccount[]; color: string; max: number }) {
+  const shown = accounts.slice(0, max);
+  const rest = accounts.length - shown.length;
+  return (
+    <span className="flex min-w-0 flex-col gap-2">
+      <span className="flex items-center pl-1.5">
+        {shown.map((a) => (
+          <span key={a.handle} className="-ml-1.5">
+            <Avatar account={a} color={color} />
+          </span>
+        ))}
+        {rest > 0 ? (
+          <span className="-ml-1.5 flex h-8 min-w-8 items-center justify-center rounded-full bg-[#EEF0F2] px-2 font-mono text-[11px] font-bold text-body ring-2 ring-white" title={`另有 ${rest} 位博主`}>
+            +{rest}
+          </span>
+        ) : null}
+      </span>
+      <span className="line-clamp-1 font-mono text-xs leading-relaxed text-muted">
+        {shown.map((a) => `@${a.handle}`).join(" ")}
+        {rest > 0 ? ` 等 ${accounts.length} 位` : ""}
+      </span>
+    </span>
+  );
+}
+
 const optionClass = (on: boolean) =>
   `flex min-h-11 cursor-pointer gap-3 rounded-xl border-[1.5px] p-4 text-left transition-colors ${
     on ? "border-accent bg-accent-soft" : "border-line bg-white hover:border-[#C9CED5]"
   }`;
 
-export function SubscribeForm({ topics, defaultLang, manage }: Props) {
+export function SubscribeForm({ topics, defaultLang, maxAvatars = 7, manage }: Props) {
   const [selected, setSelected] = useState<string[]>(manage?.topics ?? topics.slice(0, 2).map((t) => t.id));
   const [lang, setLang] = useState<Lang>(manage?.lang ?? defaultLang);
   const [email, setEmail] = useState(manage?.email ?? "");
   const [state, setState] = useState<{ kind: "idle" | "sending" | "done" | "error"; message?: string }>({ kind: "idle" });
 
   const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const allOn = selected.length === topics.length;
+  const toggleAll = () => setSelected(allOn ? [] : topics.map((t) => t.id));
   const total = selected.length === 0 ? 0 : Math.min(10, 4 + selected.length * 2);
 
   async function submit(e: React.FormEvent) {
@@ -86,31 +134,33 @@ export function SubscribeForm({ topics, defaultLang, manage }: Props) {
         )}
 
         <fieldset className="flex flex-col gap-3.5">
-          <div className="flex items-baseline justify-between">
+          <div className="flex items-baseline justify-between gap-3">
             <legend className="contents">
               <StepLabel n="01">选择主题</StepLabel>
             </legend>
-            <span className="text-[13px] text-muted">已选 {selected.length} 个</span>
+            <span className="flex items-baseline gap-3 text-[13px] text-muted">
+              已选 {selected.length} / {topics.length}
+              <button type="button" onClick={toggleAll} className="cursor-pointer font-medium text-accent">
+                {allOn ? "清空" : "全选"}
+              </button>
+            </span>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-3">
             {topics.map((t) => {
               const on = selected.includes(t.id);
               return (
                 <button key={t.id} type="button" aria-pressed={on} onClick={() => toggle(t.id)} className={optionClass(on)}>
                   <CheckBox on={on} />
-                  <span className="flex min-w-0 flex-col gap-1">
-                    <span className="flex items-center gap-2">
-                      <span className="size-2 rounded-[2px]" style={{ background: t.color }} />
-                      <span className="text-[15px] font-bold text-ink">{t.name}</span>
-                      <span className="font-mono text-xs text-muted">{t.accounts.length} 位博主</span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-2.5">
+                    <span className="flex flex-col gap-1">
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="size-2 shrink-0 rounded-[2px]" style={{ background: t.color }} />
+                        <span className="text-[15px] font-bold text-ink">{t.name}</span>
+                        <span className="font-mono text-xs text-muted">{t.accounts.length} 位博主</span>
+                      </span>
+                      {t.description ? <span className="text-[13px] leading-relaxed text-muted">{t.description}</span> : null}
                     </span>
-                    <span className="truncate font-mono text-xs leading-relaxed text-muted">
-                      {t.accounts
-                        .slice(0, 3)
-                        .map((a) => `@${a}`)
-                        .join(" ")}
-                      {t.accounts.length > 3 ? " …" : ""}
-                    </span>
+                    <AccountStack accounts={t.accounts} color={t.color} max={maxAvatars} />
                   </span>
                 </button>
               );
@@ -166,7 +216,7 @@ export function SubscribeForm({ topics, defaultLang, manage }: Props) {
             </button>
           ) : null}
           <p role="status" className={`m-0 text-[13px] ${state.kind === "error" ? "text-danger" : state.kind === "done" ? "font-medium text-[#2F7D4F]" : "text-muted"}`}>
-            {state.message ?? (manage ? "修改从下一封邮件开始生效" : "我们会先发一封确认邮件 · 主题和语言随时可改 · 一键退订")}
+            {state.message ?? (manage ? "修改从下一封邮件开始生效" : "新邮箱会先收到一封确认邮件 · 已订阅的邮箱重新提交即直接更新主题和语言 · 一键退订")}
           </p>
         </div>
       </form>

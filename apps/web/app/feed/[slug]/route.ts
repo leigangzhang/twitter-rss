@@ -1,4 +1,4 @@
-import { type ArticleView, type CardView, type Lang, primaryArticle, toCardView } from "@xrss/core";
+import { type ArticleView, type CardView, type Lang, primaryArticle, resolveTopicId, toCardView } from "@xrss/core";
 import { linkDigests, tweets } from "@xrss/core/db";
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { Feed } from "feed";
@@ -35,14 +35,17 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
   const { slug } = await ctx.params;
   const match = /^([a-z][a-z0-9-]*)\.(zh|orig)\.xml$/.exec(slug);
   const cfg = config();
-  const topic = match ? cfg.topics.find((t) => t.id === match[1]) : undefined;
+  const topicId = match ? resolveTopicId(cfg, match[1]) : undefined;
+  const topic = topicId ? cfg.topics.find((t) => t.id === topicId) : undefined;
   if (!match || !topic) return new Response("未找到这个 Feed", { status: 404 });
+  // 主题合并前的旧地址：永久跳转到新主题的 Feed
+  if (topic.id !== match[1]) return Response.redirect(siteUrl(`/feed/${topic.id}.${match[2]}.xml`), 301);
   const lang = match[2] as Lang;
 
   const rows = await (await db())
     .select()
     .from(tweets)
-    .where(and(eq(tweets.status, "scored"), eq(tweets.topicId, topic.id), gte(tweets.createdAt, new Date(Date.now() - 30 * 86_400_000))))
+    .where(and(eq(tweets.status, "scored"), inArray(tweets.topicId, [topic.id, ...topic.aliases]), gte(tweets.createdAt, new Date(Date.now() - 30 * 86_400_000))))
     .orderBy(desc(tweets.createdAt))
     .limit(cfg.digest.rss.items_per_feed * 3);
   const items = rows.filter((r) => (r.ai?.quality ?? 0) >= cfg.digest.filters.min_quality).slice(0, cfg.digest.rss.items_per_feed);

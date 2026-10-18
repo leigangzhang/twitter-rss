@@ -1,7 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { getConfig, type Lang, loadDotEnv } from "@xrss/core";
-import { getDb, migrateDb } from "@xrss/core/db";
+import { accounts, getDb, migrateDb } from "@xrss/core/db";
 import { createSmtpMailer, type Mailer, smtpConfigFromEnv } from "@xrss/emails";
 
 // 网站和命令行共用仓库根目录的 .env
@@ -31,15 +31,36 @@ export function siteUrl(path = ""): string {
 
 export const LANG_LABEL: Record<Lang, string> = { zh: "中文（AI 翻译）", orig: "原文" };
 
+export interface TopicAccount {
+  handle: string;
+  /** 采集过才有：X 上的显示名和头像 */
+  name?: string;
+  avatarUrl?: string;
+}
+
 export interface TopicOption {
   id: string;
   name: string;
   color: string;
-  accounts: string[];
+  description?: string;
+  accounts: TopicAccount[];
 }
 
-export function topicOptions(): TopicOption[] {
-  return config().topics.map((t) => ({ id: t.id, name: t.name, color: t.color, accounts: t.accounts }));
+/** 订阅页的主题列表，带上已采集到的博主头像和显示名 */
+export async function topicOptions(): Promise<TopicOption[]> {
+  const cfg = config();
+  const rows = await (await db()).select({ handle: accounts.handle, name: accounts.name, avatarUrl: accounts.avatarUrl }).from(accounts);
+  const byHandle = new Map(rows.map((r) => [r.handle.toLowerCase(), r]));
+  return cfg.topics.map((t) => ({
+    id: t.id,
+    name: t.name,
+    color: t.color,
+    description: t.description,
+    accounts: t.accounts.map((handle) => {
+      const r = byHandle.get(handle);
+      return { handle: r?.handle ?? handle, name: r?.name ?? undefined, avatarUrl: r?.avatarUrl ?? undefined };
+    }),
+  }));
 }
 
 let mailer: Mailer | undefined;

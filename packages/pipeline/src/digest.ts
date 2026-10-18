@@ -1,6 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  normalizeTopicIds,
+  resolveTopicId,
   type AppConfig,
   dateLabel,
   type DigestView,
@@ -145,12 +147,18 @@ export async function sendDigests(
       .select()
       .from(tweets)
       .where(and(eq(tweets.status, "scored"), gte(tweets.createdAt, opts.range.since), lt(tweets.createdAt, opts.range.until)))
-  ).filter((t) => t.topicId && (t.ai?.quality ?? 0) >= config.digest.filters.min_quality);
+  )
+    // 主题合并后，旧推文上的旧主题 id 映射到新主题
+    .map((t) => ({ ...t, topicId: resolveTopicId(config, t.topicId) ?? null }))
+    .filter((t) => t.topicId && (t.ai?.quality ?? 0) >= config.digest.filters.min_quality);
   const articleUrls = scored.map((t) => primaryArticle(t.raw)?.link.expandedUrl).filter((u): u is string => Boolean(u));
   const articles = await loadDigests(db, articleUrls);
   const ctx: DigestContext = { config, date: opts.date, now: opts.now, range: opts.range, scored, articles, scannedByHandle };
 
-  const active = await db.select().from(subscribers).where(eq(subscribers.status, "active"));
+  const active = (await db.select().from(subscribers).where(eq(subscribers.status, "active")))
+    // 老订阅者选的旧主题映射到合并后的新主题
+    .map((s) => ({ ...s, topics: normalizeTopicIds(config, s.topics) }))
+    .filter((s) => s.topics.length > 0);
   const outDir = join(findRepoRoot(), "data", "out", opts.date);
 
   // 试跑且还没有订阅者时，按"订阅全部主题"各渲染一份中文版和原文版

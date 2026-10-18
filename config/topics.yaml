@@ -2,18 +2,24 @@
 # - id：英文小写，用于 RSS 地址（/feed/<id>.zh.xml）和数据库
 # - name：订阅页、邮件和 RSS 中显示的分类名
 # - color：邮件和订阅页里的主题色
+# - description：订阅页主题卡片上的一句话说明
+# - aliases：并入本主题的旧主题 id，老订阅者和旧 RSS 地址会自动迁移过来
 # - accounts：X 账号（不带 @），同一账号可以出现在多个主题里
 #
 # 来源：司徒K《2026 年 X 上最值得关注的 100 个 AI 博主（全球精选榜单）》
 # https://x.com/isituking/status/2110633440844693537
 # 原文章：https://x.com/i/article/2110625670472908800
-# 共 10 组、100 个账号，按原文顺序整理。
+# 原文 10 组合并为 5 个主题，共 100 个账号；原分组见每个主题下的注释。
 
 topics:
-  - id: lab-leaders
-    name: 实验室掌舵人：行业方向的一手信号
+
+  - id: labs
+    name: 实验室与官方发布
     color: "#1F5FD6"
+    description: 掌舵人的方向判断、模型与产品的第一手发布
+    aliases: [lab-leaders, official-labs, product-leads]
     accounts:
+      # lab-leaders
       - sama
       - demishassabis
       - gdb
@@ -21,11 +27,7 @@ topics:
       - sundarpichai
       - DarioAmodei
       - elonmusk
-
-  - id: official-labs
-    name: 官方实验室：模型发布第一现场
-    color: "#0F766E"
-    accounts:
+      # official-labs
       - OpenAI
       - AnthropicAI
       - GoogleDeepMind
@@ -37,11 +39,7 @@ topics:
       - MistralAI
       - Zai_org
       - MiniMax_AI
-
-  - id: product-leads
-    name: 官方产品与产品负责人：新功能最先知道
-    color: "#7C3AED"
-    accounts:
+      # product-leads
       - thsottiaux
       - claudeai
       - GeminiApp
@@ -51,10 +49,13 @@ topics:
       - alexalbert__
       - _catwu
 
-  - id: researchers
-    name: 顶级研究者：看懂 AI 底层
+  - id: research
+    name: 研究者与深度观点
     color: "#B45309"
+    description: 顶级研究者讲清底层原理、论文与行业判断
+    aliases: [researchers]
     accounts:
+      # researchers
       - karpathy
       - ylecun
       - AndrewYNg
@@ -71,10 +72,13 @@ topics:
       - natolambert
       - jackclarkSF
 
-  - id: coding-agents
-    name: AI 编程与 Agent：一线实践派
+  - id: builders
+    name: AI 编程、Agent 与开源
     color: "#C2410C"
+    description: 一线开发者的实践经验、工具与开源基础设施
+    aliases: [coding-agents, open-source]
     accounts:
+      # coding-agents
       - rauchg
       - bcherny
       - steipete
@@ -83,19 +87,18 @@ topics:
       - simonw
       - mckaywrigley
       - LangChain
-
-  - id: open-source
-    name: 开源与基础设施
-    color: "#2F7D4F"
-    accounts:
+      # open-source
       - ClementDelangue
       - NousResearch
       - ollama
 
-  - id: cn-business
-    name: 中文圈｜产品、业务与出海
-    color: "#B85A0A"
+  - id: cn-insight
+    name: 中文圈｜行业解读与产品出海
+    color: "#BE123C"
+    description: 中文博主的消息速递、深度解读、产品与商业实践
+    aliases: [cn-business, cn-media]
     accounts:
+      # cn-business
       - isituking
       - AYi_AInotes
       - jinchenma_ai
@@ -112,11 +115,7 @@ topics:
       - yhslgg
       - yucheng
       - hezhiyan7
-
-  - id: cn-media
-    name: 中文圈｜消息、研究与解读
-    color: "#BE123C"
-    accounts:
+      # cn-media
       - dotey
       - Francis_YAO_
       - turingbook
@@ -128,10 +127,13 @@ topics:
       - frxiaobei
       - MinLiBuilds
 
-  - id: cn-coding
-    name: 中文圈｜编程、开源与 Agent
+  - id: cn-builders
+    name: 中文圈｜开发实践与内容创作
     color: "#0369A1"
+    description: 中文开发者的编程、Agent、开源项目与 AIGC 创作
+    aliases: [cn-coding, cn-creative]
     accounts:
+      # cn-coding
       - AlchainHust
       - Jason_Young1231
       - GitHub_Daily
@@ -146,11 +148,7 @@ topics:
       - gengdaJ
       - li9292
       - cnyzgkc
-
-  - id: cn-creative
-    name: 中文圈｜视觉与内容创作
-    color: "#9333EA"
-    accounts:
+      # cn-creative
       - op7418
       - Saccc_c
       - ZHO_ZHO_ZHO
