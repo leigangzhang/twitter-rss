@@ -14,7 +14,7 @@
 ## 对每个账号
 
 1. 打开 `account.url`，等待时间线加载完成。
-2. **优先读取网络响应**：如果 Browser Skill 能拿到页面的网络请求，找到地址里包含 `UserTweets` 的 GraphQL 响应，把每次响应的 JSON 原样保存到 `data/inbox/<日期>/raw/<handle>-<序号>.json`。
+2. **优先读取网络响应**：如果 Browser Skill 能拿到页面的网络请求，找到地址里包含 `UserOriginalsTimeline`（个人主页“帖子”页当前实际使用的接口）或 `UserTweets` 的 GraphQL 响应，把每次响应的 JSON 原样保存到 `data/inbox/<日期>/raw/<handle>-<序号>.json`。
 3. 按 `pacing.scrollPauseMs` 的随机间隔向下滚动，直到满足任一条件：
    - 出现了 `lastSeenId` 或比它更早的推文
    - 出现了早于 `since` 的推文（置顶推文除外）

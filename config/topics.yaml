@@ -4,25 +4,26 @@
 # - accounts：X 账号（不带 @）。同一账号可以出现在多个主题里，
 #   这种情况下由 AI 判断每条推文更贴近哪个主题，邮件中不会重复出现。
 #
-# 下面的账号是占位符，请替换成你要跟踪的博主。
+# 账号来自《2026 年 X 上最值得关注的 100 个 AI 博主（全球精选榜单）》：
+# https://x.com/isituking/status/2110633440844693537
 
 topics:
   - id: ai
     name: AI 与大模型
     color: "#1F5FD6"
     accounts:
-      - example_ai_1
-      - example_ai_2
+      - sama
+      - AnthropicAI
+      - karpathy
 
   - id: crypto
     name: 加密货币
     color: "#B85A0A"
     accounts:
-      - example_web3_1
+      - cellinlab
 
   - id: startup
     name: 创业与投资
     color: "#2F7D4F"
     accounts:
-      - example_vc_1
-      - example_ai_2
+      - oran_ge

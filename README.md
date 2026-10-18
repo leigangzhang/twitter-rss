@@ -66,7 +66,7 @@ pnpm pipeline:dry --skip-ai                 # 不调用 AI、不发邮件，邮�
 采集端与流水线之间只约定一件事：**每个账号输出一个 `data/inbox/<日期>/<handle>.json`，格式见 `schemas/inbox-file.schema.json`**。采集方式以后怎么换，下游都不用改。
 
 - 交给 Agent 的任务说明：`packages/collector/AGENT_PROMPT.md`
-- 能拿到网络响应时，把 X 网页 `UserTweets` 接口的 JSON 存下来，用 `pnpm --filter @xrss/collector parse` 转换，比解析页面元素稳定
+- 能拿到网络响应时，把 X 网页 `UserOriginalsTimeline` / `UserTweets` 接口的 JSON 存下来，用 `pnpm --filter @xrss/collector parse` 转换，比解析页面元素稳定
 - 采集端遇到限流、登录失效、验证码时写入对应 `status` 并停止，流水线会告警，退出码为 2
 
 降低封号风险：使用专用小号；`plan.json` 已随机打乱账号顺序并给出停留和滚动间隔；`daily.sh` 启动时随机延迟 0–30 分钟；只抓增量（`lastSeenId`）。

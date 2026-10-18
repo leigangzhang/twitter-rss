@@ -1,7 +1,7 @@
 import { type Link, type Media, type QuotedTweet, RawTweet } from "@xrss/core";
 
 /**
- * 把 X 网页时间线的内部接口响应（UserTweets、UserTweetsAndReplies、TweetDetail 等 GraphQL 返回的 JSON）
+ * 把 X 网页时间线的内部接口响应（UserOriginalsTimeline、UserTweets、UserTweetsAndReplies、TweetDetail 等 GraphQL 返回的 JSON）
  * 转成 RawTweet。
  *
  * 适用场景：Browser Skill 能拿到页面的网络响应时，优先用这份数据，比解析页面元素稳定，
