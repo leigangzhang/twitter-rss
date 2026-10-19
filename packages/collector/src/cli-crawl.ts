@@ -93,7 +93,7 @@ if (command === "next") {
   if (!progress) {
     progress = initProgress(plan);
     saveProgress(progress);
-    console.log(`开始今天的采集：${plan.accounts.length} 个账号。整个过程会持续较长时间（通常 40–70 分钟），这是正常的。`);
+    console.log(`开始今天的采集：${plan.accounts.length} 个账号。整个过程会持续较长时间（通常 50–90 分钟），这是正常的。`);
   }
   if (progress.stopped) {
     console.log(`STOP 采集已因异常停止（@${progress.stopped.handle} ${progress.stopped.status}）。不要再打开任何页面，运行 scripts/daily.sh`);

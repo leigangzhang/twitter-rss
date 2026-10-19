@@ -9,7 +9,7 @@ active_hours: [6, 23]
 start_jitter_min: [0, 20]
 
 budget:
-  max_accounts_per_run: 40      # 账号超过时，按"最久没采集"优先轮转，其余留到下次
+  max_accounts_per_run: 50      # 每次最多采多少个账号；超过时按"超期最多"优先轮转，其余下次补收
   max_page_loads_per_run: 80    # 每次打开页面总数上限（主页 + 详情页）
   max_detail_per_run: 25        # 详情页补抓上限（按互动量从高到低）
   max_scrolls_per_account: 6    # 每个主页最多向下滚动几次
