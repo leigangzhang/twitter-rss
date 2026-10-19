@@ -21,6 +21,7 @@
     "pipeline": "pnpm --filter @xrss/pipeline run daily",
     "pipeline:dry": "pnpm --filter @xrss/pipeline run daily --dry-run",
     "email:preview": "pnpm --filter @xrss/emails preview",
+    "email:test": "pnpm -s --filter @xrss/pipeline email:test",
     "preview:snapshot": "pnpm --filter @xrss/pipeline preview:snapshot",
     "db:migrate": "pnpm --filter @xrss/core db:migrate",
     "schema": "pnpm --filter @xrss/core schema",

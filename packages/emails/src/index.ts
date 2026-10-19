@@ -19,8 +19,8 @@ export interface RenderedEmail {
 /** Gmail 会截断超过约 102KB 的邮件正文，超过阈值时在流水线里告警 */
 export const GMAIL_CLIP_BYTES = 102 * 1024;
 
-export async function renderDigest(view: DigestView): Promise<RenderedEmail> {
-  const element = createElement(DailyDigest, { view });
+export async function renderDigest(view: DigestView, opts: { tabs?: boolean; probe?: boolean } = {}): Promise<RenderedEmail> {
+  const element = createElement(DailyDigest, { view, ...opts });
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })]);
   const first = view.groups[0]?.items[0];
   const lead = first ? `：${first.author.name} 等` : "";
