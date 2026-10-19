@@ -1,4 +1,4 @@
-# 每日 X 采集任务（由 DeepSeek Harness 定时任务调用 Browser Skill 执行）
+# 每日 X 采集任务（由命令行 Agent 调用 Browser Skill 执行，见 agents/daily-task.md）
 
 你要用 Browser Skill（https://github.com/Tencent/BrowserSkill，`bsk` 命令 / `bsk_*` 工具）操作本机 Chrome（已登录 X 的专用账号），
 把采集清单里的账号逐个采完，保存网络响应。

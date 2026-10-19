@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 采集完成后的处理：解析原始响应 → 入库 → AI 精选（初审 + 终审）→ 发送邮件，并写日志。
-# 由 DeepSeek Harness 的每日定时任务在采集结束后调用（见 deepseek-harness/daily-task.md），也可以手动运行。
+# 由 Agent 的每日任务在采集结束后调用（见 agents/daily-task.md），也可以手动运行。
 #   scripts/daily.sh            正式运行
 #   scripts/daily.sh --dry-run  试跑，不发邮件
 #
@@ -41,6 +41,6 @@ main() {
   return "$status"
 }
 
-# 不用 exec > >(tee …)：有些运行环境（如 DeepSeek Harness 的 shell）不支持 /dev/fd
+# 不用 exec > >(tee …)：有些 Agent 的 shell 不支持 /dev/fd
 main "$@" 2>&1 | tee -a "$LOG"
 exit "${PIPESTATUS[0]}"
