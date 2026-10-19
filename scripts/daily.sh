@@ -37,7 +37,7 @@ main() {
   local status=0
   pnpm -s pipeline "$@" || status=$?
 
-  echo "===== $(date '+%F %T') 结束（退出码 $status） ====="
+  echo "===== $(date '+%F %T') 结束（退出码 ${status}） ====="
   return "$status"
 }
 
