@@ -49,19 +49,24 @@
 滚动时按 `STEP` 给出的停顿依次等待后再滚动；看到早于给定时间的推文（置顶推文除外）或给定 ID 的推文就停止滚动。
 晚于今天 0 点的推文（今天新发的）不用管，明天会采集到。
 
-## 拿不到网络响应时
+## 拿不到网络响应时（从页面读取）
 
-只有在 Browser Skill 确实无法读取网络响应时（不是为了省事），才按 `schemas/inbox-file.schema.json` 从页面内容写出 `data/inbox/<日期>/<handle>.json`：
+Browser Skill 的网络捕获对响应正文有 256 KiB 的上限，X 的时间线响应经常超过（会被标记为 body_limit）。
+这种情况下按 `schemas/inbox-file.schema.json` 从页面内容写出 `data/inbox/<日期>/<handle>.json`，读取时注意：
 
-- `text` 要是完整正文（长推文点开"显示更多"），图片填地址，视频填封面和时长，引用推文填 `quoted`，作者本人的连续推文填 `thread`；
-- 数字按显示换算（"2.3万"→23000，"1.2K"→1200）；
+- **正文用推文正文元素（`[data-testid="tweetText"]`）的 `textContent`，不要用 `innerText`**：
+  `innerText` 会在链接、@账号、#话题前后多出换行，邮件里就会显示成一截一截的。
+- 链接写完整地址：正文里的链接元素 `textContent` 去掉结尾的"…"就是完整地址；同时写进 `links`（`expandedUrl` 填完整地址）。
+- 长推文先点"显示更多"再读，`text` 要是完整正文；图片填 `<img>` 的原始地址，视频填封面和时长。
+- 引用推文填 `quoted`：引用卡片里的文字原样读取，看不全时不要自己补写。作者本人的连续推文填 `thread`。
+- 数字按显示换算（"2.3万"→23000，"1.2K"→1200）。
 - 一定要写账号资料 `profile`：`name` 是主页上的显示名，`avatarUrl` 是主页头像图片地址（形如 `https://pbs.twimg.com/profile_images/.../xxx_400x400.jpg`）。
 
 ```json
 { "source": "tencent-browser-skill", "collectedAt": "2026-10-19T22:31:00Z", "handle": "someone", "status": "ok", "profile": { "name": "Some One", "avatarUrl": "https://pbs.twimg.com/profile_images/1/a_400x400.jpg" }, "tweets": [] }
 ```
 
-然后运行 `pnpm -s crawl done <handle> --no-response "拿不到响应的具体原因"`。
+然后运行 `pnpm -s crawl done <handle> --no-response "拿不到响应的原因（如 body_limit）"`。
 
 ## 必须立即停止的情况
 

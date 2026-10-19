@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { AiResult, type ContentCategory, type LinkDigest, type RawTweet, type Topic } from "@xrss/core";
+import { AiResult, cleanTweetText, type ContentCategory, type LinkDigest, looksTruncated, type RawTweet, type Topic, xWeightedLength } from "@xrss/core";
 import { z } from "zod";
 
 /** DeepSeek 的 Anthropic 兼容接口：https://api-docs.deepseek.com/guides/anthropic_api */
@@ -45,6 +45,9 @@ ${guide || DEFAULT_GUIDE}
    保留专有名词、代码、数字和 @账号，不添加原文没有的内容。原文已是中文时 zh 为 null。drop 的内容也要照常翻译。
 8. 如果有视频，或图片里有对理解推文很重要的文字/图表，用一两句中文写 mediaNote，说明它展示了什么；
    只根据你能看到的封面、图片和推文内容来写，不确定时说"根据封面和推文推测"。没有则为 null。
+9. 引用推文（quoted）较长（超过约 140 个汉字或 280 个英文字符），或 quoted.truncated 为 true（时间线只给了前一部分）时，
+   填 quotedDigest：summary 用 1–2 句中文说清它讲了什么，points 列 2–4 条具体要点（做法、数据、结论）；
+   被截断时只概括能看到的部分，不要猜测或补全没看到的内容。引用很短、或没有引用时 quotedDigest 为 null。
 
 linkedArticle 是推文（或引用推文）所附外部文章的标题、简介和正文开头（fetched 为 false 时只有标题和简介）。
 推文主要是在分享这篇文章时，按文章本身的价值判断类型和去留：实践复盘、技术博客、研究报告等有实质内容的可以保留，
@@ -119,10 +122,12 @@ function tweetPayload(t: RawTweet, article?: LinkDigest) {
   return {
     author: `${t.author.name} (@${t.author.handle})`,
     lang: t.lang,
-    text: t.text,
+    text: cleanTweetText(t.text),
     textTruncated: t.textTruncated || undefined,
-    thread: t.thread.map((p) => p.text),
-    quoted: t.quoted ? { author: `@${t.quoted.author.handle}`, text: t.quoted.text } : undefined,
+    thread: t.thread.map((p) => cleanTweetText(p.text)),
+    quoted: t.quoted
+      ? { author: `@${t.quoted.author.handle}`, text: cleanTweetText(t.quoted.text), truncated: looksTruncated(cleanTweetText(t.quoted.text)) || undefined }
+      : undefined,
     links: t.links.map((l) => ({ kind: l.kind, url: l.expandedUrl, title: l.title, description: l.description })),
     media: t.media.map((m) => ({ type: m.type, durationSec: m.durationSec, altText: m.altText })),
     metrics: t.metrics,
@@ -222,6 +227,9 @@ export function normalizeReview(r: AiResult, tweet: RawTweet, topics: Pick<Topic
   const result = { ...r };
   if (!topics.some((t) => t.id === result.topicId)) result.topicId = topics[0]!.id;
   if (tweet.lang?.startsWith("zh")) result.zh = null;
+  // 没有引用、或引用很短且完整时不需要摘要，直接显示原文
+  const quotedText = tweet.quoted ? cleanTweetText(tweet.quoted.text) : "";
+  if (!tweet.quoted || (xWeightedLength(quotedText) < 280 && !looksTruncated(quotedText))) result.quotedDigest = null;
   if (result.category === "other" && result.verdict === "keep") {
     result.verdict = "drop";
     result.dropReason ??= "other";

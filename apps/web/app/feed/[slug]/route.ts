@@ -20,10 +20,10 @@ function cardHtml(c: CardView): string {
     c.parts.length === 1
       ? `<p>${esc(c.parts[0]!).replace(/\n/g, "<br>")}${more}</p>`
       : c.parts.map((p, i) => `<p><small>${i + 1}/${total}</small> ${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
-  const images = c.images.map((img) => `<p><img src="${esc(img.url)}" alt="${esc(img.alt ?? "")}"></p>`).join("");
+  const images = c.images.map((img) => `<p><a href="${esc(img.href)}"><img src="${esc(img.url)}" alt="${esc(img.alt ?? "")}"></a></p>`).join("");
   const note = c.mediaNote ? `<blockquote><strong>${c.video ? "视频说明" : "图片说明"}（AI 生成）：</strong>${esc(c.mediaNote)}</blockquote>` : "";
   const quoted = c.quoted
-    ? `<blockquote><strong>${esc(c.quoted.name)}</strong> <a href="${esc(c.quoted.url)}">@${esc(c.quoted.handle)}</a><br>${esc(c.quoted.text)}${c.quoted.article ? articleHtml(c.quoted.article) : ""}</blockquote>`
+    ? `<blockquote><strong>${esc(c.quoted.name)}</strong> <a href="${esc(c.quoted.url)}">@${esc(c.quoted.handle)}</a><br>${c.quoted.summary ? `${esc(c.quoted.summary)}${c.quoted.points?.length ? `<ul>${c.quoted.points.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}` : `${esc(c.quoted.text)}${c.quoted.truncated ? "……" : ""}`}${c.quoted.article ? articleHtml(c.quoted.article) : ""}</blockquote>`
     : "";
   const linkTitle = c.link?.title ?? (c.link?.kind === "x_article" ? "在 X（原 Twitter）上阅读这篇长文" : undefined);
   const link = c.link && linkTitle ? `<p>🔗 <a href="${esc(c.link.url)}">${esc(linkTitle)}</a>${c.link.description ? `<br>${esc(c.link.description)}` : ""}</p>` : "";

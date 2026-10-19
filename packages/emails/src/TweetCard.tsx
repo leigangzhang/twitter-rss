@@ -5,7 +5,8 @@ import type { ArticleView, CardView } from "@xrss/core";
 import { CONTENT_WIDTH, color, font } from "./theme.ts";
 
 const meta = { fontFamily: font.mono, fontSize: 12, color: color.muted, margin: 0, lineHeight: "18px" } as const;
-const bodyText = { fontSize: 15, lineHeight: "26px", color: color.body, margin: 0 } as const;
+// 长链接、长英文单词在窄屏上换行，不撑破卡片
+const bodyText = { fontSize: 15, lineHeight: "26px", color: color.body, margin: 0, wordBreak: "break-word", overflowWrap: "anywhere" } as const;
 
 /** 没有头像时按账号名固定挑一组底色 */
 const AVATAR_TONES: Array<[string, string]> = [
@@ -90,34 +91,29 @@ function Parts({ card }: { card: CardView }) {
   );
 }
 
+/**
+ * 图片：一张一行、铺满宽度（截图里的文字才看得清），点开是大图。
+ * 多图不再拼成 2×2 小格。
+ */
 function Images({ card }: { card: CardView }) {
   if (card.images.length === 0) return null;
-  if (card.images.length === 1) {
-    const img = card.images[0]!;
-    const height = img.width && img.height ? Math.round((CONTENT_WIDTH * img.height) / img.width) : undefined;
-    return (
-      <Img
-        src={img.url}
-        alt={img.alt ?? ""}
-        width={CONTENT_WIDTH}
-        height={height}
-        style={{ width: "100%", maxWidth: CONTENT_WIDTH, height: "auto", borderRadius: 10, border: `1px solid ${color.line}`, marginTop: 14 }}
-      />
-    );
-  }
-  const half = (CONTENT_WIDTH - 8) / 2;
-  const rows = [card.images.slice(0, 2), card.images.slice(2, 4)].filter((r) => r.length > 0);
   return (
     <Section style={{ marginTop: 14 }}>
-      {rows.map((row, r) => (
-        <Row key={r} style={{ marginBottom: 8 }}>
-          {row.map((img, i) => (
-            <Column key={i} style={{ width: half, paddingLeft: i === 1 ? 8 : 0, verticalAlign: "top" }}>
-              <Img src={img.url} alt={img.alt ?? ""} width={half} height={half} style={{ objectFit: "cover", borderRadius: 8, display: "block" }} />
-            </Column>
-          ))}
-        </Row>
-      ))}
+      {card.images.map((img, i) => {
+        const height = img.width && img.height ? Math.round((CONTENT_WIDTH * img.height) / img.width) : undefined;
+        return (
+          <Link key={i} href={img.href} style={{ display: "block", marginTop: i === 0 ? 0 : 10 }}>
+            <Img
+              src={img.url}
+              alt={img.alt ?? ""}
+              width={CONTENT_WIDTH}
+              height={height}
+              style={{ width: "100%", maxWidth: CONTENT_WIDTH, height: "auto", borderRadius: 10, border: `1px solid ${color.line}`, display: "block" }}
+            />
+          </Link>
+        );
+      })}
+      {card.images.length > 1 ? <Text style={{ ...meta, fontSize: 11, marginTop: 6 }}>共 {card.images.length} 张，点图片看大图</Text> : null}
     </Section>
   );
 }
@@ -151,104 +147,98 @@ function Video({ card }: { card: CardView }) {
 }
 
 /**
- * 外部文章的图文摘要：封面、来源、标题、概要、要点、阅读原文。
- * width 是卡片可用宽度，用来给封面图设置像素宽度（部分邮件客户端不认百分比）。
+ * 外部文章：小字标出来源和标题（可点开），下面是 AI 概要和要点。
+ * 不再用带封面的大卡片，避免抢推文本身的注意力，也让邮件更小。
  */
-function ArticleCard({ article, width }: { article: ArticleView; width: number }) {
+function ArticleCard({ article }: { article: ArticleView }) {
   return (
-    <Section style={{ border: `1px solid ${color.line}`, borderRadius: 10, marginTop: 12, backgroundColor: "#FFFFFF" }}>
-      {article.imageUrl ? (
-        <Link href={article.url} style={{ display: "block" }}>
-          <Img
-            src={article.imageUrl}
-            alt={article.title}
-            width={width - 2}
-            style={{ width: "100%", maxWidth: width - 2, height: "auto", display: "block", borderRadius: "10px 10px 0 0" }}
-          />
+    <Section style={{ marginTop: 12, paddingTop: 10, borderTop: `1px dashed ${color.line}` }}>
+      <Text style={{ fontSize: 12, lineHeight: "19px", color: color.muted, margin: 0 }}>
+        {article.site ? `${article.site} · ` : ""}
+        <Link href={article.url} style={{ color: color.link }}>
+          {article.title} ↗
         </Link>
-      ) : null}
-      <Section style={{ padding: "14px 16px 16px" }}>
-        <Text style={{ ...meta, fontSize: 11, margin: "0 0 6px" }}>{article.site ? `${article.site} · 文章` : "文章"}</Text>
-        <Link href={article.url} style={{ textDecoration: "none" }}>
-          <Text style={{ fontSize: 16, fontWeight: 700, lineHeight: "24px", color: color.ink, margin: 0 }}>{article.title}</Text>
-        </Link>
-        {article.originalTitle ? (
-          <Text style={{ fontSize: 12, lineHeight: "18px", color: color.muted, margin: "2px 0 0" }}>{article.originalTitle}</Text>
-        ) : null}
-        {article.summary ? (
-          <Text style={{ fontSize: 14, lineHeight: "24px", color: color.body, margin: "10px 0 0" }}>{article.summary}</Text>
-        ) : null}
-        {article.points.length > 0 ? (
-          <Section style={{ marginTop: 8 }}>
-            {article.points.map((p, i) => (
-              <Row key={i}>
-                <Column style={{ width: 16, verticalAlign: "top", fontSize: 14, lineHeight: "24px", color: color.link }}>•</Column>
-                <Column style={{ verticalAlign: "top" }}>
-                  <Text style={{ fontSize: 14, lineHeight: "24px", color: color.body, margin: 0 }}>{p}</Text>
-                </Column>
-              </Row>
-            ))}
-          </Section>
-        ) : null}
-        <Row style={{ marginTop: 12 }}>
-          <Column>
-            <Link href={article.url} style={{ fontSize: 13, fontWeight: 700, color: color.link }}>
-              阅读原文 ↗
-            </Link>
+        {article.originalTitle ? <span style={{ color: color.faint }}>{`（${article.originalTitle}）`}</span> : null}
+      </Text>
+      {article.summary ? <Text style={{ fontSize: 14, lineHeight: "23px", color: color.body, margin: "6px 0 0" }}>{article.summary}</Text> : null}
+      <Points items={article.points} />
+      {article.aiSummary ? <Text style={{ ...meta, fontSize: 11, marginTop: 4 }}>文章概要由 AI 生成</Text> : null}
+    </Section>
+  );
+}
+
+function Points({ items }: { items?: string[] }) {
+  if (!items?.length) return null;
+  return (
+    <Section style={{ marginTop: 4 }}>
+      {items.map((p, i) => (
+        <Row key={i}>
+          <Column style={{ width: 14, verticalAlign: "top", fontSize: 14, lineHeight: "23px", color: color.muted }}>·</Column>
+          <Column style={{ verticalAlign: "top" }}>
+            <Text style={{ fontSize: 14, lineHeight: "23px", color: color.body, margin: 0 }}>{p}</Text>
           </Column>
-          {article.aiSummary ? (
-            <Column align="right">
-              <Text style={{ ...meta, fontSize: 11 }}>摘要由 AI 生成</Text>
-            </Column>
-          ) : null}
         </Row>
-      </Section>
+      ))}
     </Section>
   );
 }
 
 function Quoted({ card }: { card: CardView }) {
-  if (!card.quoted) return null;
+  const q = card.quoted;
+  if (!q) return null;
   return (
     <Section style={{ border: `1px solid ${color.line}`, borderRadius: 10, padding: "14px 16px", marginTop: 14, backgroundColor: "#FBFBFC" }}>
       <Text style={{ fontSize: 13, fontWeight: 700, color: color.ink, margin: "0 0 6px" }}>
-        {card.quoted.name}{" "}
-        <Link href={card.quoted.url} style={{ ...meta, fontWeight: 400, textDecoration: "none" }}>
-          @{card.quoted.handle} · 引用
+        {q.name}{" "}
+        <Link href={q.url} style={{ ...meta, fontWeight: 400, textDecoration: "none" }}>
+          @{q.handle} · 引用
         </Link>
       </Text>
-      {card.quoted.text ? (
-        <Text style={{ fontSize: 14, lineHeight: "24px", color: color.body, margin: 0, whiteSpace: "pre-line" }}>{card.quoted.text}</Text>
+      {q.summary ? (
+        <>
+          <Text style={{ fontSize: 14, lineHeight: "24px", color: color.body, margin: 0, wordBreak: "break-word" }}>{q.summary}</Text>
+          <Points items={q.points} />
+          <Text style={{ ...meta, fontSize: 11, marginTop: 6 }}>
+            引用内容摘要由 AI 生成 ·{" "}
+            <Link href={q.url} style={{ color: color.link }}>
+              查看引用原文
+            </Link>
+          </Text>
+        </>
+      ) : q.text ? (
+        <>
+          <Text style={{ fontSize: 14, lineHeight: "24px", color: color.body, margin: 0, whiteSpace: "pre-line", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+            {q.text}
+            {q.truncated ? "……" : ""}
+          </Text>
+          {q.truncated ? (
+            <Text style={{ ...meta, fontSize: 11, marginTop: 6 }}>
+              引用内容较长，
+              <Link href={q.url} style={{ color: color.link }}>
+                查看完整引用
+              </Link>
+            </Text>
+          ) : null}
+        </>
       ) : null}
-      {card.quoted.article ? <ArticleCard article={card.quoted.article} width={CONTENT_WIDTH - 34} /> : null}
+      {q.article ? <ArticleCard article={q.article} /> : null}
     </Section>
   );
 }
 
+/** 没有 AI 概要的普通链接：一行小字，不占卡片 */
 function LinkPreview({ card }: { card: CardView }) {
   const link = card.link;
   if (!link) return null;
-  // X 长文没抓到标题时也给一个可点击的卡片，而不是在正文里露出一串链接
   if (!link.title && !link.description && link.kind !== "x_article") return null;
+  const title = link.title ?? (link.kind === "x_article" ? "在 X（原 Twitter）上阅读这篇长文" : link.url);
   return (
-    <Link href={link.url} style={{ display: "block", textDecoration: "none", marginTop: 14 }}>
-      <Section style={{ border: `1px solid ${color.line}`, borderRadius: 10 }}>
-        <Row>
-          {link.imageUrl ? (
-            <Column style={{ width: 120, verticalAlign: "top" }}>
-              <Img src={link.imageUrl} alt="" width={120} height={96} style={{ objectFit: "cover", borderRadius: "10px 0 0 10px", display: "block" }} />
-            </Column>
-          ) : null}
-          <Column style={{ padding: "12px 14px", verticalAlign: "middle" }}>
-            <Text style={{ fontSize: 14, fontWeight: 700, lineHeight: "21px", color: color.ink, margin: "0 0 4px" }}>
-              {link.title ?? (link.kind === "x_article" ? "在 X（原 Twitter）上阅读这篇长文" : link.url)}
-            </Text>
-            {link.description ? <Text style={{ fontSize: 13, lineHeight: "20px", color: color.muted, margin: "0 0 4px" }}>{link.description}</Text> : null}
-            {link.domain ? <Text style={{ ...meta, fontSize: 11 }}>{link.domain}</Text> : null}
-          </Column>
-        </Row>
-      </Section>
-    </Link>
+    <Text style={{ fontSize: 12, lineHeight: "19px", color: color.muted, margin: "12px 0 0", wordBreak: "break-word" }}>
+      {link.domain ? `${link.domain} · ` : ""}
+      <Link href={link.url} style={{ color: color.link }}>
+        {title} ↗
+      </Link>
+    </Text>
   );
 }
 
@@ -296,7 +286,7 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
       {card.kind === "image" && card.mediaNote ? <NoteBlock label="图片说明（AI 生成）" text={card.mediaNote} /> : null}
       <Video card={card} />
       <Quoted card={card} />
-      {card.article ? <ArticleCard article={card.article} width={CONTENT_WIDTH} /> : <LinkPreview card={card} />}
+      {card.article ? <ArticleCard article={card.article} /> : <LinkPreview card={card} />}
 
       <Row style={{ marginTop: 14 }}>
         <Column>

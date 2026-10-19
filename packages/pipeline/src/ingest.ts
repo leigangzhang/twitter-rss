@@ -1,5 +1,5 @@
 import { readInbox, smallAvatar } from "@xrss/collector";
-import { type AppConfig, catchUpSince, engagement, mediaKind, passesFilters, type TimeRange } from "@xrss/core";
+import { type AppConfig, catchUpSince, cleanTweetText, engagement, mediaKind, passesFilters, type RawTweet, type TimeRange } from "@xrss/core";
 import { accounts, type Db, tweets } from "@xrss/core/db";
 import { eq, sql } from "drizzle-orm";
 
@@ -26,6 +26,16 @@ const maxId = (a: string | null | undefined, b: string | null | undefined) => {
   if (!b) return a;
   return BigInt(a) >= BigInt(b) ? a : b;
 };
+
+/** 从页面读取的推文会带进多余的断行（链接、@账号被拆开），入库前修好 */
+function cleanRaw(t: RawTweet): RawTweet {
+  return {
+    ...t,
+    text: cleanTweetText(t.text),
+    thread: t.thread.map((p) => ({ ...p, text: cleanTweetText(p.text) })),
+    quoted: t.quoted ? { ...t.quoted, text: cleanTweetText(t.quoted.text) } : undefined,
+  };
+}
 
 /** 读取当天采集结果并入库；规则粗筛在这一步完成 */
 export async function ingest(db: Db, config: AppConfig, date: string, range: TimeRange): Promise<IngestStats> {
@@ -91,7 +101,8 @@ export async function ingest(db: Db, config: AppConfig, date: string, range: Tim
         },
       });
 
-    for (const t of own) {
+    for (const original of own) {
+      const t = cleanRaw(original);
       const at = new Date(t.createdAt);
       const [prev] = await db.select().from(tweets).where(eq(tweets.id, t.id));
       // 已入库的推文照常刷新（例如补抓到全文）；新推文只收补收起点之后、本次截止之前的

@@ -172,3 +172,25 @@ describe("精选规则", () => {
     });
   });
 });
+
+describe("引用推文摘要", () => {
+  const base = { verdict: "keep" as const, category: "best_practice" as const, dropReason: null, quality: 4, topicId: "ai", summary: "s", reason: "r", zh: null, mediaNote: null };
+  const digest = { summary: "概括", points: ["要点一", "要点二"] };
+  const withQuote = (text: string) =>
+    RawTweet.parse({
+      id: "1",
+      url: "https://x.com/a/status/1",
+      author: { handle: "a", name: "A" },
+      createdAt: "2026-10-18T03:00:00Z",
+      lang: "zh",
+      text: "看看这个",
+      metrics: { likes: 1, reposts: 0, replies: 0 },
+      quoted: { id: "2", url: "https://x.com/b/status/2", author: { handle: "b", name: "B" }, text },
+    });
+
+  it("短而完整的引用不需要摘要，长的或被截断的保留摘要", () => {
+    expect(normalizeReview({ ...base, quotedDigest: digest }, withQuote("一句完整的话。"), [{ id: "ai" }]).quotedDigest).toBeNull();
+    expect(normalizeReview({ ...base, quotedDigest: digest }, withQuote("其实整体还挺耐用的，但是需要对默认设置稍微做点调整："), [{ id: "ai" }]).quotedDigest).toEqual(digest);
+    expect(normalizeReview({ ...base, quotedDigest: digest }, withQuote("长".repeat(200) + "。"), [{ id: "ai" }]).quotedDigest).toEqual(digest);
+  });
+});

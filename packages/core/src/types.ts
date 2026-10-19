@@ -195,6 +195,16 @@ export const AiResult = z.object({
       linkDescription: z.string().nullish(),
     })
     .nullable(),
+  /**
+   * 引用推文较长或被截断时的中文摘要和要点（短引用为 null，直接显示原文 / 译文）。
+   * 被截断时只概括能看到的部分。
+   */
+  quotedDigest: z
+    .object({
+      summary: z.string(),
+      points: z.array(z.string()).max(4).default([]),
+    })
+    .nullish(),
   /** 视频或含文字图片的中文说明，没有则为 null */
   mediaNote: z.string().nullable(),
 });

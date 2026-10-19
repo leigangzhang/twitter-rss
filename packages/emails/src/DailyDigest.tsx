@@ -179,18 +179,12 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
 function TopicSection({ group: g }: { group: DigestView["groups"][number] }) {
   return (
     <Section>
+      {/* 主题标题：不用多列表格，避免部分网页邮箱把标题挤成竖排 */}
       <Section style={{ padding: "26px 36px 4px" }}>
-        <Row>
-          <Column style={{ width: 20 }}>
-            <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, backgroundColor: g.topic.color }} />
-          </Column>
-          <Column style={{ whiteSpace: "nowrap", width: 1, paddingRight: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: 700, letterSpacing: "2px", color: g.topic.color, margin: 0 }}>{g.topic.name}</Text>
-          </Column>
-          <Column>
-            <div style={{ height: 1, backgroundColor: color.line }} />
-          </Column>
-        </Row>
+        <Text style={{ fontSize: 13, fontWeight: 700, letterSpacing: "2px", lineHeight: "20px", color: g.topic.color, margin: 0, paddingBottom: 8, borderBottom: `1px solid ${color.line}` }}>
+          <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, backgroundColor: g.topic.color, marginRight: 8, verticalAlign: "-1px" }} />
+          {g.topic.name}
+        </Text>
       </Section>
       {g.items.map((card, i) => (
         <TweetCard key={card.id} card={card} last={i === g.items.length - 1} />

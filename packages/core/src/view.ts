@@ -1,5 +1,6 @@
 import type { DigestConfig, Topic } from "./config.ts";
 import { xWeightedLength } from "./scoring.ts";
+import { cleanTweetText, largeImageUrl, looksTruncated } from "./text.ts";
 import { compactNumber, displayTime, localDate } from "./time.ts";
 import { type AiResult, CATEGORY_LABELS, type Lang, type Link, type LinkDigest, type MediaKind, type RawTweet } from "./types.ts";
 
@@ -23,11 +24,24 @@ export interface CardView {
   moreParts: number;
   /** 正文没能拿到全文（时间线截断且未补抓详情），模板提示"全文较长，查看原推" */
   truncated: boolean;
-  images: Array<{ url: string; width?: number; height?: number; alt?: string }>;
+  /** href：点开看的大图 */
+  images: Array<{ url: string; href: string; width?: number; height?: number; alt?: string }>;
   video?: { thumbUrl?: string; duration?: string };
   /** AI 生成的中文说明（视频、含文字的图片） */
   mediaNote?: string;
-  quoted?: { name: string; handle: string; text: string; url: string; article?: ArticleView };
+  quoted?: {
+    name: string;
+    handle: string;
+    /** 有 summary 时不显示原文 */
+    text: string;
+    /** 引用较长或被截断时的 AI 摘要和要点（中文版） */
+    summary?: string;
+    points?: string[];
+    /** 原文被截断（时间线里只给了前一部分） */
+    truncated: boolean;
+    url: string;
+    article?: ArticleView;
+  };
   /** X 长文，或抓不到正文、也没有摘要的普通链接 */
   link?: { kind: "web" | "x_article"; url: string; title?: string; description?: string; domain?: string; imageUrl?: string };
   /** 推文自己附带的外部文章（图文摘要）；引用推文里的文章在 quoted.article */
@@ -72,13 +86,18 @@ export function primaryArticle(raw: RawTweet): { link: Link; source: "tweet" | "
   return null;
 }
 
+const cleanOptional = (s: string | null | undefined) => (s ? cleanTweetText(s) : (s ?? undefined));
+
 function toArticleView(link: Link, d: LinkDigest | undefined, lang: Lang, zhTitle?: string | null, zhDesc?: string | null): ArticleView | undefined {
-  const original = d?.title ?? link.title;
-  const title = (lang === "zh" ? (d?.titleZh ?? zhTitle) : undefined) ?? original;
+  const original = cleanOptional(d?.title ?? link.title);
+  const title = (lang === "zh" ? cleanOptional(d?.titleZh ?? zhTitle) : undefined) ?? original;
   if (!title) return undefined;
   const aiSummary = Boolean(d?.summary);
+  let url = cleanTweetText(d?.finalUrl ?? link.expandedUrl);
+  // 页面读取时链接常常只拿到 t.co 短链，标题本身就是完整地址：直接链到真实地址
+  if (/^https?:\/\/t\.co\//.test(url) && /^https?:\/\/\S+$/.test(title)) url = title;
   return {
-    url: d?.finalUrl ?? link.expandedUrl,
+    url,
     site: d?.siteName ?? link.domain,
     title,
     originalTitle: original && original !== title ? original : undefined,
@@ -126,7 +145,7 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
   const zh = opts.lang === "zh" ? t.ai?.zh ?? null : null;
   const isChinese = raw.lang?.startsWith("zh") ?? false;
 
-  const allParts = [zh?.text ?? raw.text, ...raw.thread.map((p, i) => zh?.thread[i] ?? p.text)];
+  const allParts = [zh?.text ?? raw.text, ...raw.thread.map((p, i) => zh?.thread[i] ?? p.text)].map(cleanTweetText);
   const parts = allParts.slice(0, opts.maxThreadParts);
 
   const videoMedia = raw.media.find((m) => m.type === "video" || m.type === "gif");
@@ -160,7 +179,10 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
     parts,
     moreParts: allParts.length - parts.length,
     truncated: raw.textTruncated,
-    images: raw.media.filter((m) => m.type === "photo").slice(0, 4).map((m) => ({ url: m.url, width: m.width, height: m.height, alt: m.altText })),
+    images: raw.media
+      .filter((m) => m.type === "photo")
+      .slice(0, 4)
+      .map((m) => ({ url: m.url, href: largeImageUrl(m.url), width: m.width, height: m.height, alt: m.altText })),
     video: videoMedia
       ? { thumbUrl: opts.videoMode === "thumbnail" ? videoMedia.url : undefined, duration: duration(videoMedia.durationSec) }
       : undefined,
@@ -169,7 +191,9 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
       ? {
           name: raw.quoted.author.name,
           handle: raw.quoted.author.handle,
-          text: zh?.quotedText ?? raw.quoted.text,
+          text: cleanTweetText(zh?.quotedText ?? raw.quoted.text),
+          ...(opts.lang === "zh" && t.ai?.quotedDigest ? { summary: t.ai.quotedDigest.summary, points: t.ai.quotedDigest.points } : {}),
+          truncated: looksTruncated(cleanTweetText(raw.quoted.text)),
           url: raw.quoted.url,
           article: primary?.source === "quoted" ? toArticleView(primary.link, t.article, opts.lang, zh?.linkTitle, zh?.linkDescription) : undefined,
         }
@@ -178,9 +202,9 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
     link: link && !ownArticle
       ? {
           kind: link.kind,
-          url: link.expandedUrl,
-          title: zh?.linkTitle ?? link.title,
-          description: zh?.linkDescription ?? link.description,
+          url: cleanTweetText(link.expandedUrl),
+          title: cleanOptional(zh?.linkTitle ?? link.title),
+          description: cleanOptional(zh?.linkDescription ?? link.description),
           domain: link.kind === "x_article" ? "X（原 Twitter）长文" : link.domain,
           imageUrl: link.imageUrl,
         }
