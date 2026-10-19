@@ -166,25 +166,28 @@ export async function issueDetail(db: Db, config: AppConfig, date: string): Prom
 
 /**
  * 生成某位订阅者某一期的邮件（带个人专属链接）：
- * 发过的按当时发出的那几条推文重建；没发过的按当期内容和他现在的主题、语言重新挑选。
+ * - latest（默认，重新发送用）：按这一期现在的全部内容（含之后补采、重新评审的）和他现在的主题、语言重新挑选；
+ * - sent：按当时发出的那几条推文重建，用来查看已经发出的邮件。
  */
 export async function buildIssueEmail(
   db: Db,
   config: AppConfig,
   date: string,
   subscriberId: number,
+  mode: "latest" | "sent" = "latest",
 ): Promise<{ subscriber: SubscriberRow; view: DigestView; email: RenderedEmail; tweetIds: string[] } | { subscriber?: SubscriberRow; error: string }> {
   const [sub] = await db.select().from(subscribers).where(eq(subscribers.id, subscriberId));
   if (!sub) return { error: "找不到这位订阅者" };
   const [delivery] = await db.select().from(deliveries).where(and(eq(deliveries.subscriberId, subscriberId), eq(deliveries.digestDate, date)));
   const range = runRange(config, date);
   // 卡片上的"昨天 / 今天"按当期发送时刻计算，重发时也和原邮件一致
-  const now = delivery?.sentAt ?? new Date(startOfLocalDay(date, config.digest.timezone).getTime() + 7 * 3_600_000);
+  const now = mode === "sent" && delivery ? delivery.sentAt : new Date(Math.max(Date.now(), startOfLocalDay(date, config.digest.timezone).getTime() + 7 * 3_600_000));
   const ctx = await loadDigestContext(db, config, date, range, now);
   const links = siteLinks(sub.token, sub.lang);
 
   let view: DigestView | null;
-  if (delivery && delivery.tweetIds.length > 0) {
+  if (mode === "sent") {
+    if (!delivery || delivery.tweetIds.length === 0) return { subscriber: sub, error: "这一期还没有发给这位订阅者" };
     const rows = (await db.select().from(tweets).where(inArray(tweets.id, delivery.tweetIds))).map((t) => ({
       ...t,
       topicId: effectiveTopicId(config, t.topicId, t.handle) ?? null,
@@ -209,11 +212,14 @@ export interface ResendResult {
   message: string;
 }
 
-/** 给一位订阅者（重新）发送某一期：单独发送，带专属链接和一键退订 */
+/** 给一位订阅者（重新）发送某一期：按这一期最新的内容，单独发送，带专属链接和一键退订 */
 export async function resendTo(db: Db, config: AppConfig, mailer: Mailer, date: string, subscriberId: number, kind: "resend" | "retry" = "resend"): Promise<ResendResult> {
-  const built = await buildIssueEmail(db, config, date, subscriberId);
+  // 按这一期最新的内容重新挑选（补采、重新评审之后的内容也会包含进来）
+  const built = await buildIssueEmail(db, config, date, subscriberId, "latest");
   if ("error" in built) return { email: built.subscriber?.email ?? `#${subscriberId}`, status: "skipped", message: built.error };
   const { subscriber: sub, email, tweetIds } = built;
+  const [before] = await db.select().from(deliveries).where(and(eq(deliveries.subscriberId, sub.id), eq(deliveries.digestDate, date)));
+  const added = before?.status === "sent" ? tweetIds.filter((id) => !before.tweetIds.includes(id)).length : 0;
   const links = siteLinks(sub.token, sub.lang);
 
   let result: { status: "sent"; messageId: string } | { status: "failed"; error: string };
@@ -256,7 +262,7 @@ export async function resendTo(db: Db, config: AppConfig, mailer: Mailer, date: 
       .onConflictDoUpdate({ target: [deliveries.subscriberId, deliveries.digestDate], set: values });
   }
   return result.status === "sent"
-    ? { email: sub.email, status: "sent", message: `已发送（${tweetIds.length} 条）` }
+    ? { email: sub.email, status: "sent", message: `已发送（${tweetIds.length} 条${added ? `，比上次多 ${added} 条新内容` : ""}）` }
     : { email: sub.email, status: "failed", message: result.error };
 }
 

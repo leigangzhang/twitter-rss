@@ -86,8 +86,13 @@ export default async function DeliveryDetailPage({ params }: { params: Promise<{
                   <td className="px-4 py-3.5 whitespace-nowrap">{r.attempts} 次</td>
                   <td className="px-4 py-3.5">
                     <div className="flex flex-wrap items-start gap-2">
+                      {r.status !== "missing" ? (
+                        <a href={`/admin/deliveries/${d.date}/preview?subscriber=${r.subscriber.id}&sent=1`} target="_blank" rel="noreferrer" className="flex min-h-9 items-center rounded-lg border border-line px-3 text-[13px] whitespace-nowrap no-underline">
+                          已发出的
+                        </a>
+                      ) : null}
                       <a href={`/admin/deliveries/${d.date}/preview?subscriber=${r.subscriber.id}`} target="_blank" rel="noreferrer" className="flex min-h-9 items-center rounded-lg border border-line px-3 text-[13px] whitespace-nowrap no-underline">
-                        查看邮件
+                        {r.status === "sent" ? "预览重发" : "预览"}
                       </a>
                       {canSend && r.subscriber.status !== "unsubscribed" ? (
                         <ResendButton date={d.date} action="resend" subscriberId={r.subscriber.id} label={r.status === "sent" ? "重新发送" : "发送"} confirmLabel="确认发送" />
@@ -100,7 +105,7 @@ export default async function DeliveryDetailPage({ params }: { params: Promise<{
           </table>
         </div>
         <p className="m-0 text-xs text-muted">
-          "重新发送"会按当时发出的那几条推文重新生成一封带个人链接的邮件；没收到过的按这一期的内容和他现在的主题、语言挑选。"查看邮件"打开的就是会发出的内容。
+          "重新发送"按这一期现在的全部内容（含之后补采的）和他现在的主题、语言重新挑选，生成一封带个人链接的邮件；"预览重发"打开的就是会发出的内容，"已发出的"是当时发出的那封。
         </p>
       </section>
 

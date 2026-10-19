@@ -76,13 +76,21 @@ describe("推送历史与重新推送", () => {
       ["102", 1],
     ]);
 
-    // 预览按当时发出的推文重建（a 只收到 101）
-    const preview = await buildIssueEmail(db, config, date, a!.id);
-    expect("email" in preview && preview.tweetIds).toEqual(["101"]);
+    // 查看已发出的：按当时的推文重建（b 当时是 101、102 中失败的那封，a 只收到 101）
+    const sentView = await buildIssueEmail(db, config, date, a!.id, "sent");
+    expect("email" in sentView && sentView.tweetIds).toEqual(["101"]);
+
+    // 当天又补采到新内容：a 重新发送时按最新内容，包含新的 103
+    await db.insert(tweets).values(tweet("103", "sama", "ai"));
+    const latest = await buildIssueEmail(db, config, date, a!.id);
+    expect("email" in latest && [...latest.tweetIds].sort()).toEqual(["101", "103"]);
+    const m0 = fakeMailer();
+    expect(await resendTo(db, config, m0.mailer, date, a!.id)).toEqual({ email: "a@example.com", status: "sent", message: "已发送（2 条，比上次多 1 条新内容）" });
+    expect((await db.select().from(deliveries).where(eq(deliveries.subscriberId, a!.id)))[0]!.tweetIds.sort()).toEqual(["101", "103"]);
 
     // 重试失败的：b 收到个人邮件，最终结果改为成功
     const m1 = fakeMailer();
-    expect(await retryFailed(db, config, m1.mailer, date)).toEqual([{ email: "b@example.com", status: "sent", message: "已发送（2 条）" }]);
+    expect(await retryFailed(db, config, m1.mailer, date)).toEqual([{ email: "b@example.com", status: "sent", message: "已发送（3 条）" }]);
     expect(m1.sent[0]!.to).toBe("b@example.com");
     expect(String(m1.sent[0]!.html)).toContain("t-b@example.com");
 
@@ -101,9 +109,10 @@ describe("推送历史与重新推送", () => {
     expect(log.map((l) => [l.kind, l.status]).sort()).toEqual([
       ["missing", "sent"],
       ["resend", "failed"],
+      ["resend", "sent"],
       ["retry", "sent"],
     ]);
-    expect((await listIssues(db, config))[0]).toMatchObject({ sent: 3, failed: 0, missing: 0, attempts: 3 });
+    expect((await listIssues(db, config))[0]).toMatchObject({ sent: 3, failed: 0, missing: 0, attempts: 4 });
     expect(c).toBeDefined();
   });
 });
