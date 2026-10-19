@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { RawTweet } from "@xrss/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createLlmEditor, createLlmReviewer, editorSystemPrompt, normalizeReview, reviewSystemPrompt } from "../src/ai.ts";
+import { createLlmEditor, createLlmReviewer, describeLlm, editorSystemPrompt, llmSettings, normalizeReview, reviewSystemPrompt } from "../src/ai.ts";
 
 // 用本地假服务模拟 DeepSeek 的 Anthropic 兼容接口，检查请求内容和结果解析
 const requests: Array<{ path: string; auth: string | undefined; body: any }> = [];
@@ -121,8 +121,26 @@ describe("createLlmReviewer（DeepSeek Anthropic 兼容接口）", () => {
     expect(requests[1]!.body.messages[0].content.every((b: any) => b.type === "text")).toBe(true);
   });
 
-  it("没有 DEEPSEEK_API_KEY 时给出明确提示", () => {
-    expect(() => createLlmReviewer({ apiKey: "" })).toThrow("DEEPSEEK_API_KEY");
+  it("没有 API Key 时给出明确提示", () => {
+    expect(() => createLlmReviewer({ apiKey: "" })).toThrow("LLM_API_KEY");
+  });
+
+  it("端点、模型、密钥可以在 .env 里自定义，旧名 DEEPSEEK_API_KEY 仍然有效", () => {
+    const keep = { ...process.env };
+    try {
+      for (const k of ["LLM_API_KEY", "DEEPSEEK_API_KEY", "LLM_BASE_URL", "LLM_MODEL"]) delete process.env[k];
+      expect(llmSettings()).toEqual({ apiKey: undefined, baseURL: "https://api.deepseek.com/anthropic", model: "deepseek-flash" });
+      process.env.DEEPSEEK_API_KEY = "sk-old";
+      expect(llmSettings().apiKey).toBe("sk-old");
+      process.env.LLM_API_KEY = "sk-new";
+      process.env.LLM_BASE_URL = "https://api.example.com/anthropic/v1/";
+      process.env.LLM_MODEL = "some-model";
+      expect(llmSettings()).toEqual({ apiKey: "sk-new", baseURL: "https://api.example.com/anthropic", model: "some-model" });
+      expect(describeLlm()).toBe("some-model @ api.example.com/anthropic");
+      expect(llmSettings({ model: "override" }).model).toBe("override");
+    } finally {
+      process.env = keep;
+    }
   });
 });
 

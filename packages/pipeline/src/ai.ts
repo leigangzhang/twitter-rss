@@ -152,12 +152,49 @@ export interface LlmOptions {
   guide?: string;
 }
 
-function createClient({ apiKey = process.env.DEEPSEEK_API_KEY, baseURL = process.env.LLM_BASE_URL || DEEPSEEK_ANTHROPIC_BASE_URL }: LlmOptions) {
-  if (!apiKey) throw new Error("缺少 DEEPSEEK_API_KEY。没有 API Key 时可以加 --skip-ai 用规则分试跑。");
+/** 默认模型（DeepSeek） */
+export const DEFAULT_LLM_MODEL = "deepseek-flash";
+
+/**
+ * 大模型连接设置：参数优先，其次读 .env。
+ * - LLM_API_KEY（兼容旧名 DEEPSEEK_API_KEY）
+ * - LLM_BASE_URL：任何兼容 Anthropic Messages API 的端点，默认 DeepSeek
+ * - LLM_MODEL：模型名，默认 deepseek-flash
+ */
+export function llmSettings(o: LlmOptions = {}) {
+  const env = (k: string) => process.env[k]?.trim() || undefined;
+  return {
+    apiKey: o.apiKey ?? env("LLM_API_KEY") ?? env("DEEPSEEK_API_KEY"),
+    baseURL: normalizeBaseUrl(o.baseURL ?? env("LLM_BASE_URL") ?? DEEPSEEK_ANTHROPIC_BASE_URL),
+    model: o.model || env("LLM_MODEL") || DEFAULT_LLM_MODEL,
+  };
+}
+
+/**
+ * SDK 会在端点后拼上 /v1/messages，用户常会把 .../v1 或 .../v1/messages 也写进来，这里去掉，避免变成 /v1/v1/messages。
+ */
+export function normalizeBaseUrl(url: string): string {
+  return url.trim().replace(/\/+$/, "").replace(/\/v1(\/messages)?$/, "");
+}
+
+/** 日志里显示用：端点主机和模型，不含密钥 */
+export function describeLlm(o: LlmOptions = {}): string {
+  const { baseURL, model } = llmSettings(o);
+  let host = baseURL;
+  try {
+    const u = new URL(baseURL);
+    host = u.host + (u.pathname === "/" ? "" : u.pathname);
+  } catch {}
+  return `${model} @ ${host}`;
+}
+
+function createClient(o: LlmOptions) {
+  const { apiKey, baseURL } = llmSettings(o);
+  if (!apiKey) throw new Error("缺少 LLM_API_KEY（或旧名 DEEPSEEK_API_KEY）。没有 API Key 时可以加 --skip-ai 用规则分试跑。");
   return new Anthropic({ apiKey, baseURL });
 }
 
-const modelOf = (o: LlmOptions) => o.model || process.env.LLM_MODEL || "deepseek-flash";
+const modelOf = (o: LlmOptions) => llmSettings(o).model;
 
 function toolInput(response: Anthropic.Message, name: string): unknown {
   const block = response.content.find((b) => b.type === "tool_use" && b.name === name);
@@ -167,7 +204,7 @@ function toolInput(response: Anthropic.Message, name: string): unknown {
 
 /**
  * 逐条评审：判断类型和去留、打分、写摘要、翻译、媒体说明。
- * 默认走 DeepSeek（deepseek-flash），通过 LLM_BASE_URL / LLM_MODEL 可以换成其他兼容 Anthropic 接口的服务。
+ * 默认走 DeepSeek（deepseek-flash），通过 .env 的 LLM_BASE_URL / LLM_MODEL / LLM_API_KEY 可以换成其他兼容 Anthropic 接口的服务。
  */
 export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
   const client = createClient(opts);

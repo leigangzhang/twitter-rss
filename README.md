@@ -26,7 +26,7 @@
 ```bash
 git clone <仓库地址> twitter-rss && cd twitter-rss
 pnpm install
-cp .env.example .env     # 填 DEEPSEEK_API_KEY、QQ 邮箱 SMTP 授权码等，可以先留空试跑
+cp .env.example .env     # 填大模型 API Key、QQ 邮箱 SMTP 授权码等，可以先留空试跑
 pnpm db:migrate          # 建表
 pnpm email:preview       # 用示例数据渲染邮件 → data/out/preview-zh.html
 pnpm dev                 # 订阅页 http://localhost:3000
@@ -72,7 +72,7 @@ scripts/agent-run.sh claude      # 或 codex
 | `config/curation.md` | 精选标准，原样放进给大模型的提示词 |
 | `.env` | 大模型接口、SMTP、数据库地址、网站地址、管理后台密码 |
 
-大模型默认用 DeepSeek 的 Anthropic 兼容接口；`LLM_BASE_URL`、`LLM_MODEL` 可以换成其他兼容 Anthropic Messages API 的服务。
+大模型默认用 DeepSeek（`deepseek-flash`）。在 `.env` 里改 `LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY`，可以换成任何兼容 Anthropic Messages API 的服务（Anthropic、Kimi、智谱 GLM 等），每次运行的日志会写出实际使用的模型和端点。
 
 ## 调整精选口味
 
@@ -132,7 +132,7 @@ scripts/agent-run.sh claude      # 或 codex
 - Node.js 22+、pnpm
 - 一个能运行命令的 AI Agent：Claude Code、Codex、DeepSeek Harness 等
 - [Tencent Browser Skill](https://github.com/Tencent/BrowserSkill) 和已登录 X 的 Chrome（建议专用账号）
-- 大模型 API Key：默认 DeepSeek（Anthropic 兼容接口）
+- 大模型 API Key：默认 DeepSeek，可换成任何兼容 Anthropic 接口的服务
 - 发信邮箱：默认 QQ 邮箱 SMTP（需要授权码）
 - 上线时：Turso 数据库 + 可部署 Next.js 的平台（如 Vercel）
 

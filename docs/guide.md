@@ -51,9 +51,15 @@
 | 用途 | 在哪里运行 | 模型配置 |
 |---|---|---|
 | 采集 X（浏览器操作） | 你选的 Agent（Claude Code、Codex、DeepSeek Harness 等） | 在 Agent 里配置，与精选用的模型无关 |
-| AI 初审、编辑终审、翻译、视频/图片说明 | `scripts/daily.sh` → `packages/pipeline/src/ai.ts` | `.env` 的 `DEEPSEEK_API_KEY`、`LLM_MODEL=deepseek-flash` |
+| AI 初审、编辑终审、翻译、视频/图片说明 | `scripts/daily.sh` → `packages/pipeline/src/ai.ts` | `.env` 的 `LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY` |
 
-AI 精选通过 [DeepSeek 的 Anthropic 兼容接口](https://api-docs.deepseek.com/guides/anthropic_api) 调用。换模型改 `.env` 的 `LLM_MODEL`（如 `deepseek-v4-pro`）；换成其他兼容 Anthropic 接口的服务，再设置 `LLM_BASE_URL`。
+AI 精选通过 Anthropic Messages API 调用，默认是 [DeepSeek 的兼容接口](https://api-docs.deepseek.com/guides/anthropic_api)。在 `.env` 里自定义：
+
+- `LLM_BASE_URL`：端点地址（不用带 `/v1/messages`，带了也会自动去掉），例如 `https://api.anthropic.com`、`https://api.moonshot.cn/anthropic`、`https://open.bigmodel.cn/api/anthropic`
+- `LLM_MODEL`：模型名，如 `deepseek-flash`、`deepseek-v4-pro`；建议选支持图片输入的模型（不支持时自动去掉图片重试，只是没有图片说明）
+- `LLM_API_KEY`：对应服务的密钥，旧名 `DEEPSEEK_API_KEY` 仍然有效
+
+评审需要模型支持工具调用（tool use）来返回结构化结果。每次运行的日志会打印实际使用的模型和端点（不含密钥）。
 
 ## 选稿规则
 

@@ -2,7 +2,7 @@ import { parseArgs } from "node:util";
 import { loadConfig, localDate, runRange, loadDotEnv } from "@xrss/core";
 import { createDb, migrateDb, tweets } from "@xrss/core/db";
 import { and, gte, inArray, lt } from "drizzle-orm";
-import { createLlmEditor, createLlmReviewer, createLlmSummarizer, createRuleOnlyReviewer } from "./ai.ts";
+import { createLlmEditor, createLlmReviewer, createLlmSummarizer, createRuleOnlyReviewer, describeLlm } from "./ai.ts";
 import { fetchCandidateArticles, summarizeArticles } from "./links.ts";
 import { runEditorial, writeCurationReport } from "./editorial.ts";
 import { pickCandidates } from "./candidates.ts";
@@ -73,6 +73,7 @@ if (articles.byTweet.size > 0) {
 
 const skipAi = values["skip-ai"]!;
 const guide = config.curationGuide;
+if (!skipAi) console.log(`  大模型：${describeLlm()}`);
 const reviewer = skipAi
   ? createRuleOnlyReviewer(new Map(candidates.map((c) => [c.id, c.ruleScore ?? 0])))
   : createLlmReviewer({ guide });
