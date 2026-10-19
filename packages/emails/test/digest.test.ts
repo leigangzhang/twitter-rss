@@ -19,7 +19,7 @@ describe("每日邮件", () => {
   it("标签页模式：带切换用的单选按钮和不支持时的主题目录", async () => {
     const { html } = await renderDigest(sampleDigest("zh"), { tabs: true });
     expect(html).toContain('id="xt-all"');
-    expect(html).toContain('class="xt-toc"');
+    expect(html).toMatch(/class="xt-toc[ "]/);
     expect(html).toContain("#xt-1:checked");
   });
 

@@ -49,12 +49,15 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
 
   return (
     <Html lang={view.lang === "zh" ? "zh-CN" : "en"}>
-      <Head>{tabs ? <style dangerouslySetInnerHTML={{ __html: tabsCss(view.groups.length) }} /> : null}</Head>
+      <Head>
+        {/* 手机上把左右留白从 36px 收窄到 18px（支持媒体查询的邮箱生效，其他邮箱保持原样） */}
+        <style dangerouslySetInnerHTML={{ __html: `@media (max-width:480px){.xc{padding-left:18px!important;padding-right:18px!important}.xh{font-size:24px!important;line-height:32px!important}}${tabs ? `\n${tabsCss(view.groups.length)}` : ""}` }} />
+      </Head>
       <Preview>{preview}</Preview>
       <Body style={{ backgroundColor: color.ground, fontFamily: font.sans, margin: 0, padding: "20px 0" }}>
         <Container style={{ width: "100%", maxWidth: 640, backgroundColor: color.card, borderRadius: 14, overflow: "hidden", fontFamily: font.sans }}>
           {/* 头部 */}
-          <Section style={{ padding: "34px 36px 26px", borderBottom: `1px solid ${color.line}` }}>
+          <Section className="xc" style={{ padding: "34px 36px 26px", borderBottom: `1px solid ${color.line}` }}>
             <Row>
               <Column>
                 <span
@@ -80,7 +83,7 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
                 <Text style={{ fontFamily: font.mono, fontSize: 12, color: color.muted, margin: 0 }}>{view.dateLabel}</Text>
               </Column>
             </Row>
-            <Text style={{ fontSize: 30, fontWeight: 900, lineHeight: "39px", color: color.ink, margin: "18px 0 8px" }}>{view.periodLabel ? `${view.periodLabel}值得读的 ${view.total} 条` : `今天值得读的 ${view.total} 条`}</Text>
+            <Text className="xh" style={{ fontSize: 30, fontWeight: 900, lineHeight: "39px", color: color.ink, margin: "18px 0 8px" }}>{view.periodLabel ? `${view.periodLabel}值得读的 ${view.total} 条` : `今天值得读的 ${view.total} 条`}</Text>
             <Text style={{ fontSize: 14, lineHeight: "22px", color: color.muted, margin: "0 0 16px" }}>
               来自你订阅的 {view.topicCount} 个主题、{view.accountCount} 位 X（原 Twitter）博主 · 从{view.periodLabel ? `${view.periodLabel}发布的 ` : " "}{view.scannedCount} 条新推文中筛选
               {view.lang === "zh" ? " · 中文版（AI 翻译）" : " · 原文版"}
@@ -115,7 +118,7 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
                 </div>
               ) : null}
               {/* 标签栏：默认隐藏，支持的邮箱才显示 */}
-              <div className="xt-bar" style={{ display: "none", maxHeight: 0, overflow: "hidden", padding: "18px 36px 6px", msoHide: "all" } as React.CSSProperties}>
+              <div className="xt-bar xc" style={{ display: "none", maxHeight: 0, overflow: "hidden", padding: "18px 36px 6px", msoHide: "all" } as React.CSSProperties}>
                 <label htmlFor="xt-all" className="xt-l xt-l-all" style={tabLabel}>
                   全部 {view.total}
                 </label>
@@ -127,7 +130,7 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
                 ))}
               </div>
               {/* 目录：不支持标签页的邮箱显示，点击跳到对应主题 */}
-              <div className="xt-toc" style={{ padding: "18px 36px 6px", lineHeight: "34px" }}>
+              <div className="xt-toc xc" style={{ padding: "18px 36px 6px", lineHeight: "34px" }}>
                 {view.groups.map((g, i) => (
                   <a key={g.topic.id} href={`#xt-p-${i + 1}`} style={{ ...tabLabel, textDecoration: "none" }}>
                     <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, backgroundColor: g.topic.color, marginRight: 6 }} />
@@ -180,7 +183,7 @@ function TopicSection({ group: g }: { group: DigestView["groups"][number] }) {
   return (
     <div>
       {/* 主题标题：不用多列表格，避免部分网页邮箱把标题挤成竖排 */}
-      <div style={{ padding: "26px 36px 4px" }}>
+      <div className="xc" style={{ padding: "26px 36px 4px" }}>
         <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: "2px", lineHeight: "20px", color: g.topic.color, margin: 0, paddingBottom: 8, borderBottom: `1px solid ${color.line}` }}>
           <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, backgroundColor: g.topic.color, marginRight: 8, verticalAlign: "-1px" }} />
           {g.topic.name}
@@ -190,7 +193,7 @@ function TopicSection({ group: g }: { group: DigestView["groups"][number] }) {
         <TweetCard key={card.id} card={card} last={i === g.items.length - 1 && !g.compact?.length} />
       ))}
       {g.compact?.length ? (
-        <div style={{ padding: "18px 36px 22px", borderTop: `1px solid ${color.lineSoft}` }}>
+        <div className="xc" style={{ padding: "18px 36px 22px", borderTop: `1px solid ${color.lineSoft}` }}>
           <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "1px", color: color.muted, margin: "0 0 10px" }}>还有 {g.compact.length} 条，篇幅所限只列摘要</p>
           {g.compact.map((card) => (
             <CompactItem key={card.id} card={card} />

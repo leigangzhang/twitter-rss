@@ -8,7 +8,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { CONTENT_WIDTH, color, font } from "./theme.ts";
 
 const meta: CSSProperties = { fontFamily: font.mono, fontSize: 12, lineHeight: "18px", color: color.muted, margin: 0 };
-const small: CSSProperties = { fontSize: 11, lineHeight: "17px", color: color.muted, margin: "6px 0 0" };
+const small: CSSProperties = { fontFamily: font.sans, fontSize: 11, lineHeight: "17px", color: color.muted, margin: "6px 0 0" };
 // 长链接、长英文单词在窄屏上换行，不撑破卡片
 const wrap: CSSProperties = { wordBreak: "break-word", overflowWrap: "anywhere" };
 const bodyText: CSSProperties = { fontSize: 15, lineHeight: "26px", color: color.body, margin: 0, whiteSpace: "pre-line", ...wrap };
@@ -254,9 +254,14 @@ function LinkPreview({ card }: { card: CardView }) {
 const chip: CSSProperties = { fontSize: 11, borderRadius: 4, padding: "3px 8px", whiteSpace: "nowrap" };
 
 export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
-  const metaLine = [`@${card.author.handle}`, card.time, card.translatedFrom].filter(Boolean).join(" · ");
+  // 各段之间用不换行空格连接：窄屏上整段换行，不会把"昨天 12:00"拆成两行
+  const metaLine = [`@${card.author.handle}`, card.time, card.translatedFrom]
+    .filter(Boolean)
+    .map((part) => part!.replace(/ /g, "\u00a0"))
+    .join("\u00a0· ");
   return (
-    <div style={{ padding: "22px 36px 26px", borderBottom: last ? undefined : `1px solid ${color.lineSoft}` }}>
+    <div className="xc" style={{ padding: "22px 36px 26px", borderBottom: last ? undefined : `1px solid ${color.lineSoft}` }}>
+      {/* 头像 + 名字和时间。类型标签跟在名字后面，不单独占一列，手机上也不会挤压时间 */}
       <Spread
         style={{ marginBottom: 14 }}
         left={
@@ -265,20 +270,16 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
               <Avatar card={card} />
             </td>
             <td style={{ verticalAlign: "middle" }}>
-              <p style={{ fontSize: 15, fontWeight: 700, lineHeight: "22px", color: color.ink, margin: 0 }}>{card.author.name}</p>
+              <p style={{ fontSize: 15, fontWeight: 700, lineHeight: "22px", color: color.ink, margin: 0 }}>
+                {card.author.name}
+                {card.categoryLabel ? <span style={{ ...chip, fontWeight: 700, color: color.link, backgroundColor: "#EEF3FC", marginLeft: 8, verticalAlign: "1px" }}>{card.categoryLabel}</span> : null}
+                {card.badge ? (
+                  <span style={{ ...chip, fontWeight: 400, fontFamily: font.mono, color: color.muted, backgroundColor: color.chip, marginLeft: 6, verticalAlign: "1px" }}>{card.badge}</span>
+                ) : null}
+              </p>
               <p style={meta}>{metaLine}</p>
             </td>
           </>
-        }
-        right={
-          card.badge || card.categoryLabel ? (
-            <>
-              {card.categoryLabel ? <span style={{ ...chip, fontWeight: 700, color: color.link, backgroundColor: "#EEF3FC" }}>{card.categoryLabel}</span> : null}
-              {card.badge ? (
-                <span style={{ ...chip, fontFamily: font.mono, color: color.muted, backgroundColor: color.chip, marginLeft: card.categoryLabel ? 6 : 0 }}>{card.badge}</span>
-              ) : null}
-            </>
-          ) : undefined
         }
       />
 
