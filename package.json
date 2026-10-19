@@ -12,6 +12,7 @@
     "dev": "pnpm --filter @xrss/web dev",
     "build": "pnpm --filter @xrss/web build",
     "plan": "pnpm --filter @xrss/collector plan",
+    "crawl": "pnpm -s --filter @xrss/collector crawl",
     "crawl:status": "pnpm --filter @xrss/collector crawl status",
     "crawl:reset": "pnpm --filter @xrss/collector crawl reset",
     "accounts": "pnpm --filter @xrss/collector accounts",

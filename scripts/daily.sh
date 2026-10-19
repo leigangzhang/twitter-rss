@@ -3,7 +3,9 @@
 # 由 DeepSeek Harness 的每日定时任务在采集结束后调用（见 deepseek-harness/daily-task.md），也可以手动运行。
 #   scripts/daily.sh            正式运行
 #   scripts/daily.sh --dry-run  试跑，不发邮件
-set -euo pipefail
+#
+# 退出码：0 正常；2 采集端遇到限流 / 登录失效等；4 今天的采集清单还没采完（不发送，继续 pnpm crawl next）
+set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -14,19 +16,31 @@ if [ -s "$HOME/.nvm/nvm.sh" ]; then . "$HOME/.nvm/nvm.sh" >/dev/null; fi
 
 LOG_DIR="$ROOT/data/logs"
 mkdir -p "$LOG_DIR"
-LOG="$LOG_DIR/$(TZ=Asia/Shanghai date +%F).log"
-exec > >(tee -a "$LOG") 2>&1
-
-echo "===== $(date '+%F %T') 开始处理 ====="
-
 TODAY="$(TZ=Asia/Shanghai date +%F)"
-# 采集端保存的原始响应统一再解析一次（已解析过也没关系），确保详情页补抓的全文被合并
-if [ -d "data/inbox/$TODAY/raw" ]; then
-  pnpm -s --filter @xrss/collector parse
-fi
+LOG="$LOG_DIR/$TODAY.log"
 
-status=0
-pnpm -s pipeline "$@" || status=$?
+main() {
+  echo "===== $(date '+%F %T') 开始处理 ====="
 
-echo "===== $(date '+%F %T') 结束（退出码 $status） ====="
-exit "$status"
+  # 采集清单没采完时不发送：没采的账号明天也会补收，但今天应该先把清单采完
+  if ! pnpm -s crawl progress; then
+    echo "今天的采集还没完成，不发送。请继续运行 pnpm crawl next，直到出现 FINISHED 再运行本脚本。"
+    echo "===== $(date '+%F %T') 结束（退出码 4） ====="
+    return 4
+  fi
+
+  # 采集端保存的原始响应统一再解析一次（已解析过也没关系），确保详情页补抓的全文被合并
+  if [ -d "data/inbox/$TODAY/raw" ]; then
+    pnpm -s --filter @xrss/collector parse || return 1
+  fi
+
+  local status=0
+  pnpm -s pipeline "$@" || status=$?
+
+  echo "===== $(date '+%F %T') 结束（退出码 $status） ====="
+  return "$status"
+}
+
+# 不用 exec > >(tee …)：有些运行环境（如 DeepSeek Harness 的 shell）不支持 /dev/fd
+main "$@" 2>&1 | tee -a "$LOG"
+exit "${PIPESTATUS[0]}"
