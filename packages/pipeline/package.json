@@ -3,10 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./delivery": "./src/delivery.ts"
+  },
   "scripts": {
     "daily": "tsx src/daily.ts",
     "preview:snapshot": "tsx src/cli-preview.ts",
     "subscribers": "tsx src/cli-subscribers.ts",
+    "resend": "tsx src/cli-resend.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },

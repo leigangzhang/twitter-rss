@@ -15,8 +15,8 @@ export function loadDotEnv(path?: string): void {
       return;
     }
   }
-  if (!existsSync(file)) return;
-  for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
+  if (!existsSync(/*turbopackIgnore: true*/ file)) return;
+  for (const line of readFileSync(/*turbopackIgnore: true*/ file, "utf8").split(/\r?\n/)) {
     const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/.exec(line);
     if (!m) continue;
     const key = m[1]!;

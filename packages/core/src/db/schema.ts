@@ -98,6 +98,31 @@ export const deliveries = sqliteTable(
   (t) => [uniqueIndex("deliveries_sub_date").on(t.subscriberId, t.digestDate)],
 );
 
+/**
+ * 每一次发送尝试的流水（定时发送、补发、重新发送、重试），只增不改，用于推送历史。
+ * deliveries 只保留每人每期的最终结果。
+ */
+export const deliveryAttempts = sqliteTable(
+  "delivery_attempts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    subscriberId: integer("subscriber_id")
+      .notNull()
+      .references(() => subscribers.id),
+    digestDate: text("digest_date").notNull(),
+    /** scheduled：每日定时；missing：补发给当期没收到的；resend：手动重新发送；retry：重试失败的 */
+    kind: text("kind").$type<"scheduled" | "missing" | "resend" | "retry">().notNull(),
+    /** 合并发送（密送）时同一封邮件的收件人数，单独发送为 1 */
+    recipients: integer("recipients").notNull().default(1),
+    tweetIds: text("tweet_ids", { mode: "json" }).$type<string[]>().notNull(),
+    status: text("status").$type<"sent" | "failed">().notNull(),
+    messageId: text("message_id"),
+    error: text("error"),
+    sentAt: integer("sent_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (t) => [index("delivery_attempts_date").on(t.digestDate)],
+);
+
 /** 外部文章的抓取结果和 AI 摘要，按链接缓存 */
 export const linkDigests = sqliteTable("link_digests", {
   url: text("url").primaryKey(),
@@ -107,3 +132,5 @@ export const linkDigests = sqliteTable("link_digests", {
 
 export type TweetRow = typeof tweets.$inferSelect;
 export type SubscriberRow = typeof subscribers.$inferSelect;
+export type DeliveryRow = typeof deliveries.$inferSelect;
+export type DeliveryAttemptRow = typeof deliveryAttempts.$inferSelect;

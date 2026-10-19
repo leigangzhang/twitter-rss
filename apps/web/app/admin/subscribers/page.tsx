@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminLogin } from "@/components/AdminLogin";
-import { AdminLogout } from "@/components/AdminLogout";
+import { AdminNav } from "@/components/AdminNav";
 import { adminEnabled, isAdmin } from "@/lib/admin";
 import { config, db } from "@/lib/server";
 
@@ -38,6 +38,7 @@ export default async function SubscribersPage({ searchParams }: { searchParams: 
 
   return (
     <main className="flex flex-col gap-6">
+      <AdminNav current="subscribers" />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1.5">
           <h1 className="m-0 text-3xl font-black">订阅者</h1>
@@ -49,7 +50,6 @@ export default async function SubscribersPage({ searchParams }: { searchParams: 
           <a href="/admin/subscribers/export" className="flex min-h-9 items-center rounded-lg bg-ink px-3 text-[13px] font-bold text-white no-underline hover:text-white">
             导出 CSV
           </a>
-          <AdminLogout />
         </div>
       </div>
 

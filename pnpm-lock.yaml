@@ -16,6 +16,9 @@ importers:
       '@xrss/emails':
         specifier: workspace:*
         version: link:../../packages/emails
+      '@xrss/pipeline':
+        specifier: workspace:*
+        version: link:../../packages/pipeline
       drizzle-orm:
         specifier: ^0.44.0
         version: 0.44.7(@libsql/client@0.15.15)(@opentelemetry/api@1.9.1)

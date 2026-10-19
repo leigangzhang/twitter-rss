@@ -13,6 +13,7 @@
   "dependencies": {
     "@xrss/core": "workspace:*",
     "@xrss/emails": "workspace:*",
+    "@xrss/pipeline": "workspace:*",
     "drizzle-orm": "^0.44.0",
     "feed": "^6.0.0",
     "next": "^16.0.0",

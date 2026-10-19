@@ -1,6 +1,6 @@
 import { Readability } from "@mozilla/readability";
 import { type AppConfig, type Link, type LinkDigest, primaryArticle, type TimeRange } from "@xrss/core";
-import { type Db, linkDigests, tweets, type TweetRow } from "@xrss/core/db";
+import { type Db, linkDigests, loadLinkDigests, tweets, type TweetRow } from "@xrss/core/db";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import { parseHTML } from "linkedom";
 import type { Summarizer } from "./ai.ts";
@@ -142,12 +142,8 @@ export function withCardFallback(d: LinkDigest | undefined, link: Link): LinkDig
   };
 }
 
-export async function loadDigests(db: Db, urls: string[]): Promise<Map<string, LinkDigest>> {
-  const unique = [...new Set(urls)];
-  if (unique.length === 0) return new Map();
-  const rows = await db.select().from(linkDigests).where(inArray(linkDigests.url, unique));
-  return new Map(rows.map((r) => [r.url, r.data]));
-}
+/** 见 @xrss/core/db 的 loadLinkDigests */
+export const loadDigests = loadLinkDigests;
 
 export async function saveDigest(db: Db, d: LinkDigest): Promise<void> {
   await db

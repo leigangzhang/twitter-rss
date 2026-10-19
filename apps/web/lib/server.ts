@@ -65,6 +65,15 @@ export async function topicOptions(): Promise<TopicOption[]> {
 
 let mailer: Mailer | undefined;
 
+/** 管理页重新推送用的 SMTP 发信（按 digest.yaml 的发送间隔）；没配置 SMTP 时为 null */
+let digestMailer: Mailer | undefined;
+export function getDigestMailer(): Mailer | null {
+  const smtp = smtpConfigFromEnv();
+  if (!smtp) return null;
+  digestMailer ??= createSmtpMailer(smtp, { intervalMs: config().digest.mail.send_interval_ms });
+  return digestMailer;
+}
+
 export async function sendMail(mail: { to: string; subject: string; html: string; text: string }) {
   const smtp = smtpConfigFromEnv();
   if (!smtp) {

@@ -17,10 +17,9 @@ import {
   type TimeRange,
   toCardView,
 } from "@xrss/core";
-import { type Db, deliveries, subscribers, tweets, type SubscriberRow, type TweetRow } from "@xrss/core/db";
+import { type Db, deliveries, deliveryAttempts, loadLinkDigests, subscribers, tweets, type SubscriberRow, type TweetRow } from "@xrss/core/db";
 import { GMAIL_CLIP_BYTES, renderDigest } from "@xrss/emails";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
-import { loadDigests } from "./links.ts";
 import type { Mailer } from "./mailer.ts";
 import { inBatch } from "./batch.ts";
 
@@ -59,7 +58,7 @@ export function chunk<T>(list: T[], size: number): T[][] {
   return out;
 }
 
-interface DigestContext {
+export interface DigestContext {
   config: AppConfig;
   date: string;
   now: Date;
@@ -114,6 +113,24 @@ export function buildView(
   };
 }
 
+/** 某一期（运行日期）可用的全部精选内容：评审通过的推文、文章摘要、各账号的新推文数 */
+export async function loadDigestContext(db: Db, config: AppConfig, date: string, range: TimeRange, now: Date): Promise<DigestContext> {
+  const windowRows = await db
+    .select({ handle: tweets.handle })
+    .from(tweets)
+    .where(and(inBatch(range), inArray(tweets.handle, config.accounts)));
+  const scannedByHandle = new Map<string, number>();
+  for (const r of windowRows) scannedByHandle.set(r.handle, (scannedByHandle.get(r.handle) ?? 0) + 1);
+
+  const scored = (await db.select().from(tweets).where(and(eq(tweets.status, "scored"), inBatch(range))))
+    // 主题合并后，旧推文上的旧主题 id 映射到新主题
+    .map((t) => ({ ...t, topicId: effectiveTopicId(config, t.topicId, t.handle) ?? null }))
+    .filter((t) => t.topicId && qualityOf(t.ai) >= config.digest.filters.min_quality);
+  const articleUrls = scored.map((t) => primaryArticle(t.raw)?.link.expandedUrl).filter((u): u is string => Boolean(u));
+  const articles = await loadLinkDigests(db, articleUrls);
+  return { config, date, now, range, scored, articles, scannedByHandle };
+}
+
 export interface SendStats {
   /** 成功送达的收件人数 */
   sent: number;
@@ -132,35 +149,19 @@ type Target = Pick<SubscriberRow, "email" | "lang" | "topics" | "token"> & { id?
 export async function sendDigests(
   db: Db,
   config: AppConfig,
-  opts: { date: string; range: TimeRange; now: Date; dryRun: boolean; mailer?: Mailer },
+  opts: { date: string; range: TimeRange; now: Date; dryRun: boolean; mailer?: Mailer; kind?: "scheduled" | "missing"; onlyIds?: number[] },
 ): Promise<SendStats> {
   const stats: SendStats = { sent: 0, messages: 0, sharedGroups: 0, skippedEmpty: 0, alreadySent: 0, failed: [], previews: [] };
   const mailCfg = config.digest.mail;
-
-  const windowRows = await db
-    .select({ handle: tweets.handle, status: tweets.status, id: tweets.id })
-    .from(tweets)
-    .where(and(inBatch(opts.range), inArray(tweets.handle, config.accounts)));
-  const scannedByHandle = new Map<string, number>();
-  for (const r of windowRows) scannedByHandle.set(r.handle, (scannedByHandle.get(r.handle) ?? 0) + 1);
-
-  const scored = (
-    await db
-      .select()
-      .from(tweets)
-      .where(and(eq(tweets.status, "scored"), inBatch(opts.range)))
-  )
-    // 主题合并后，旧推文上的旧主题 id 映射到新主题
-    .map((t) => ({ ...t, topicId: effectiveTopicId(config, t.topicId, t.handle) ?? null }))
-    .filter((t) => t.topicId && qualityOf(t.ai) >= config.digest.filters.min_quality);
-  const articleUrls = scored.map((t) => primaryArticle(t.raw)?.link.expandedUrl).filter((u): u is string => Boolean(u));
-  const articles = await loadDigests(db, articleUrls);
-  const ctx: DigestContext = { config, date: opts.date, now: opts.now, range: opts.range, scored, articles, scannedByHandle };
+  const ctx = await loadDigestContext(db, config, opts.date, opts.range, opts.now);
+  const kind = opts.kind ?? "scheduled";
 
   const active = (await db.select().from(subscribers).where(eq(subscribers.status, "active")))
     // 老订阅者选的旧主题映射到合并后的新主题
     .map((s) => ({ ...s, topics: normalizeTopicIds(config, s.topics) }))
-    .filter((s) => s.topics.length > 0);
+    .filter((s) => s.topics.length > 0)
+    // 补发时只发给指定的订阅者
+    .filter((s) => !opts.onlyIds || opts.onlyIds.includes(s.id));
   const outDir = join(findRepoRoot(), "data", "out", opts.date);
 
   // 试跑且还没有订阅者时，按"订阅全部主题"各渲染一份中文版和原文版
@@ -185,8 +186,18 @@ export async function sendDigests(
   const groups = new Map<string, Target[]>();
   for (const t of targets) groups.set(groupKey(t), [...(groups.get(groupKey(t)) ?? []), t]);
 
-  const record = async (sub: Target, tweetIds: string[], result: { status: "sent"; messageId: string } | { status: "failed"; error: string }) => {
+  const record = async (sub: Target, tweetIds: string[], result: { status: "sent"; messageId: string } | { status: "failed"; error: string }, recipients = 1) => {
     if (sub.id === undefined) return;
+    await db.insert(deliveryAttempts).values({
+      subscriberId: sub.id,
+      digestDate: opts.date,
+      kind,
+      recipients,
+      tweetIds,
+      status: result.status,
+      messageId: result.status === "sent" ? result.messageId : null,
+      error: result.status === "failed" ? result.error : null,
+    });
     const values =
       result.status === "sent"
         ? { subscriberId: sub.id, digestDate: opts.date, tweetIds, messageId: result.messageId, status: "sent" as const, error: null }
@@ -244,11 +255,11 @@ export async function sendDigests(
           stats.messages++;
           const rejected = new Set(res.rejected.map((r) => r.toLowerCase()));
           for (const m of batch) {
-            await record(m, tweetIds, rejected.has(m.email.toLowerCase()) ? { status: "failed", error: "收件地址被拒收" } : { status: "sent", messageId: res.id });
+            await record(m, tweetIds, rejected.has(m.email.toLowerCase()) ? { status: "failed", error: "收件地址被拒收" } : { status: "sent", messageId: res.id }, batch.length);
           }
         } catch (e) {
           const error = (e as Error).message;
-          for (const m of batch) await record(m, tweetIds, { status: "failed", error });
+          for (const m of batch) await record(m, tweetIds, { status: "failed", error }, batch.length);
         }
       }
       continue;

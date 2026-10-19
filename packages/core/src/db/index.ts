@@ -2,6 +2,8 @@ import { join } from "node:path";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
+import { inArray } from "drizzle-orm";
+import type { LinkDigest } from "../types.ts";
 import { findRepoRoot } from "../config.ts";
 import * as schema from "./schema.ts";
 
@@ -30,3 +32,11 @@ export async function migrateDb(db: Db = getDb()): Promise<void> {
   await migrate(db, { migrationsFolder: join(findRepoRoot(), "packages", "core", "drizzle") });
 }
 export * from "./subscribers-report.ts";
+
+/** 外部文章摘要缓存：按链接批量读取（流水线和网站共用） */
+export async function loadLinkDigests(db: Db, urls: string[]): Promise<Map<string, LinkDigest>> {
+  const unique = [...new Set(urls)];
+  if (unique.length === 0) return new Map();
+  const rows = await db.select().from(schema.linkDigests).where(inArray(schema.linkDigests.url, unique));
+  return new Map(rows.map((r) => [r.url, r.data]));
+}
