@@ -165,6 +165,11 @@ AI 精选通过 [DeepSeek 的 Anthropic 兼容接口](https://api-docs.deepseek.
 
 - **邮件预览**：订阅页右侧展示一份固定的真实示例（`apps/web/data/preview.json`），由 `pnpm preview:snapshot` 从最近 7 天通过精选的推文里按评分从高到低取 `total_items` 条生成，之后不随每天的数据变化；想换一批时再运行一次（可加 `--days 14 --count 8`）。
 
+## 订阅者管理
+
+- **网页**：在 `.env` 设置 `ADMIN_PASSWORD` 后打开 `/admin/subscribers`，输入密码登录（8 小时有效）。列出每位订阅者的邮箱、状态（正常 / 待确认 / 已退订）、语言、主题、订阅和确认时间、最近发送日期和累计封数，标出"主题全部失效""超过 3 天未确认"等问题；可按状态筛选、导出 CSV。没设置密码时这个页面不开放（404），也不会被搜索引擎收录。
+- **命令行**：`pnpm subscribers` 列出同样的信息，加 `--csv` 导出到 `data/out/subscribers.csv`。
+
 ## 发信与合并发送
 
 主题组合和阅读语言完全相同的订阅者，收到的内容完全一样。默认把他们合并成一封邮件：只渲染一次，

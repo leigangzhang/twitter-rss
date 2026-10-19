@@ -29,3 +29,4 @@ export function getDb(): Db {
 export async function migrateDb(db: Db = getDb()): Promise<void> {
   await migrate(db, { migrationsFolder: join(findRepoRoot(), "packages", "core", "drizzle") });
 }
+export * from "./subscribers-report.ts";
