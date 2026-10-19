@@ -60,7 +60,7 @@ launchctl load ~/Library/LaunchAgents/com.xrss.daily.plist
 30 6 * * * cd /path/to/twitter-rss && scripts/agent-run.sh claude
 ```
 
-定时时间建议 06:30：脚本会再随机等待 0–20 分钟才开始，加上 50–90 分钟的采集，邮件大约 8:00–8:30 发出。
+定时时间建议 06:30：脚本会再随机等待 0–20 分钟才开始，加上 30–60 分钟的采集，再加上精选和发信，邮件大约 7:10–8:00 发出。
 Agent 的输出写在 `data/logs/agent-<日期>-<agent>.log`，流水线日志在 `data/logs/<日期>.log`。
 
 ## 运行中的常见情况

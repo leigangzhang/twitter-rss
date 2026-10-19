@@ -58,7 +58,7 @@ scripts/agent-run.sh claude      # 或 codex
 30 6 * * * cd /path/to/twitter-rss && scripts/agent-run.sh claude
 ```
 
-一次完整采集通常要 50–90 分钟，这是有意放慢的节奏。日志在 `data/logs/`，安装细节和常见问题见 [agents/README.md](agents/README.md)。
+一次完整采集通常要 30–60 分钟，这是有意放慢的节奏。日志在 `data/logs/`，安装细节和常见问题见 [agents/README.md](agents/README.md)。
 
 ## 修改设置
 
