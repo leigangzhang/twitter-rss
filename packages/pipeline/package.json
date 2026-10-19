@@ -11,6 +11,7 @@
     "preview:snapshot": "tsx src/cli-preview.ts",
     "subscribers": "tsx src/cli-subscribers.ts",
     "resend": "tsx src/cli-resend.ts",
+    "email:test": "tsx src/cli-email-test.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
