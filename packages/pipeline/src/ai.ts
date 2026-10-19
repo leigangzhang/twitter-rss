@@ -144,7 +144,11 @@ export interface Editor {
   edit(today: EditorialItem[], recent: Array<{ id: string; summary: string }>): Promise<EditorialResult>;
 }
 
+export type LlmApi = "anthropic" | "openai";
+
 export interface LlmOptions {
+  /** 接口格式：anthropic（Messages API）或 openai（Chat Completions），默认 anthropic */
+  api?: LlmApi;
   apiKey?: string;
   baseURL?: string;
   model?: string;
@@ -157,102 +161,230 @@ export const DEFAULT_LLM_MODEL = "deepseek-flash";
 
 /**
  * 大模型连接设置：参数优先，其次读 .env。
- * - LLM_API_KEY（兼容旧名 DEEPSEEK_API_KEY）
- * - LLM_BASE_URL：任何兼容 Anthropic Messages API 的端点，默认 DeepSeek
+ * - LLM_API：接口格式，anthropic（默认）或 openai
+ * - LLM_BASE_URL：端点地址，默认 DeepSeek 的 Anthropic 兼容接口
  * - LLM_MODEL：模型名，默认 deepseek-flash
+ * - LLM_API_KEY（兼容旧名 DEEPSEEK_API_KEY）
  */
 export function llmSettings(o: LlmOptions = {}) {
   const env = (k: string) => process.env[k]?.trim() || undefined;
+  const rawApi = (o.api ?? env("LLM_API") ?? "anthropic").toLowerCase();
+  if (rawApi !== "anthropic" && rawApi !== "openai") throw new Error(`LLM_API 只能是 anthropic 或 openai，现在是 "${rawApi}"`);
+  const api = rawApi as LlmApi;
+  const rawUrl = o.baseURL ?? env("LLM_BASE_URL") ?? (api === "anthropic" ? DEEPSEEK_ANTHROPIC_BASE_URL : OPENAI_BASE_URL);
   return {
+    api,
     apiKey: o.apiKey ?? env("LLM_API_KEY") ?? env("DEEPSEEK_API_KEY"),
-    baseURL: normalizeBaseUrl(o.baseURL ?? env("LLM_BASE_URL") ?? DEEPSEEK_ANTHROPIC_BASE_URL),
+    baseURL: normalizeBaseUrl(rawUrl, api),
     model: o.model || env("LLM_MODEL") || DEFAULT_LLM_MODEL,
   };
 }
 
+const OPENAI_BASE_URL = "https://api.openai.com/v1";
+
 /**
- * SDK 会在端点后拼上 /v1/messages，用户常会把 .../v1 或 .../v1/messages 也写进来，这里去掉，避免变成 /v1/v1/messages。
+ * 端点地址容错：
+ * - anthropic：SDK 会拼上 /v1/messages，去掉用户多写的 /v1、/v1/messages
+ * - openai：请求 <端点>/chat/completions，去掉多写的 /chat/completions；只写了域名时补上 /v1
  */
-export function normalizeBaseUrl(url: string): string {
-  return url.trim().replace(/\/+$/, "").replace(/\/v1(\/messages)?$/, "");
+export function normalizeBaseUrl(url: string, api: LlmApi = "anthropic"): string {
+  let u = url.trim().replace(/\/+$/, "");
+  if (api === "anthropic") return u.replace(/\/v1(\/messages)?$/, "");
+  u = u.replace(/\/chat\/completions$/, "");
+  try {
+    if (new URL(u).pathname === "/") u += "/v1";
+  } catch {}
+  return u;
 }
 
-/** 日志里显示用：端点主机和模型，不含密钥 */
+/** 日志里显示用：接口格式、端点和模型，不含密钥 */
 export function describeLlm(o: LlmOptions = {}): string {
-  const { baseURL, model } = llmSettings(o);
+  const { api, baseURL, model } = llmSettings(o);
   let host = baseURL;
   try {
     const u = new URL(baseURL);
     host = u.host + (u.pathname === "/" ? "" : u.pathname);
   } catch {}
-  return `${model} @ ${host}`;
+  return `${model} @ ${host}（${api === "openai" ? "OpenAI" : "Anthropic"} 接口）`;
 }
 
-function createClient(o: LlmOptions) {
-  const { apiKey, baseURL } = llmSettings(o);
-  if (!apiKey) throw new Error("缺少 LLM_API_KEY（或旧名 DEEPSEEK_API_KEY）。没有 API Key 时可以加 --skip-ai 用规则分试跑。");
-  return new Anthropic({ apiKey, baseURL });
+/** 一次"强制调用某个工具"的请求：三个环节（初审、终审、文章摘要）都只用这一种形式 */
+interface ToolCall {
+  system: string;
+  text: string;
+  /** 图片地址，放在文字前面 */
+  images?: string[];
+  tool: { name: string; description: string; schema: Record<string, unknown> };
+  maxTokens: number;
+  temperature: number;
 }
 
-const modelOf = (o: LlmOptions) => llmSettings(o).model;
+interface LlmClient {
+  /** 返回模型提交的工具参数（未校验） */
+  callTool(req: ToolCall): Promise<unknown>;
+}
 
-function toolInput(response: Anthropic.Message, name: string): unknown {
-  const block = response.content.find((b) => b.type === "tool_use" && b.name === name);
-  if (!block || block.type !== "tool_use") throw new Error("模型没有按要求返回结果");
-  return block.input;
+function createClient(o: LlmOptions): LlmClient {
+  const s = llmSettings(o);
+  if (!s.apiKey) throw new Error("缺少 LLM_API_KEY（或旧名 DEEPSEEK_API_KEY）。没有 API Key 时可以加 --skip-ai 用规则分试跑。");
+  return s.api === "openai" ? openaiClient(s.apiKey, s.baseURL, s.model) : anthropicClient(s.apiKey, s.baseURL, s.model);
+}
+
+function anthropicClient(apiKey: string, baseURL: string, model: string): LlmClient {
+  const client = new Anthropic({ apiKey, baseURL });
+  return {
+    async callTool(req) {
+      const images: Anthropic.ImageBlockParam[] = (req.images ?? []).map((url) => ({ type: "image", source: { type: "url", url } }));
+      const response = await client.messages.create({
+        model,
+        max_tokens: req.maxTokens,
+        temperature: req.temperature,
+        // DeepSeek 默认开启思考模式，而思考模式不接受强制 tool_choice；
+        // 这里需要稳定的结构化结果，因此显式走非思考模式。
+        thinking: { type: "disabled" },
+        system: req.system,
+        tools: [{ name: req.tool.name, description: req.tool.description, input_schema: req.tool.schema as Anthropic.Tool.InputSchema }],
+        tool_choice: { type: "tool", name: req.tool.name },
+        messages: [{ role: "user", content: req.images === undefined ? req.text : [...images, { type: "text", text: req.text }] }],
+      });
+      const block = response.content.find((b) => b.type === "tool_use" && b.name === req.tool.name);
+      if (!block || block.type !== "tool_use") throw new Error("模型没有按要求返回结果");
+      return block.input;
+    },
+  };
+}
+
+export class LlmHttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * OpenAI Chat Completions 格式（OpenAI 以及大多数国内外兼容服务）。
+ * 不同服务对参数的支持不一样，遇到明确的参数报错时自动调整一次并记住：
+ * - 新模型不接受 max_tokens → 改用 max_completion_tokens
+ * - 推理模型只接受默认 temperature → 不传
+ * - 不支持指定工具名的 tool_choice → 改为 "required"
+ */
+function openaiClient(apiKey: string, baseURL: string, model: string): LlmClient {
+  const quirks = { maxCompletionTokens: false, noTemperature: false, requiredChoice: false };
+
+  async function post(body: Record<string, unknown>) {
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(`${baseURL}/chat/completions`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(180_000),
+      });
+      if (res.ok) return (await res.json()) as any;
+      const text = await res.text().catch(() => "");
+      // 限流和服务端错误稍等重试，最多 2 次
+      if ((res.status === 429 || res.status >= 500) && attempt < 2) {
+        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        continue;
+      }
+      let message = text.slice(0, 500);
+      try {
+        message = JSON.parse(text).error?.message ?? message;
+      } catch {}
+      throw new LlmHttpError(res.status, `${res.status} ${message}`);
+    }
+  }
+
+  function adjust(e: unknown): boolean {
+    if (!(e instanceof LlmHttpError) || e.status !== 400) return false;
+    const m = e.message.toLowerCase();
+    if (!quirks.maxCompletionTokens && m.includes("max_tokens")) return (quirks.maxCompletionTokens = true);
+    if (!quirks.noTemperature && m.includes("temperature")) return (quirks.noTemperature = true);
+    if (!quirks.requiredChoice && m.includes("tool_choice")) return (quirks.requiredChoice = true);
+    return false;
+  }
+
+  return {
+    async callTool(req) {
+      const content = req.images?.length
+        ? [...req.images.map((url) => ({ type: "image_url", image_url: { url } })), { type: "text", text: req.text }]
+        : req.text;
+      for (;;) {
+        const body: Record<string, unknown> = {
+          model,
+          messages: [
+            { role: "system", content: req.system },
+            { role: "user", content },
+          ],
+          tools: [{ type: "function", function: { name: req.tool.name, description: req.tool.description, parameters: req.tool.schema } }],
+          tool_choice: quirks.requiredChoice ? "required" : { type: "function", function: { name: req.tool.name } },
+          [quirks.maxCompletionTokens ? "max_completion_tokens" : "max_tokens"]: req.maxTokens,
+        };
+        if (!quirks.noTemperature) body.temperature = req.temperature;
+        let data: any;
+        try {
+          data = await post(body);
+        } catch (e) {
+          if (adjust(e)) continue;
+          throw e;
+        }
+        const message = data?.choices?.[0]?.message;
+        const call = (message?.tool_calls ?? []).find((c: any) => c?.function?.name === req.tool.name) ?? message?.tool_calls?.[0];
+        const raw: string | undefined = call?.function?.arguments ?? extractJson(message?.content);
+        if (!raw) throw new Error("模型没有按要求返回结果");
+        try {
+          return JSON.parse(raw);
+        } catch {
+          throw new Error("模型返回的结果不是有效的 JSON");
+        }
+      }
+    },
+  };
+}
+
+/** 个别服务不走工具调用、直接把 JSON 写在正文里（可能包在 ```json 里），尽量取出来 */
+function extractJson(content: unknown): string | undefined {
+  if (typeof content !== "string") return undefined;
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(content);
+  const text = (fenced ? fenced[1]! : content).trim();
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  return start >= 0 && end > start ? text.slice(start, end + 1) : undefined;
 }
 
 /**
  * 逐条评审：判断类型和去留、打分、写摘要、翻译、媒体说明。
- * 默认走 DeepSeek（deepseek-flash），通过 .env 的 LLM_BASE_URL / LLM_MODEL / LLM_API_KEY 可以换成其他兼容 Anthropic 接口的服务。
+ * 默认走 DeepSeek（deepseek-flash），通过 .env 的 LLM_API / LLM_BASE_URL / LLM_MODEL / LLM_API_KEY 可以换成其他兼容 Anthropic 或 OpenAI 接口的服务。
  */
 export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
   const client = createClient(opts);
-  const model = modelOf(opts);
   const system = reviewSystemPrompt(opts.guide ?? "");
-  const inputSchema = z.toJSONSchema(ReviewOutput, { io: "input" }) as Anthropic.Tool.InputSchema;
+  const schema = z.toJSONSchema(ReviewOutput, { io: "input" }) as Record<string, unknown>;
 
-  async function call(tweet: RawTweet, topics: Pick<Topic, "id" | "name">[], withImages: boolean, article?: LinkDigest) {
-    // 图片和视频封面一并给模型看（最多 3 张），用于生成 mediaNote
-    const images: Anthropic.ImageBlockParam[] = withImages
-      ? tweet.media.slice(0, 3).map((m) => ({ type: "image", source: { type: "url", url: m.url } }))
-      : [];
-    return client.messages.create({
-      model,
-      max_tokens: 3000,
-      temperature: 0.2,
-      // DeepSeek 默认开启思考模式，而思考模式不接受强制 tool_choice；
-      // 这里需要稳定的结构化结果，因此显式走非思考模式。
-      thinking: { type: "disabled" },
+  function call(tweet: RawTweet, topics: Pick<Topic, "id" | "name">[], withImages: boolean, article?: LinkDigest) {
+    return client.callTool({
       system,
-      tools: [{ name: REVIEW_TOOL, description: "提交对这条推文的评审结果", input_schema: inputSchema }],
-      tool_choice: { type: "tool", name: REVIEW_TOOL },
-      messages: [
-        {
-          role: "user",
-          content: [
-            ...images,
-            {
-              type: "text",
-              text: `候选主题：${JSON.stringify(topics)}\n\n推文：\n${JSON.stringify(tweetPayload(tweet, article), null, 2)}`,
-            },
-          ],
-        },
-      ],
+      // 图片和视频封面一并给模型看（最多 3 张），用于生成 mediaNote
+      images: withImages ? tweet.media.slice(0, 3).map((m) => m.url) : [],
+      text: `候选主题：${JSON.stringify(topics)}\n\n推文：\n${JSON.stringify(tweetPayload(tweet, article), null, 2)}`,
+      tool: { name: REVIEW_TOOL, description: "提交对这条推文的评审结果", schema },
+      maxTokens: 3000,
+      temperature: 0.2,
     });
   }
 
   return {
     async review(tweet, topics, article) {
-      let response: Anthropic.Message;
+      let output: unknown;
       try {
-        response = await call(tweet, topics, true, article);
+        output = await call(tweet, topics, true, article);
       } catch (e) {
         // 图片读取失败或模型不接受图片时，退回纯文字评审，不让一张图拖垮整条推文
         if (tweet.media.length === 0) throw e;
-        response = await call(tweet, topics, false, article);
+        output = await call(tweet, topics, false, article);
       }
-      const parsed = ReviewOutput.safeParse(toolInput(response, REVIEW_TOOL));
+      const parsed = ReviewOutput.safeParse(output);
       if (!parsed.success) throw new Error(`评审结果格式不符：${z.prettifyError(parsed.error)}`);
       return normalizeReview({ ...parsed.data, scale: 5 }, tweet, topics);
     },
@@ -287,29 +419,20 @@ export function normalizeReview(r: AiResult, tweet: RawTweet, topics: Pick<Topic
 /** 编辑终审：把当天通过初审的候选放在一起，去掉同一事件、相同观点和近几天发过的内容 */
 export function createLlmEditor(opts: LlmOptions = {}): Editor {
   const client = createClient(opts);
-  const model = modelOf(opts);
   const system = editorSystemPrompt(opts.guide ?? "");
-  const inputSchema = z.toJSONSchema(EditorialResult, { io: "input" }) as Anthropic.Tool.InputSchema;
+  const schema = z.toJSONSchema(EditorialResult, { io: "input" }) as Record<string, unknown>;
 
   return {
     async edit(today, recent) {
       if (today.length < 2 && recent.length === 0) return { drops: [] };
-      const response = await client.messages.create({
-        model,
-        max_tokens: 4000,
-        temperature: 0,
-        thinking: { type: "disabled" },
+      const output = await client.callTool({
         system,
-        tools: [{ name: EDIT_TOOL, description: "提交需要剔除的重复推文", input_schema: inputSchema }],
-        tool_choice: { type: "tool", name: EDIT_TOOL },
-        messages: [
-          {
-            role: "user",
-            content: `今天的候选（${today.length} 条）：\n${JSON.stringify(today, null, 2)}\n\n最近几天已发送（${recent.length} 条）：\n${JSON.stringify(recent, null, 2)}`,
-          },
-        ],
+        text: `今天的候选（${today.length} 条）：\n${JSON.stringify(today, null, 2)}\n\n最近几天已发送（${recent.length} 条）：\n${JSON.stringify(recent, null, 2)}`,
+        tool: { name: EDIT_TOOL, description: "提交需要剔除的重复推文", schema },
+        maxTokens: 4000,
+        temperature: 0,
       });
-      const parsed = EditorialResult.safeParse(toolInput(response, EDIT_TOOL));
+      const parsed = EditorialResult.safeParse(output);
       if (!parsed.success) throw new Error(`终审结果格式不符：${z.prettifyError(parsed.error)}`);
       // 只接受今天候选里的 ID，且不能把被保留的那条也剔除
       const ids = new Set(today.map((t) => t.id));
@@ -369,8 +492,7 @@ const SUMMARY_SYSTEM = `你是一份中文科技日报的编辑。读者没有�
 /** 为进入邮件的外部文章生成中文标题、概要和要点 */
 export function createLlmSummarizer(opts: LlmOptions = {}): Summarizer {
   const client = createClient(opts);
-  const model = modelOf(opts);
-  const inputSchema = z.toJSONSchema(ArticleSummary, { io: "input" }) as Anthropic.Tool.InputSchema;
+  const schema = z.toJSONSchema(ArticleSummary, { io: "input" }) as Record<string, unknown>;
   return {
     async summarize(article, context) {
       const payload = {
@@ -381,17 +503,14 @@ export function createLlmSummarizer(opts: LlmOptions = {}): Summarizer {
         text: article.excerpt?.slice(0, 10_000),
         sharedWith: context.tweetText.slice(0, 500),
       };
-      const response = await client.messages.create({
-        model,
-        max_tokens: 1500,
-        temperature: 0.2,
-        thinking: { type: "disabled" },
+      const output = await client.callTool({
         system: SUMMARY_SYSTEM,
-        tools: [{ name: SUMMARY_TOOL, description: "提交文章的中文摘要", input_schema: inputSchema }],
-        tool_choice: { type: "tool", name: SUMMARY_TOOL },
-        messages: [{ role: "user", content: `文章：\n${JSON.stringify(payload, null, 2)}` }],
+        text: `文章：\n${JSON.stringify(payload, null, 2)}`,
+        tool: { name: SUMMARY_TOOL, description: "提交文章的中文摘要", schema },
+        maxTokens: 1500,
+        temperature: 0.2,
       });
-      const parsed = ArticleSummary.safeParse(toolInput(response, SUMMARY_TOOL));
+      const parsed = ArticleSummary.safeParse(output);
       if (!parsed.success) throw new Error(`摘要格式不符：${z.prettifyError(parsed.error)}`);
       return { ...parsed.data, points: parsed.data.points.filter((p) => p.trim()).slice(0, 5) };
     },

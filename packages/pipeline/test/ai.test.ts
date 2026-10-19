@@ -128,15 +128,27 @@ describe("createLlmReviewer（DeepSeek Anthropic 兼容接口）", () => {
   it("端点、模型、密钥可以在 .env 里自定义，旧名 DEEPSEEK_API_KEY 仍然有效", () => {
     const keep = { ...process.env };
     try {
-      for (const k of ["LLM_API_KEY", "DEEPSEEK_API_KEY", "LLM_BASE_URL", "LLM_MODEL"]) delete process.env[k];
-      expect(llmSettings()).toEqual({ apiKey: undefined, baseURL: "https://api.deepseek.com/anthropic", model: "deepseek-flash" });
+      for (const k of ["LLM_API", "LLM_API_KEY", "DEEPSEEK_API_KEY", "LLM_BASE_URL", "LLM_MODEL"]) delete process.env[k];
+      expect(llmSettings()).toEqual({ api: "anthropic", apiKey: undefined, baseURL: "https://api.deepseek.com/anthropic", model: "deepseek-flash" });
       process.env.DEEPSEEK_API_KEY = "sk-old";
       expect(llmSettings().apiKey).toBe("sk-old");
       process.env.LLM_API_KEY = "sk-new";
       process.env.LLM_BASE_URL = "https://api.example.com/anthropic/v1/";
       process.env.LLM_MODEL = "some-model";
-      expect(llmSettings()).toEqual({ apiKey: "sk-new", baseURL: "https://api.example.com/anthropic", model: "some-model" });
-      expect(describeLlm()).toBe("some-model @ api.example.com/anthropic");
+      expect(llmSettings()).toEqual({ api: "anthropic", apiKey: "sk-new", baseURL: "https://api.example.com/anthropic", model: "some-model" });
+      expect(describeLlm()).toBe("some-model @ api.example.com/anthropic（Anthropic 接口）");
+      process.env.LLM_API = "OpenAI";
+      process.env.LLM_BASE_URL = "https://api.example.com/v1/chat/completions";
+      expect(llmSettings()).toMatchObject({ api: "openai", baseURL: "https://api.example.com/v1" });
+      process.env.LLM_BASE_URL = "https://api.example.com/";
+      expect(llmSettings().baseURL).toBe("https://api.example.com/v1");
+      process.env.LLM_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
+      expect(llmSettings().baseURL).toBe("https://open.bigmodel.cn/api/paas/v4");
+      delete process.env.LLM_BASE_URL;
+      expect(llmSettings().baseURL).toBe("https://api.openai.com/v1");
+      process.env.LLM_API = "gemini";
+      expect(() => llmSettings()).toThrow("LLM_API");
+      delete process.env.LLM_API;
       expect(llmSettings({ model: "override" }).model).toBe("override");
     } finally {
       process.env = keep;
@@ -210,5 +222,94 @@ describe("引用推文摘要", () => {
     expect(normalizeReview({ ...base, quotedDigest: digest }, withQuote("一句完整的话。"), [{ id: "ai" }]).quotedDigest).toBeNull();
     expect(normalizeReview({ ...base, quotedDigest: digest }, withQuote("其实整体还挺耐用的，但是需要对默认设置稍微做点调整："), [{ id: "ai" }]).quotedDigest).toEqual(digest);
     expect(normalizeReview({ ...base, quotedDigest: digest }, withQuote("长".repeat(200) + "。"), [{ id: "ai" }]).quotedDigest).toEqual(digest);
+  });
+});
+
+// OpenAI Chat Completions 格式：模拟一个只接受 max_completion_tokens、不接受 temperature 的服务
+describe("OpenAI 兼容接口", () => {
+  const calls: Array<{ path: string; auth: string | undefined; body: any }> = [];
+  let oaServer: Server;
+  let oaURL = "";
+  let mode: "strict" | "content" = "strict";
+
+  beforeAll(async () => {
+    oaServer = createServer((req, res) => {
+      let data = "";
+      req.on("data", (c) => (data += c));
+      req.on("end", () => {
+        const body = JSON.parse(data);
+        calls.push({ path: req.url!, auth: req.headers.authorization, body });
+        const fail = (message: string) => {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ error: { message, type: "invalid_request_error" } }));
+        };
+        if (mode === "strict" && "max_tokens" in body) return fail("Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead.");
+        if (mode === "strict" && "temperature" in body) return fail("Unsupported value: 'temperature' does not support 0.2 with this model.");
+        const name = body.tools[0].function.name;
+        const args =
+          name === "submit_editorial"
+            ? { drops: [] }
+            : {
+                verdict: "keep",
+                category: "new_release",
+                dropReason: null,
+                quality: 5,
+                topicId: "ai",
+                summary: "示例",
+                reason: "新发布",
+                zh: null,
+                mediaNote: null,
+              };
+        const message =
+          mode === "content"
+            ? { role: "assistant", content: "```json\n" + JSON.stringify(args) + "\n```" }
+            : { role: "assistant", content: null, tool_calls: [{ id: "c1", type: "function", function: { name, arguments: JSON.stringify(args) } }] };
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ id: "x", object: "chat.completion", choices: [{ index: 0, message, finish_reason: "tool_calls" }] }));
+      });
+    });
+    await new Promise<void>((r) => oaServer.listen(0, "127.0.0.1", r));
+    oaURL = `http://127.0.0.1:${(oaServer.address() as AddressInfo).port}/v1`;
+  });
+
+  afterAll(() => oaServer.close());
+
+  it("发 Chat Completions 请求，遇到参数报错自动调整并记住", async () => {
+    calls.length = 0;
+    mode = "strict";
+    const reviewer = createLlmReviewer({ api: "openai", apiKey: "sk-oa", baseURL: oaURL, model: "gpt-x" });
+    const result = await reviewer.review(tweet, [{ id: "ai", name: "AI" }]);
+    expect(result).toMatchObject({ verdict: "keep", category: "new_release", quality: 5 });
+    expect(calls).toHaveLength(3);
+    const last = calls[2]!;
+    expect(last).toMatchObject({ path: "/v1/chat/completions", auth: "Bearer sk-oa" });
+    expect(last.body).toMatchObject({
+      model: "gpt-x",
+      max_completion_tokens: 3000,
+      tool_choice: { type: "function", function: { name: "submit_review" } },
+    });
+    expect(last.body).not.toHaveProperty("temperature");
+    expect(last.body.messages[0]).toMatchObject({ role: "system" });
+    expect(last.body.messages[1].content[0]).toEqual({ type: "image_url", image_url: { url: "https://example.com/p.jpg" } });
+
+    // 同一个客户端的下一次请求直接用调整后的参数
+    calls.length = 0;
+    await reviewer.review(tweet, [{ id: "ai", name: "AI" }]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("模型把 JSON 写在正文里时也能解析", async () => {
+    calls.length = 0;
+    mode = "content";
+    const editor = createLlmEditor({ api: "openai", apiKey: "sk-oa", baseURL: oaURL, model: "gpt-x" });
+    const result = await editor.edit(
+      [
+        { id: "1", handle: "a", topicId: "ai", summary: "x", quality: 4 },
+        { id: "2", handle: "b", topicId: "ai", summary: "y", quality: 4 },
+      ] as any,
+      [],
+    );
+    expect(result).toEqual({ drops: [] });
+    expect(calls[0]!.body).toMatchObject({ max_tokens: 4000, temperature: 0 });
   });
 });

@@ -2,7 +2,7 @@
 
 精选晨报：采集 X（原 Twitter）博主前一天的推文，用大模型精选、翻译后发邮件给订阅者，同时提供 RSS 和订阅页。
 pnpm monorepo：`packages/core`（数据格式、配置、数据库）、`packages/collector`（采集清单与逐步采集）、
-`packages/pipeline`（入库、AI 评审、发信）、`packages/emails`（邮件模板）、`apps/web`（Next.js 订阅页与管理页）。
+`packages/pipeline`（入库、AI 评审、发信；大模型接口同时支持 Anthropic 和 OpenAI 格式，见 `src/ai.ts`）、`packages/emails`（邮件模板）、`apps/web`（Next.js 订阅页与管理页）。
 
 ## 每日任务
 

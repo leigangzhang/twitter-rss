@@ -72,7 +72,7 @@ scripts/agent-run.sh claude      # 或 codex
 | `config/curation.md` | 精选标准，原样放进给大模型的提示词 |
 | `.env` | 大模型接口、SMTP、数据库地址、网站地址、管理后台密码 |
 
-大模型默认用 DeepSeek（`deepseek-flash`）。在 `.env` 里改 `LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY`，可以换成任何兼容 Anthropic Messages API 的服务（Anthropic、Kimi、智谱 GLM 等），每次运行的日志会写出实际使用的模型和端点。
+大模型默认用 DeepSeek（`deepseek-flash`）。同时支持 Anthropic 和 OpenAI 两种接口格式：在 `.env` 里设置 `LLM_API`（`anthropic` / `openai`）、`LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY`，就能换成 Claude、GPT、Kimi、通义千问、智谱 GLM 或本地 Ollama 等，每次运行的日志会写出实际使用的模型和端点。
 
 ## 调整精选口味
 
@@ -132,7 +132,7 @@ scripts/agent-run.sh claude      # 或 codex
 - Node.js 22+、pnpm
 - 一个能运行命令的 AI Agent：Claude Code、Codex、DeepSeek Harness 等
 - [Tencent Browser Skill](https://github.com/Tencent/BrowserSkill) 和已登录 X 的 Chrome（建议专用账号）
-- 大模型 API Key：默认 DeepSeek，可换成任何兼容 Anthropic 接口的服务
+- 大模型 API Key：默认 DeepSeek，可换成任何兼容 Anthropic 或 OpenAI 接口、支持工具调用的服务
 - 发信邮箱：默认 QQ 邮箱 SMTP（需要授权码）
 - 上线时：Turso 数据库 + 可部署 Next.js 的平台（如 Vercel）
 
