@@ -49,6 +49,8 @@ export interface CardView {
   likes: string;
   reposts: string;
   ctaLabel: string;
+  /** AI 一句话摘要（中文版），邮件放不下时用它代替完整卡片 */
+  summary?: string;
 }
 
 /** 外部文章的图文摘要卡片 */
@@ -212,6 +214,7 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
     likes: compactNumber(raw.metrics.likes),
     reposts: compactNumber(raw.metrics.reposts),
     ctaLabel: videoMedia ? "看视频 ↗" : "原推 ↗",
+    summary: opts.lang === "zh" ? (t.ai?.summary ?? undefined) : undefined,
   };
 }
 
@@ -225,7 +228,8 @@ export interface DigestView {
   topicCount: number;
   accountCount: number;
   scannedCount: number;
-  groups: Array<{ topic: Pick<Topic, "id" | "name" | "color">; items: CardView[] }>;
+  /** compact：篇幅所限只列一句话摘要的条目（按分数排在完整卡片之后） */
+  groups: Array<{ topic: Pick<Topic, "id" | "name" | "color">; items: CardView[]; compact?: CardView[] }>;
   links: { manage: string; switchLang: string; unsubscribe: string; rss: string };
   /**
    * true：链接是收件人专属的（单独发送）；false：合并发送的通用链接，

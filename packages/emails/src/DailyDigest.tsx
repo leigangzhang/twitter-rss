@@ -3,7 +3,7 @@
 import { Body, Column, Container, Head, Html, Link, Preview, Row, Section, Text } from "@react-email/components";
 import type { DigestView } from "@xrss/core";
 import { color, font } from "./theme.ts";
-import { TweetCard } from "./TweetCard.tsx";
+import { CompactItem, TweetCard } from "./TweetCard.tsx";
 
 /**
  * 主题标签页（纯 CSS：隐藏的单选按钮 + :checked）。
@@ -52,7 +52,7 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
       <Head>{tabs ? <style dangerouslySetInnerHTML={{ __html: tabsCss(view.groups.length) }} /> : null}</Head>
       <Preview>{preview}</Preview>
       <Body style={{ backgroundColor: color.ground, fontFamily: font.sans, margin: 0, padding: "20px 0" }}>
-        <Container style={{ width: "100%", maxWidth: 640, backgroundColor: color.card, borderRadius: 14, overflow: "hidden" }}>
+        <Container style={{ width: "100%", maxWidth: 640, backgroundColor: color.card, borderRadius: 14, overflow: "hidden", fontFamily: font.sans }}>
           {/* 头部 */}
           <Section style={{ padding: "34px 36px 26px", borderBottom: `1px solid ${color.line}` }}>
             <Row>
@@ -92,7 +92,7 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
                   style={{ display: "inline-block", border: `1px solid ${color.line}`, borderRadius: 999, padding: "4px 12px", fontSize: 13, color: color.body, marginRight: 8 }}
                 >
                   <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, backgroundColor: g.topic.color, marginRight: 6 }} />
-                  {g.topic.name} {g.items.length}
+                  {g.topic.name} {g.items.length + (g.compact?.length ?? 0)}
                 </span>
               ))}
             </Text>}
@@ -122,7 +122,7 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
                 {view.groups.map((g, i) => (
                   <label key={g.topic.id} htmlFor={`xt-${i + 1}`} className={`xt-l xt-l-${i + 1}`} style={tabLabel}>
                     <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, backgroundColor: g.topic.color, marginRight: 6 }} />
-                    {g.topic.name} {g.items.length}
+                    {g.topic.name} {g.items.length + (g.compact?.length ?? 0)}
                   </label>
                 ))}
               </div>
@@ -131,7 +131,7 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
                 {view.groups.map((g, i) => (
                   <a key={g.topic.id} href={`#xt-p-${i + 1}`} style={{ ...tabLabel, textDecoration: "none" }}>
                     <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, backgroundColor: g.topic.color, marginRight: 6 }} />
-                    {g.topic.name} {g.items.length}
+                    {g.topic.name} {g.items.length + (g.compact?.length ?? 0)}
                   </a>
                 ))}
               </div>
@@ -178,17 +178,25 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
 
 function TopicSection({ group: g }: { group: DigestView["groups"][number] }) {
   return (
-    <Section>
+    <div>
       {/* 主题标题：不用多列表格，避免部分网页邮箱把标题挤成竖排 */}
-      <Section style={{ padding: "26px 36px 4px" }}>
-        <Text style={{ fontSize: 13, fontWeight: 700, letterSpacing: "2px", lineHeight: "20px", color: g.topic.color, margin: 0, paddingBottom: 8, borderBottom: `1px solid ${color.line}` }}>
+      <div style={{ padding: "26px 36px 4px" }}>
+        <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: "2px", lineHeight: "20px", color: g.topic.color, margin: 0, paddingBottom: 8, borderBottom: `1px solid ${color.line}` }}>
           <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, backgroundColor: g.topic.color, marginRight: 8, verticalAlign: "-1px" }} />
           {g.topic.name}
-        </Text>
-      </Section>
+        </p>
+      </div>
       {g.items.map((card, i) => (
-        <TweetCard key={card.id} card={card} last={i === g.items.length - 1} />
+        <TweetCard key={card.id} card={card} last={i === g.items.length - 1 && !g.compact?.length} />
       ))}
-    </Section>
+      {g.compact?.length ? (
+        <div style={{ padding: "18px 36px 22px", borderTop: `1px solid ${color.lineSoft}` }}>
+          <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "1px", color: color.muted, margin: "0 0 10px" }}>还有 {g.compact.length} 条，篇幅所限只列摘要</p>
+          {g.compact.map((card) => (
+            <CompactItem key={card.id} card={card} />
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }

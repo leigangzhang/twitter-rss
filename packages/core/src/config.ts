@@ -40,7 +40,7 @@ const DigestFile = z.object({
   collect_window: z.enum(["previous_day", "rolling"]).default("previous_day"),
   window_hours: z.number().positive().default(24),
   digest: z.object({
-    total_items: z.number().int().min(1).max(30).default(10),
+    total_items: z.number().int().min(1).max(60).default(30),
     min_per_topic: z.number().int().min(0).default(1),
     candidates_per_topic: z.number().int().min(1).default(15),
   }),
@@ -93,6 +93,10 @@ const DigestFile = z.object({
       bcc_batch_size: z.number().int().min(1).max(100).default(20),
       /** 两封邮件之间的间隔（毫秒） */
       send_interval_ms: z.number().int().min(0).default(1500),
+      /** 主题标签页：支持的邮箱（苹果邮件、163 网页版等）可切换主题，其他邮箱自动按主题依次排列 */
+      tabs: z.boolean().default(true),
+      /** 邮件大小上限（KB）。Gmail 超过约 102KB 会折叠末尾，超出时排在后面的条目改为一句话摘要 */
+      max_kb: z.number().min(20).max(500).default(95),
     })
     .prefault({}),
   curation: z

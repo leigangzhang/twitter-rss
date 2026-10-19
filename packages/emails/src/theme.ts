@@ -17,7 +17,8 @@ export const color = {
 
 export const font = {
   sans: '-apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Helvetica Neue", Arial, sans-serif',
-  mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
+  // 每个元数据行都会用到，写短一些控制邮件体积
+  mono: "Menlo,Consolas,monospace",
 };
 
 /** 内容区宽度：640 - 左右各 36 */

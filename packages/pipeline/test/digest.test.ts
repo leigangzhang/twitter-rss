@@ -47,7 +47,7 @@ const config = {
     ["sama", ["ai"]],
     ["cellinlab", ["crypto"]],
   ]),
-  digest: { ...repoConfig.digest, mail: { group_identical: true, bcc_batch_size: 2, send_interval_ms: 0 } },
+  digest: { ...repoConfig.digest, mail: { ...repoConfig.digest.mail, group_identical: true, bcc_batch_size: 2, send_interval_ms: 0 } },
 };
 
 const ai = (topicId: string): AiResult => ({

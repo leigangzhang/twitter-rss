@@ -202,7 +202,7 @@ export async function buildIssueEmail(
     view = buildView(ctx, normalizeTopicIds(config, sub.topics), sub.lang, links, true);
   }
   if (!view) return { subscriber: sub, error: "这一期没有这位订阅者所选主题的内容" };
-  const email = await renderDigest(view);
+  const email = await renderDigest(view, { tabs: config.digest.mail.tabs, maxBytes: config.digest.mail.max_kb * 1024 });
   return { subscriber: sub, view, email, tweetIds: view.groups.flatMap((g) => g.items.map((i) => i.id)) };
 }
 

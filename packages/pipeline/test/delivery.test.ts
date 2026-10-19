@@ -22,7 +22,7 @@ const config = {
     ["cellinlab", ["crypto"]],
   ]),
   topicAliases: new Map<string, string>(),
-  digest: { ...repoConfig.digest, mail: { group_identical: true, bcc_batch_size: 20, send_interval_ms: 0 } },
+  digest: { ...repoConfig.digest, mail: { ...repoConfig.digest.mail, group_identical: true, bcc_batch_size: 20, send_interval_ms: 0 } },
 };
 
 const ai = (topicId: string): AiResult => ({ verdict: "keep", category: "best_practice", dropReason: null, quality: 4, scale: 5, topicId, summary: `摘要 ${topicId}`, reason: "r", zh: null, mediaNote: null });

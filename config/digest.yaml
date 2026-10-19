@@ -11,7 +11,7 @@ collect_window: previous_day
 window_hours: 24
 
 digest:
-  total_items: 10        # 每封邮件精选条数，常用 8–10
+  total_items: 30        # 每封邮件最多条数（通过精选的都放进来，按分数排序）；超出 mail.max_kb 的部分自动改为一句话摘要
   min_per_topic: 1       # 每个已订阅主题至少保底几条（当天有合格内容时）
   candidates_per_topic: 30  # 规则粗筛后，每个主题送给 AI 评审的条数上限（按互动表现排序），控制 AI 成本
 
@@ -52,6 +52,8 @@ mail:
   group_identical: true
   bcc_batch_size: 20       # 每封最多密送多少人（QQ 邮箱对单封收件人数有限制，不建议调太大）
   send_interval_ms: 1500   # 两封邮件之间的间隔
+  tabs: true               # 主题标签页：苹果邮件、163 网页版等可切换主题；QQ、Gmail 网页版等自动按主题依次排列
+  max_kb: 95               # 邮件大小上限（KB），Gmail 超过约 102KB 会折叠末尾；超出时排在后面的条目改为一句话摘要
 
 # 订阅页
 subscribe_page:

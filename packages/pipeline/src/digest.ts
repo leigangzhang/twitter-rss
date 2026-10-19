@@ -230,7 +230,7 @@ export async function sendDigests(
         stats.skippedEmpty += members.length;
         continue;
       }
-      const email = await renderDigest(view);
+      const email = await renderDigest(view, { tabs: config.digest.mail.tabs, maxBytes: config.digest.mail.max_kb * 1024 });
       warnSize(email.html, `${members.length} 位订阅者`);
       const tweetIds = view.groups.flatMap((g) => g.items.map((i) => i.id));
 
@@ -273,7 +273,7 @@ export async function sendDigests(
         stats.skippedEmpty++;
         continue;
       }
-      const email = await renderDigest(view);
+      const email = await renderDigest(view, { tabs: config.digest.mail.tabs, maxBytes: config.digest.mail.max_kb * 1024 });
       warnSize(email.html, sub.email);
 
       if (opts.dryRun) {
