@@ -107,14 +107,18 @@ describe("createLlmReviewer（DeepSeek Anthropic 兼容接口）", () => {
       thinking: { type: "disabled" },
       tool_choice: { type: "tool", name: "submit_review" },
     });
-    expect(requests[0]!.body.messages[0].content[0]).toEqual({ type: "image", source: { type: "url", url: "https://example.com/p.jpg" } });
+    // 图片不送给模型识别
+    expect(JSON.stringify(requests[0]!.body.messages)).not.toContain("p.jpg");
   });
 
-  it("图片请求失败时退回纯文字评审", async () => {
+  it("视频封面送给模型写视频说明；封面请求失败时退回纯文字评审", async () => {
+    requests.length = 0;
+    const withVideo = { ...tweet, media: [{ type: "video" as const, url: "https://example.com/cover.jpg" }] };
+    await createLlmReviewer({ apiKey: "sk-test", baseURL }).review(withVideo, [{ id: "ai", name: "AI" }]);
+    expect(requests[0]!.body.messages[0].content[0]).toEqual({ type: "image", source: { type: "url", url: "https://example.com/cover.jpg" } });
     requests.length = 0;
     rejectImages = true;
-    const reviewer = createLlmReviewer({ apiKey: "sk-test", baseURL });
-    const result = await reviewer.review(tweet, [{ id: "ai", name: "AI" }]);
+    const result = await createLlmReviewer({ apiKey: "sk-test", baseURL }).review(withVideo, [{ id: "ai", name: "AI" }]);
     rejectImages = false;
     expect(result).toMatchObject({ quality: 4, scale: 5 });
     expect(requests).toHaveLength(2);
@@ -290,12 +294,17 @@ describe("OpenAI 兼容接口", () => {
     });
     expect(last.body).not.toHaveProperty("temperature");
     expect(last.body.messages[0]).toMatchObject({ role: "system" });
-    expect(last.body.messages[1].content[0]).toEqual({ type: "image_url", image_url: { url: "https://example.com/p.jpg" } });
+    expect(last.body.messages[1].content).toEqual(expect.any(String));
 
     // 同一个客户端的下一次请求直接用调整后的参数
     calls.length = 0;
     await reviewer.review(tweet, [{ id: "ai", name: "AI" }]);
     expect(calls).toHaveLength(1);
+
+    // 视频封面按 OpenAI 格式放进 image_url
+    calls.length = 0;
+    await reviewer.review({ ...tweet, media: [{ type: "video", url: "https://example.com/cover.jpg" }] }, [{ id: "ai", name: "AI" }]);
+    expect(calls[0]!.body.messages[1].content[0]).toEqual({ type: "image_url", image_url: { url: "https://example.com/cover.jpg" } });
   });
 
   it("模型把 JSON 写在正文里时也能解析", async () => {

@@ -589,11 +589,6 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
           <Body card={card} />
         )}
         <Images card={card} />
-        {card.kind === "image" && card.mediaNote ? (
-          <Note label="图片里有什么（AI 生成）">
-            <p style={noteText}>{card.mediaNote}</p>
-          </Note>
-        ) : null}
         <Video card={card} />
         <Quoted card={card} />
         {card.article ? (

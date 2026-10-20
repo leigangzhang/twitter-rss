@@ -51,7 +51,7 @@
 | 用途 | 在哪里运行 | 模型配置 |
 |---|---|---|
 | 采集 X（浏览器操作） | 你选的 Agent（Claude Code、Codex、DeepSeek Harness 等） | 在 Agent 里配置，与精选用的模型无关 |
-| AI 初审、编辑终审、翻译、视频/图片说明 | `scripts/daily.sh` → `packages/pipeline/src/ai.ts` | `.env` 的 `LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY` |
+| AI 初审、编辑终审、翻译、视频说明 | `scripts/daily.sh` → `packages/pipeline/src/ai.ts` | `.env` 的 `LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY` |
 
 AI 精选支持两种接口格式，默认是 [DeepSeek 的 Anthropic 兼容接口](https://api-docs.deepseek.com/guides/anthropic_api)。在 `.env` 里自定义：
 
@@ -78,7 +78,7 @@ AI 精选支持两种接口格式，默认是 [DeepSeek 的 Anthropic 兼容接�
 对模型的要求：
 
 - **支持工具调用**（function calling / tool use）：初审、终审和文章摘要都通过强制调用一个工具返回结构化结果。个别服务不走工具、把 JSON 直接写在正文里时也能解析。
-- **最好支持图片输入**：用来写图片说明。不支持时自动去掉图片重试，只是没有图片说明。
+- **最好支持图片输入**：用来看视频封面、写视频说明（推文里的图片不做识别）。不支持时自动去掉封面重试，只是没有视频说明。
 - **openai 格式的参数差异会自动适配**：新模型不接受 `max_tokens` 时改用 `max_completion_tokens`，推理模型不接受 `temperature` 时不传，不支持指定工具名时改为 `tool_choice: "required"`；同一次运行里只调整一次。
 - **anthropic 格式会显式关闭思考模式**（`thinking: disabled`），因为 DeepSeek 的思考模式不接受强制工具调用。
 
@@ -92,7 +92,7 @@ AI 精选支持两种接口格式，默认是 [DeepSeek 的 Anthropic 兼容接�
   - 类型：最佳实践与用法 / 真实世界问题 / 新发布与新能力 / 应用案例与灵感 / 行业趋势与解读 / 专家思考，都不是则为"其他"
   - 去留：说教、显而易见、没有思考、纯搬运、重复、推广、闲聊剔除；类型不在 `allowed_categories` 或质量分低于 `min_quality`（默认 3）也剔除
   - 质量分为 **5 分制**：5 必读、4 值得读、3 有收获（保留最低分）、2 价值低、1 不推荐。旧数据的 10 分制分数读取时自动折半
-  - 同时输出一句话摘要、判断理由、中文翻译、视频/图片说明
+  - 同时输出一句话摘要、判断理由、中文翻译、视频说明（图片不做识别）
 - **编辑终审**（整批）：把当天通过初审的推文放在一起，去掉同一事件、相同观点，以及最近 `recent_days` 天邮件里发过的内容
 - **重新评审**：改了 `curation.md` 后，运行 `pnpm pipeline:dry --rereview` 让时间范围内已评审的推文按新标准重评，对比精选报告
 - **精选报告**：每次运行写出 `data/out/<日期>/curation.md`，列出分数分布，以及每条的类型、分数、理由和剔除原因，用来检查判断、调整 `curation.md`

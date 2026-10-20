@@ -27,7 +27,7 @@ export interface CardView {
   /** href：点开看的大图 */
   images: Array<{ url: string; href: string; width?: number; height?: number; alt?: string }>;
   video?: { thumbUrl?: string; duration?: string };
-  /** AI 生成的中文说明（视频、含文字的图片） */
+  /** AI 生成的视频说明（中文） */
   mediaNote?: string;
   quoted?: {
     name: string;
@@ -188,7 +188,8 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
     video: videoMedia
       ? { thumbUrl: opts.videoMode === "thumbnail" ? videoMedia.url : undefined, duration: duration(videoMedia.durationSec) }
       : undefined,
-    mediaNote: t.ai?.mediaNote ?? undefined,
+    // 只显示视频说明；图片不做识别（旧数据里的图片说明也不再显示）
+    mediaNote: videoMedia ? (t.ai?.mediaNote ?? undefined) : undefined,
     quoted: raw.quoted
       ? {
           name: raw.quoted.author.name,

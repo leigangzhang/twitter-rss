@@ -21,7 +21,7 @@ function cardHtml(c: CardView): string {
       ? `<p>${esc(c.parts[0]!).replace(/\n/g, "<br>")}${more}</p>`
       : c.parts.map((p, i) => `<p><small>${i + 1}/${total}</small> ${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
   const images = c.images.map((img) => `<p><a href="${esc(img.href)}"><img src="${esc(img.url)}" alt="${esc(img.alt ?? "")}"></a></p>`).join("");
-  const note = c.mediaNote ? `<blockquote><strong>${c.video ? "视频说明" : "图片说明"}（AI 生成）：</strong>${esc(c.mediaNote)}</blockquote>` : "";
+  const note = c.mediaNote ? `<blockquote><strong>视频说明（AI 生成）：</strong>${esc(c.mediaNote)}</blockquote>` : "";
   const quoted = c.quoted
     ? `<blockquote><strong>${esc(c.quoted.name)}</strong> <a href="${esc(c.quoted.url)}">@${esc(c.quoted.handle)}</a><br>${c.quoted.summary ? `${esc(c.quoted.summary)}${c.quoted.points?.length ? `<ul>${c.quoted.points.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}` : `${esc(c.quoted.text)}${c.quoted.truncated ? "……" : ""}`}${c.quoted.article ? articleHtml(c.quoted.article) : ""}</blockquote>`
     : "";
