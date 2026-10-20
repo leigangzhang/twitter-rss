@@ -1,9 +1,34 @@
 /** @jsxRuntime automatic @jsxImportSource react */
 // 本包也会被其他包的 tsx 进程直接加载，这里显式指定 JSX 运行时
-import { Body, Column, Container, Head, Html, Link, Preview, Row, Section, Text } from "@react-email/components";
+import {
+  Body,
+  Column,
+  Container,
+  Head,
+  Html,
+  Link,
+  Preview,
+  Row,
+  Section,
+  Text,
+} from "@react-email/components";
 import type { DigestView } from "@xrss/core";
 import { color, font, MAIL_WIDTH, MOBILE_BREAKPOINT } from "./theme.ts";
 import { CompactItem, TweetCard } from "./TweetCard.tsx";
+
+/**
+ * 长推文原文折叠（纯 CSS）：页面开头有一个默认选中的单选按钮 .xs，它存在说明邮箱保留了表单元素、支持 :checked，
+ * 这时才隐藏原文、显示"展开原文"。Gmail 等会删掉表单元素，规则不生效，原文照常显示。
+ */
+const foldCss = [
+  ".xr-in,.xs{display:none!important}",
+  ".xs:checked ~ .xs-root .xr-l{display:inline-block!important;max-height:none!important}",
+  ".xs:checked ~ .xs-root .xr-body{display:none}",
+  ".xs:checked ~ .xs-root .xr-in:checked ~ .xr-body{display:block!important}",
+  ".xr-c{display:none}",
+  ".xr-in:checked ~ .xr-l .xr-o{display:none}",
+  ".xr-in:checked ~ .xr-l .xr-c{display:inline}",
+].join("\n");
 
 /**
  * 主题标签页（纯 CSS：隐藏的单选按钮 + :checked）。
@@ -42,9 +67,29 @@ const tabLabel = {
   backgroundColor: color.chip,
 } as const;
 
-const dot = (c: string) => <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 4, backgroundColor: c, marginRight: 6, verticalAlign: "1px" }} />;
+const dot = (c: string) => (
+  <span
+    style={{
+      display: "inline-block",
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: c,
+      marginRight: 6,
+      verticalAlign: "1px",
+    }}
+  />
+);
 
-export function DailyDigest({ view, tabs = false, probe = false }: { view: DigestView; tabs?: boolean; probe?: boolean }) {
+export function DailyDigest({
+  view,
+  tabs = false,
+  probe = false,
+}: {
+  view: DigestView;
+  tabs?: boolean;
+  probe?: boolean;
+}) {
   const preview = view.groups
     .flatMap((g) => g.items)
     .slice(0, 2)
@@ -57,127 +102,292 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
         {/* 没有 viewport 时 iPhone 邮件按桌面宽度排版，手机样式不会生效 */}
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {/* 手机和窄窗口：左右留白 32→20px，标题小一号 */}
-        <style dangerouslySetInnerHTML={{ __html: `body{margin:0!important}@media (max-width:${MOBILE_BREAKPOINT}px){.xc{padding-left:20px!important;padding-right:20px!important}.xn{padding:10px 12px!important}.xh{font-size:22px!important;line-height:30px!important}}${tabs ? `\n${tabsCss(view.groups.length)}` : ""}` }} />
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `body{margin:0!important}@media (max-width:${MOBILE_BREAKPOINT}px){.xc{padding-left:20px!important;padding-right:20px!important}.xn{padding:10px 12px!important}.xh{font-size:22px!important;line-height:30px!important}}\n${foldCss}${tabs ? `\n${tabsCss(view.groups.length)}` : ""}`,
+          }}
+        />
       </Head>
       <Preview>{preview}</Preview>
-      <Body style={{ backgroundColor: color.ground, fontFamily: font.sans, color: color.ink, margin: 0, padding: 0, WebkitTextSizeAdjust: "100%" }}>
-        <Container style={{ width: "100%", maxWidth: MAIL_WIDTH, backgroundColor: color.card, fontFamily: font.sans }}>
-          {/* 头部 */}
-          <Section className="xc" style={{ padding: "28px 32px 20px" }}>
-            <Row>
-              <Column>
-                <span
-                  style={{
-                    display: "inline-block",
-                    width: 26,
-                    height: 26,
-                    lineHeight: "26px",
-                    borderRadius: 6,
-                    backgroundColor: color.ink,
-                    color: "#FFFFFF",
-                    fontWeight: 900,
-                    fontSize: 15,
-                    textAlign: "center",
-                    verticalAlign: "middle",
-                  }}
-                >
-                  X
-                </span>
-                <span style={{ fontSize: 17, fontWeight: 800, color: color.ink, marginLeft: 8, verticalAlign: "middle" }}>精选晨报</span>
-              </Column>
-              <Column align="right">
-                <Text style={{ fontSize: 13, color: color.muted, margin: 0 }}>{view.dateLabel}</Text>
-              </Column>
-            </Row>
-            <Text className="xh" style={{ fontSize: 26, fontWeight: 800, lineHeight: "34px", color: color.ink, margin: "20px 0 8px" }}>{view.periodLabel ? `${view.periodLabel}值得读的 ${view.total} 条` : `今天值得读的 ${view.total} 条`}</Text>
-            <Text style={{ fontSize: 14, lineHeight: "22px", color: color.muted, margin: "0 0 16px" }}>
-              来自你订阅的 {view.topicCount} 个主题、{view.accountCount} 位 X（原 Twitter）博主 · 从{view.periodLabel ? `${view.periodLabel}发布的 ` : " "}{view.scannedCount} 条新推文中筛选
-              {view.lang === "zh" ? " · 中文版（AI 翻译）" : " · 原文版"}
-            </Text>
-            {tabs ? null : (
-              <div>
-                {view.groups.map((g) => (
-                  <span key={g.topic.id} style={tabLabel}>
-                    {dot(g.topic.color)}
-                    {g.topic.name} {g.items.length + (g.compact?.length ?? 0)}
+      <Body
+        style={{
+          backgroundColor: color.ground,
+          fontFamily: font.sans,
+          color: color.ink,
+          margin: 0,
+          padding: 0,
+          WebkitTextSizeAdjust: "100%",
+        }}
+      >
+        <Container
+          style={{
+            width: "100%",
+            maxWidth: MAIL_WIDTH,
+            backgroundColor: color.card,
+            fontFamily: font.sans,
+          }}
+        >
+          {/* 检测邮箱是否支持 :checked，见 foldCss */}
+          <input
+            type="radio"
+            className="xs"
+            defaultChecked
+            style={{ display: "none", msoHide: "all" } as React.CSSProperties}
+          />
+          <div className="xs-root">
+            {/* 头部 */}
+            <Section className="xc" style={{ padding: "28px 32px 20px" }}>
+              <Row>
+                <Column>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 26,
+                      height: 26,
+                      lineHeight: "26px",
+                      borderRadius: 6,
+                      backgroundColor: color.ink,
+                      color: "#FFFFFF",
+                      fontWeight: 900,
+                      fontSize: 15,
+                      textAlign: "center",
+                      verticalAlign: "middle",
+                    }}
+                  >
+                    X
                   </span>
-                ))}
-              </div>
-            )}
-          </Section>
-
-          {tabs ? (
-            <div>
-              <input type="radio" name="xt" id="xt-all" className="xt-in" defaultChecked style={{ display: "none", msoHide: "all" } as React.CSSProperties} />
-              {view.groups.map((g, i) => (
-                <input key={g.topic.id} type="radio" name="xt" id={`xt-${i + 1}`} className="xt-in" style={{ display: "none", msoHide: "all" } as React.CSSProperties} />
-              ))}
-              {probe ? (
-                <div className="xt-probe" style={{ margin: "0 32px 12px", padding: "12px 16px", borderRadius: 8, backgroundColor: color.note, fontSize: 13, lineHeight: "20px" }}>
-                  <div className="xt-yes" style={{ display: "none", maxHeight: 0, overflow: "hidden", color: "#22663D", fontWeight: 700 } as React.CSSProperties}>
-                    ✓ 这个邮箱支持标签页：点下面的主题可以切换
-                  </div>
-                  <div className="xt-no" style={{ color: "#8A5300", fontWeight: 700 }}>
-                    ✗ 这个邮箱不支持标签页：各主题依次排列，点主题名可跳转
-                  </div>
+                  <span
+                    style={{
+                      fontSize: 17,
+                      fontWeight: 800,
+                      color: color.ink,
+                      marginLeft: 8,
+                      verticalAlign: "middle",
+                    }}
+                  >
+                    精选晨报
+                  </span>
+                </Column>
+                <Column align="right">
+                  <Text style={{ fontSize: 13, color: color.muted, margin: 0 }}>
+                    {view.dateLabel}
+                  </Text>
+                </Column>
+              </Row>
+              <Text
+                className="xh"
+                style={{
+                  fontSize: 26,
+                  fontWeight: 800,
+                  lineHeight: "34px",
+                  color: color.ink,
+                  margin: "20px 0 8px",
+                }}
+              >
+                {view.periodLabel
+                  ? `${view.periodLabel}值得读的 ${view.total} 条`
+                  : `今天值得读的 ${view.total} 条`}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 14,
+                  lineHeight: "22px",
+                  color: color.muted,
+                  margin: "0 0 16px",
+                }}
+              >
+                来自你订阅的 {view.topicCount} 个主题、{view.accountCount} 位
+                X（原 Twitter）博主 · 从
+                {view.periodLabel ? `${view.periodLabel}发布的 ` : " "}
+                {view.scannedCount} 条新推文中筛选
+                {view.lang === "zh" ? " · 中文版（AI 翻译）" : " · 原文版"}
+              </Text>
+              {tabs ? null : (
+                <div>
+                  {view.groups.map((g) => (
+                    <span key={g.topic.id} style={tabLabel}>
+                      {dot(g.topic.color)}
+                      {g.topic.name} {g.items.length + (g.compact?.length ?? 0)}
+                    </span>
+                  ))}
                 </div>
-              ) : null}
-              {/* 标签栏：默认隐藏，支持的邮箱才显示 */}
-              <div className="xt-bar xc" style={{ display: "none", maxHeight: 0, overflow: "hidden", padding: "0 32px 8px", msoHide: "all" } as React.CSSProperties}>
-                <label htmlFor="xt-all" className="xt-l xt-l-all" style={tabLabel}>
-                  全部 {view.total}
-                </label>
-                {view.groups.map((g, i) => (
-                  <label key={g.topic.id} htmlFor={`xt-${i + 1}`} className={`xt-l xt-l-${i + 1}`} style={tabLabel}>
-                    {dot(g.topic.color)}
-                    {g.topic.name} {g.items.length + (g.compact?.length ?? 0)}
-                  </label>
-                ))}
-              </div>
-              {/* 目录：不支持标签页的邮箱显示，点击跳到对应主题 */}
-              <div className="xt-toc xc" style={{ padding: "0 32px 8px" }}>
-                {view.groups.map((g, i) => (
-                  <a key={g.topic.id} href={`#xt-p-${i + 1}`} style={{ ...tabLabel, textDecoration: "none" }}>
-                    {dot(g.topic.color)}
-                    {g.topic.name} {g.items.length + (g.compact?.length ?? 0)}
-                  </a>
-                ))}
-              </div>
-              <div className="xt-panels">
-                {view.groups.map((g, i) => (
-                  <div key={g.topic.id} id={`xt-p-${i + 1}`} className={`xt-p xt-p-${i + 1}`}>
-                    <TopicSection group={g} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            view.groups.map((g) => <TopicSection key={g.topic.id} group={g} />)
-          )}
-
-          {/* 页脚 */}
-          <Section className="xc" style={{ backgroundColor: color.footer, padding: "24px 32px 28px", marginTop: 24, textAlign: "center" }}>
-            <Text style={{ fontSize: 13, margin: "0 0 8px" }}>
-              <Link href={view.links.manage} style={{ color: color.link }}>管理订阅主题</Link>
-              {"　"}
-              <Link href={view.links.switchLang} style={{ color: color.link }}>{view.lang === "zh" ? "改为接收原文" : "改为接收中文"}</Link>
-              {"　"}
-              <Link href={view.links.rss} style={{ color: color.link }}>RSS 订阅</Link>
-              {"　"}
-              <Link href={view.links.unsubscribe} style={{ color: color.link }}>退订</Link>
-            </Text>
-            <Text style={{ fontSize: 13, lineHeight: "20px", color: color.muted, margin: 0 }}>
-              {view.personalLinks ? null : (
-                <>
-                  修改设置或退订时，在打开的页面输入你的邮箱，我们会把专属链接发给你
-                  <br />
-                </>
               )}
-              内容版权归原作者所有 · 翻译与视频说明由 AI 生成，可能有误
-              <br />
-              你收到这封邮件是因为订阅了精选晨报
-            </Text>
-          </Section>
+            </Section>
+
+            {tabs ? (
+              <div>
+                <input
+                  type="radio"
+                  name="xt"
+                  id="xt-all"
+                  className="xt-in"
+                  defaultChecked
+                  style={
+                    { display: "none", msoHide: "all" } as React.CSSProperties
+                  }
+                />
+                {view.groups.map((g, i) => (
+                  <input
+                    key={g.topic.id}
+                    type="radio"
+                    name="xt"
+                    id={`xt-${i + 1}`}
+                    className="xt-in"
+                    style={
+                      { display: "none", msoHide: "all" } as React.CSSProperties
+                    }
+                  />
+                ))}
+                {probe ? (
+                  <div
+                    className="xt-probe"
+                    style={{
+                      margin: "0 32px 12px",
+                      padding: "12px 16px",
+                      borderRadius: 8,
+                      backgroundColor: color.note,
+                      fontSize: 13,
+                      lineHeight: "20px",
+                    }}
+                  >
+                    <div
+                      className="xt-yes"
+                      style={
+                        {
+                          display: "none",
+                          maxHeight: 0,
+                          overflow: "hidden",
+                          color: "#22663D",
+                          fontWeight: 700,
+                        } as React.CSSProperties
+                      }
+                    >
+                      ✓ 这个邮箱支持标签页：点下面的主题可以切换
+                    </div>
+                    <div
+                      className="xt-no"
+                      style={{ color: "#8A5300", fontWeight: 700 }}
+                    >
+                      ✗ 这个邮箱不支持标签页：各主题依次排列，点主题名可跳转
+                    </div>
+                  </div>
+                ) : null}
+                {/* 标签栏：默认隐藏，支持的邮箱才显示 */}
+                <div
+                  className="xt-bar xc"
+                  style={
+                    {
+                      display: "none",
+                      maxHeight: 0,
+                      overflow: "hidden",
+                      padding: "0 32px 8px",
+                      msoHide: "all",
+                    } as React.CSSProperties
+                  }
+                >
+                  <label
+                    htmlFor="xt-all"
+                    className="xt-l xt-l-all"
+                    style={tabLabel}
+                  >
+                    全部 {view.total}
+                  </label>
+                  {view.groups.map((g, i) => (
+                    <label
+                      key={g.topic.id}
+                      htmlFor={`xt-${i + 1}`}
+                      className={`xt-l xt-l-${i + 1}`}
+                      style={tabLabel}
+                    >
+                      {dot(g.topic.color)}
+                      {g.topic.name} {g.items.length + (g.compact?.length ?? 0)}
+                    </label>
+                  ))}
+                </div>
+                {/* 目录：不支持标签页的邮箱显示，点击跳到对应主题 */}
+                <div className="xt-toc xc" style={{ padding: "0 32px 8px" }}>
+                  {view.groups.map((g, i) => (
+                    <a
+                      key={g.topic.id}
+                      href={`#xt-p-${i + 1}`}
+                      style={{ ...tabLabel, textDecoration: "none" }}
+                    >
+                      {dot(g.topic.color)}
+                      {g.topic.name} {g.items.length + (g.compact?.length ?? 0)}
+                    </a>
+                  ))}
+                </div>
+                <div className="xt-panels">
+                  {view.groups.map((g, i) => (
+                    <div
+                      key={g.topic.id}
+                      id={`xt-p-${i + 1}`}
+                      className={`xt-p xt-p-${i + 1}`}
+                    >
+                      <TopicSection group={g} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              view.groups.map((g) => (
+                <TopicSection key={g.topic.id} group={g} />
+              ))
+            )}
+
+            {/* 页脚 */}
+            <Section
+              className="xc"
+              style={{
+                backgroundColor: color.footer,
+                padding: "24px 32px 28px",
+                marginTop: 24,
+                textAlign: "center",
+              }}
+            >
+              <Text style={{ fontSize: 13, margin: "0 0 8px" }}>
+                <Link href={view.links.manage} style={{ color: color.link }}>
+                  管理订阅主题
+                </Link>
+                {"　"}
+                <Link
+                  href={view.links.switchLang}
+                  style={{ color: color.link }}
+                >
+                  {view.lang === "zh" ? "改为接收原文" : "改为接收中文"}
+                </Link>
+                {"　"}
+                <Link href={view.links.rss} style={{ color: color.link }}>
+                  RSS 订阅
+                </Link>
+                {"　"}
+                <Link
+                  href={view.links.unsubscribe}
+                  style={{ color: color.link }}
+                >
+                  退订
+                </Link>
+              </Text>
+              <Text
+                style={{
+                  fontSize: 13,
+                  lineHeight: "20px",
+                  color: color.muted,
+                  margin: 0,
+                }}
+              >
+                {view.personalLinks ? null : (
+                  <>
+                    修改设置或退订时，在打开的页面输入你的邮箱，我们会把专属链接发给你
+                    <br />
+                  </>
+                )}
+                内容版权归原作者所有 · 翻译与视频说明由 AI 生成，可能有误
+                <br />
+                你收到这封邮件是因为订阅了精选晨报
+              </Text>
+            </Section>
+          </div>
         </Container>
       </Body>
     </Html>
@@ -190,17 +400,48 @@ function TopicSection({ group: g }: { group: DigestView["groups"][number] }) {
       {/* 主题标题：不用多列表格，避免部分网页邮箱把标题挤成竖排 */}
       {/* 主题标题：主题色粗线 + 名称和条数，像书的章节开头 */}
       <div className="xc" style={{ padding: "28px 32px 0" }}>
-        <p style={{ fontSize: 20, fontWeight: 800, lineHeight: "28px", color: color.ink, margin: 0, paddingBottom: 10, borderBottom: `3px solid ${g.topic.color}` }}>
+        <p
+          style={{
+            fontSize: 20,
+            fontWeight: 800,
+            lineHeight: "28px",
+            color: color.ink,
+            margin: 0,
+            paddingBottom: 10,
+            borderBottom: `3px solid ${g.topic.color}`,
+          }}
+        >
           {g.topic.name}
-          <span style={{ fontSize: 14, fontWeight: 400, color: color.muted }}>{`　${g.items.length + (g.compact?.length ?? 0)} 条`}</span>
+          <span
+            style={{ fontSize: 14, fontWeight: 400, color: color.muted }}
+          >{`　${g.items.length + (g.compact?.length ?? 0)} 条`}</span>
         </p>
       </div>
       {g.items.map((card, i) => (
-        <TweetCard key={card.id} card={card} last={i === g.items.length - 1 && !g.compact?.length} />
+        <TweetCard
+          key={card.id}
+          card={card}
+          last={i === g.items.length - 1 && !g.compact?.length}
+        />
       ))}
       {g.compact?.length ? (
-        <div className="xc" style={{ padding: "20px 32px 8px", borderTop: `1px solid ${color.line}` }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: color.muted, margin: "0 0 12px" }}>还有 {g.compact.length} 条，篇幅所限只列摘要</p>
+        <div
+          className="xc"
+          style={{
+            padding: "20px 32px 8px",
+            borderTop: `1px solid ${color.line}`,
+          }}
+        >
+          <p
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: color.muted,
+              margin: "0 0 12px",
+            }}
+          >
+            还有 {g.compact.length} 条，篇幅所限只列摘要
+          </p>
           {g.compact.map((card) => (
             <CompactItem key={card.id} card={card} />
           ))}

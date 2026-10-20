@@ -20,6 +20,9 @@ export const color = {
   placeholder: "#E9ECF0",
   footer: "#F7F8FA",
   link: "#2F5BD3",
+  /** 内容类型标签（趋势解读、新发布等）：蓝色粗体 + 浅蓝底 */
+  tag: "#1D8CE0",
+  tagBg: "#E8F4FD",
 };
 
 export const font = {

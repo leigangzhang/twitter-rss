@@ -38,6 +38,22 @@ const small: CSSProperties = {
   ...wrap,
 };
 const link: CSSProperties = { color: color.link, textDecoration: "none" };
+// 摘要只比正文稍重一点：同样字号，中等字重、颜色更深
+const summaryText: CSSProperties = {
+  fontSize: 16,
+  lineHeight: "28px",
+  fontWeight: 500,
+  color: color.ink,
+  margin: 0,
+  ...wrap,
+};
+const aiTag: CSSProperties = {
+  fontSize: 12,
+  fontWeight: 400,
+  color: color.muted,
+  marginRight: 8,
+  verticalAlign: "1px",
+};
 
 /** 没有头像时按账号名固定挑一组底色 */
 const AVATAR_TONES: Array<[string, string]> = [
@@ -86,13 +102,13 @@ function Avatar({ card }: { card: CardView }) {
   );
 }
 
-/** 长推文、Thread 用 AI 一句话摘要做标题；短推文的标题就是正文本身，不重复 */
-function headline(card: CardView): string | undefined {
+/** 超过这个字数的推文：作者行下先给 AI 摘要，原文默认折叠 */
+export const SUMMARY_MIN_CHARS = 300;
+
+function summaryOf(card: CardView): string | undefined {
   if (!card.summary) return undefined;
   const length = card.parts.reduce((n, p) => n + p.length, 0);
-  return card.parts.length > 1 || length > 120 || card.truncated
-    ? card.summary
-    : undefined;
+  return length > SUMMARY_MIN_CHARS ? card.summary : undefined;
 }
 
 /** 作者行：小头像 + 名字，第二行是 @账号、时间和内容类型 */
@@ -126,8 +142,20 @@ function Byline({ card }: { card: CardView }) {
               {card.author.name}
               {card.categoryLabel ? (
                 <span
-                  style={{ fontWeight: 400, color: color.muted }}
-                >{`　${card.categoryLabel}`}</span>
+                  style={{
+                    fontSize: 12,
+                    lineHeight: "18px",
+                    fontWeight: 700,
+                    color: color.tag,
+                    backgroundColor: color.tagBg,
+                    borderRadius: 4,
+                    padding: "2px 6px",
+                    marginLeft: 8,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {card.categoryLabel}
+                </span>
               ) : null}
             </p>
             <p
@@ -403,7 +431,7 @@ function LinkLine({ card }: { card: CardView }) {
 }
 
 export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
-  const title = headline(card);
+  const summary = summaryOf(card);
   const counts = `${card.likes} 赞　${card.reposts} 转发`;
   return (
     // 分隔线只画在正文宽度内，和主题标题下的色线对齐
@@ -414,25 +442,53 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
           borderBottom: last ? undefined : `1px solid ${color.line}`,
         }}
       >
-        {title ? (
-          <p
-            style={{
-              fontSize: 18,
-              lineHeight: "27px",
-              fontWeight: 700,
-              color: color.ink,
-              margin: "0 0 12px",
-              ...wrap,
-            }}
-          >
-            {title}
-          </p>
-        ) : null}
         <Byline card={card} />
         <div style={{ height: 12, lineHeight: "12px", fontSize: 0 }}>
           &nbsp;
         </div>
-        <Body card={card} />
+        {summary ? (
+          <>
+            <p style={summaryText}>
+              <span style={aiTag}>AI 摘要</span>
+              {summary}
+            </p>
+            {/*
+              原文折叠：隐藏的复选框 + 标签。只在支持的邮箱（苹果邮件等）生效，见 DailyDigest 里的 foldCss；
+              不支持的邮箱（Gmail、QQ 网页版）看不到"展开原文"，原文直接显示在摘要下面。
+            */}
+            <input
+              type="checkbox"
+              id={`xr-${card.id}`}
+              className="xr-in"
+              style={{ display: "none", msoHide: "all" } as CSSProperties}
+            />
+            <label
+              htmlFor={`xr-${card.id}`}
+              className="xr-l"
+              style={
+                {
+                  display: "none",
+                  maxHeight: 0,
+                  overflow: "hidden",
+                  fontSize: 14,
+                  lineHeight: "22px",
+                  color: color.link,
+                  fontWeight: 700,
+                  marginTop: 8,
+                  cursor: "pointer",
+                } as CSSProperties
+              }
+            >
+              <span className="xr-o">展开原文 ▾</span>
+              <span className="xr-c">收起原文 ▴</span>
+            </label>
+            <div className="xr-body" style={{ marginTop: 12 }}>
+              <Body card={card} />
+            </div>
+          </>
+        ) : (
+          <Body card={card} />
+        )}
         <Images card={card} />
         {card.kind === "image" && card.mediaNote ? (
           <Note label="图片里有什么（AI 生成）">

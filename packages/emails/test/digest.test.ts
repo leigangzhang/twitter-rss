@@ -36,4 +36,19 @@ describe("每日邮件", () => {
     const two = await renderDigest({ ...view, groups: [{ ...view.groups[0]!, items: view.groups[0]!.items.slice(0, 2) }] });
     expect(Buffer.byteLength(two.html) - Buffer.byteLength(one.html)).toBeLessThan(3500);
   });
+
+  it("超过 300 字的推文：作者行下先给 AI 摘要，原文折叠；短推文不加摘要", async () => {
+    const view = sampleDigest("zh");
+    const long = { ...view.groups[0]!.items[0]!, parts: ["很长的正文。".repeat(60)] };
+    const short = view.groups[0]!.items[1]!;
+    const { html } = await renderDigest({ ...view, groups: [{ ...view.groups[0]!, items: [long, short] }] });
+    expect(html).toContain("AI 摘要");
+    expect(html).toContain(long.summary!);
+    expect(html).toContain(`id="xr-${long.id}"`);
+    expect(html).toContain("展开原文");
+    expect(html).not.toContain(`id="xr-${short.id}"`);
+    // 不支持 :checked 的邮箱看到的是摘要 + 原文，原文不能只靠 CSS 才显示
+    expect(html).toMatch(/class="xr-body"[^>]*>/);
+    expect(html).not.toMatch(/class="xr-body"[^>]*display:none/);
+  });
 });
