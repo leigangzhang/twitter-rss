@@ -39,9 +39,10 @@ const small: CSSProperties = {
 };
 const link: CSSProperties = { color: color.link, textDecoration: "none" };
 // 摘要只比正文稍重一点：同样字号，中等字重、颜色更深
-// 摘要和邮件里其他 AI 内容一样用浅灰底区分，常规字重、比正文小一号，不抢正文
-const summaryBox: CSSProperties = { backgroundColor: color.note, borderRadius: 8, padding: "10px 14px" };
+// 摘要不加底色：结论和正文同字号、稍重一点（中等字重、深色），要点用常规字重，靠"AI 摘要"标签和层次区分
+const summaryBox: CSSProperties = {};
 const summaryLine: CSSProperties = { fontSize: 15, lineHeight: "25px", fontWeight: 400, margin: 0, ...wrap };
+const summaryLead: CSSProperties = { fontSize: 16, lineHeight: "28px", fontWeight: 500, color: color.ink, margin: 0, ...wrap };
 const aiTag: CSSProperties = {
   fontSize: 12,
   fontWeight: 400,
@@ -578,9 +579,9 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
               className="xr-in"
               style={{ display: "none", msoHide: "all" } as CSSProperties}
             />
-            {/* 摘要块：结论一句（正文色），要点灰色悬挂缩进；"展开原文"跟在最后一行后面 */}
-            <div className="xr-s xn" style={summaryBox}>
-              <p style={{ ...summaryLine, color: color.ink }}>
+            {/* 摘要：结论一句（稍重），要点悬挂缩进；"展开原文"跟在最后一行后面 */}
+            <div className="xr-s" style={summaryBox}>
+              <p style={summaryLead}>
                 <span style={aiTag}>AI 摘要</span>
                 {summary.lead}
                 {summary.points.length ? null : toggle}
@@ -592,7 +593,7 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
                 </p>
               ))}
             </div>
-            <div className="xr-body" style={{ marginTop: 12 }}>
+            <div className="xr-body" style={{ marginTop: 16 }}>
               <Body card={card} />
               {/* 读到原文末尾时就地收起，不用翻回摘要；只在支持折叠的邮箱里显示 */}
               <label
