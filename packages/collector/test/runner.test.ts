@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { CrawlPlan } from "../src/plan.ts";
-import { addDetailSteps, completeStep, counts, currentStep, initProgress, isFinished, saveProgress, stopProgress, verifyStep } from "../src/runner.ts";
+import { addDetailSteps, completeStep, counts, currentStep, initProgress, isFinished, mergeDetailText, saveProgress, stopProgress, verifyStep } from "../src/runner.ts";
 
 const fixture = readFileSync(join(import.meta.dirname, "fixtures", "user-tweets.json"), "utf8");
 const date = "2026-10-19";
@@ -114,5 +114,44 @@ describe("逐步采集", () => {
 
     writeFileSync(join(dir, date, "detail-needed.json"), JSON.stringify({ stop: "采集出现异常", scheduled: [{ id: "10" }] }));
     expect(addDetailSteps(initProgress(plan()))).toBe(0);
+  });
+});
+
+describe("详情页拿不到响应时从页面读取全文", () => {
+  const writeAccount = () => {
+    mkdirSync(join(dir, date, "raw"), { recursive: true });
+    writeFileSync(
+      join(dir, date, "pluvio9yte.json"),
+      JSON.stringify({
+        source: "tencent-browser-skill",
+        collectedAt: "2026-10-19T22:31:00Z",
+        handle: "pluvio9yte",
+        status: "ok",
+        tweets: [
+          { id: "9", url: "https://x.com/pluvio9yte/status/9", author: { handle: "pluvio9yte", name: "雪踏乌云" }, createdAt: "2026-10-18T00:30:00Z", text: "AI 时代到底应该怎么变现？…", textTruncated: true, metrics: { likes: 106, reposts: 12, replies: 0 } },
+          { id: "8", url: "https://x.com/pluvio9yte/status/8", author: { handle: "pluvio9yte", name: "雪踏乌云" }, createdAt: "2026-10-18T00:20:00Z", text: "另一条", metrics: { likes: 1, reposts: 0, replies: 0 } },
+        ],
+      }),
+    );
+  };
+
+  it("全文比截断版长时合并进账号文件，其他推文不变", () => {
+    writeAccount();
+    writeFileSync(join(dir, date, "raw", "pluvio9yte-detail-9.txt"), "AI 时代到底应该怎么变现？\n\n能真正换来真金白银的，本质上只有四样东西：注意力、认知、交付、资产。");
+    const r = mergeDetailText(date, "pluvio9yte", "9", "body_limit");
+    expect(r.ok).toBe(true);
+    const file = JSON.parse(readFileSync(join(dir, date, "pluvio9yte.json"), "utf8"));
+    expect(file.tweets[0]).toMatchObject({ textTruncated: false });
+    expect(file.tweets[0].text).toContain("注意力、认知、交付、资产");
+    expect(file.tweets[1].text).toBe("另一条");
+  });
+
+  it("没有全文文件、或全文不比截断版长时不算完成", () => {
+    writeAccount();
+    expect(mergeDetailText(date, "pluvio9yte", "9", "body_limit").ok).toBe(false);
+    writeFileSync(join(dir, date, "raw", "pluvio9yte-detail-9.txt"), "AI 时代到底应该怎么变现？");
+    const r = mergeDetailText(date, "pluvio9yte", "9", "body_limit");
+    expect(r.ok).toBe(false);
+    expect(r.message).toContain("显示更多");
   });
 });

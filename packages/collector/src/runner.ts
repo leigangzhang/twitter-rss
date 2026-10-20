@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { InboxFile } from "@xrss/core";
+import { cleanTweetText, InboxFile } from "@xrss/core";
 import { parseXGraphQL } from "./parsers/x-graphql.ts";
 import { inboxDir } from "./paths.ts";
 import type { CrawlPlan } from "./plan.ts";
@@ -131,7 +131,8 @@ export interface DoneCheck {
 /**
  * 检查这一步是不是真做完了：
  * - 账号：raw/<handle>-*.json 里要有能解析的时间线响应；拿不到响应时（--no-response）要有按格式写好的 <handle>.json
- * - 详情页：raw/<handle>-detail-<id>.json 要存在
+ * - 详情页：raw/<handle>-detail-<id>.json 要存在；拿不到响应时（--no-response）要有从页面读取的全文
+ *   raw/<handle>-detail-<id>.txt，且比截断版长，检查通过后合并进 <handle>.json
  */
 export function verifyStep(date: string, step: Step, opts: { noResponse?: string }): DoneCheck {
   const dir = rawDir(date);
@@ -140,8 +141,11 @@ export function verifyStep(date: string, step: Step, opts: { noResponse?: string
     const id = step.key.replace(/^detail-/, "");
     const name = files.find((f) => f.toLowerCase() === `${step.handle.toLowerCase()}-detail-${id}.json`);
     if (name) return { ok: true, message: `已保存 ${name}` };
-    if (opts.noResponse) return { ok: true, message: `未保存详情页响应：${opts.noResponse}` };
-    return { ok: false, message: `没有找到 raw/${step.handle}-detail-${id}.json。请把地址含 TweetDetail 的网络响应原样保存到这个文件后再运行。` };
+    if (opts.noResponse) return mergeDetailText(date, step.handle, id, opts.noResponse);
+    return {
+      ok: false,
+      message: `没有找到 raw/${step.handle}-detail-${id}.json。请把地址含 TweetDetail 的网络响应原样保存到这个文件后再运行。确实拿不到响应时，把页面上这条推文的完整正文保存到 raw/${step.handle}-detail-${id}.txt，再加 --no-response "原因" 运行。`,
+    };
   }
 
   const own = files.filter((f) => f.toLowerCase().startsWith(`${step.handle.toLowerCase()}-`) && !f.toLowerCase().includes("-detail-"));
@@ -175,6 +179,36 @@ export function verifyStep(date: string, step: Step, opts: { noResponse?: string
   if (!parsed.success) return { ok: false, message: `${step.handle}.json 格式不符：${parsed.error.issues[0]?.message ?? "格式错误"}` };
   if (!parsed.data.profile?.avatarUrl) return { ok: false, message: `${step.handle}.json 缺少 profile.avatarUrl（主页头像地址）。` };
   return { ok: true, message: `页面读取 ${parsed.data.tweets.length} 条推文（未保存网络响应：${opts.noResponse}）` };
+}
+
+/**
+ * 详情页拿不到网络响应时：读取采集端从页面保存的全文 raw/<handle>-detail-<id>.txt，
+ * 确认比账号文件里的截断版长，再写回 <handle>.json（textTruncated 改为 false）。
+ */
+export function mergeDetailText(date: string, handle: string, id: string, reason: string): DoneCheck {
+  const txt = join(rawDir(date), `${handle}-detail-${id}.txt`);
+  if (!existsSync(txt)) {
+    return {
+      ok: false,
+      message: `没有找到 raw/${handle}-detail-${id}.txt。请先点"显示更多"，把页面上这条推文正文元素（[data-testid="tweetText"]）的 textContent 原样保存到这个文件，再运行。`,
+    };
+  }
+  const full = cleanTweetText(readFileSync(txt, "utf8")).trim();
+  const file = join(inboxDir(date), `${handle}.json`);
+  const parsed = existsSync(file) ? InboxFile.safeParse(JSON.parse(readFileSync(file, "utf8"))) : undefined;
+  const tweet = parsed?.success ? parsed.data.tweets.find((t) => t.id === id) : undefined;
+  if (!parsed?.success || !tweet) return { ok: true, message: `已保存全文 ${full.length} 字，但 ${handle}.json 里没有这条推文，未合并（${reason}）` };
+  const before = cleanTweetText(tweet.text).replace(/[…\s]+$/, "");
+  if (full.length <= before.length) {
+    return {
+      ok: false,
+      message: `raw/${handle}-detail-${id}.txt 只有 ${full.length} 字，没有比截断版（${before.length} 字）更长。请确认已点开"显示更多"，读取的是这条推文完整的正文。`,
+    };
+  }
+  tweet.text = full;
+  tweet.textTruncated = false;
+  writeFileSync(file, `${JSON.stringify(parsed.data, null, 2)}\n`);
+  return { ok: true, message: `从页面读取全文 ${full.length} 字（原截断版 ${before.length} 字），已合并（未保存详情页响应：${reason}）` };
 }
 
 /** 完成一步，并按下一步的等待时间算出 nextAt */

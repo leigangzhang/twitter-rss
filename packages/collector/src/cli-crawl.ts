@@ -74,6 +74,9 @@ function printStep(p: Progress, step: Step): void {
 === 第 ${index}/${c.details} 个详情页：@${step.handle} ===
 1. 在同一个标签页打开 ${step.url}，不需要滚动，不要展开评论。
 2. 把地址含 TweetDetail 的网络响应原样保存到 ${raw}/${step.handle}-detail-${step.key.replace(/^detail-/, "")}.json
+   拿不到这个响应时（比如超过大小上限 body_limit）：有"显示更多"先点开，把这条推文正文元素 [data-testid="tweetText"] 的 textContent
+   原样保存到 ${raw}/${step.handle}-detail-${step.key.replace(/^detail-/, "")}.txt（纯文本，不要改写），
+   然后运行 pnpm crawl done ${step.key} --no-response "拿不到响应的原因"
 3. 完成后运行：pnpm crawl done ${step.key}
 遇到异常：pnpm crawl done ${step.key} --status rate_limited|captcha|login_required|error --error "页面上看到的提示"`);
   }

@@ -70,6 +70,13 @@ for (const [handle, files] of groups) {
     if (parsed.success) previous = parsed.data;
   }
   const keepStatus = previous && previous.status !== "ok";
+  // 只有详情页响应、没有时间线响应时（账号是从页面读取的）：不能用解析结果覆盖整个文件，
+  // 只把详情页里拿到的全文换进原来的推文，其余推文保留
+  const hasTimeline = files.some((p) => !/-detail-|-profile\.json$/i.test(p));
+  if (!hasTimeline && previous) {
+    const full = new Map(tweets.map((t) => [t.id, t]));
+    tweets.splice(0, tweets.length, ...previous.tweets.map((t) => full.get(t.id) ?? t));
+  }
   const file: InboxFile = {
     source: values.source!,
     collectedAt: new Date().toISOString(),
@@ -91,10 +98,25 @@ for (const [handle, files] of groups) {
   for (const s of skipped) console.warn(`  跳过 ${s.id ?? "?"}：${s.reason}`);
 }
 
-// 用量：主页按账号计（同一主页滚动产生的多个响应算一次打开），详情页按文件计
-const rawNames = existsSync(rawDir) ? readdirSync(rawDir).filter((n) => n.endsWith(".json")) : [];
-const detailPages = rawNames.filter((n) => n.includes("-detail-")).length;
-const timelinePages = new Set(rawNames.filter((n) => !n.includes("-detail-")).map((n) => n.split("-")[0]!.toLowerCase())).size;
+// 从页面读取的账号（没有网络响应）：账号文件里标了 textTruncated 的长推文也要补抓详情页
+const inboxNow = readInbox(date);
+for (const f of inboxNow.files) {
+  if (groups.has(f.handle.toLowerCase()) || f.status !== "ok") continue;
+  const inRangeTweets = f.tweets.filter((t) => inRange(t.createdAt));
+  const targets = detailTargets(inRangeTweets);
+  const byId = new Map(f.tweets.map((t) => [t.id, t]));
+  for (const t of targets) candidates.push({ ...t, handle: f.handle, engagement: engagement(byId.get(t.id)!) });
+  if (targets.length) console.log(`@${f.handle}（页面读取）：${targets.length} 条长推文需要补抓详情`);
+}
+
+// 用量：主页按账号计（同一主页滚动产生的多个响应算一次打开；页面读取的账号按账号文件计），
+// 详情页按文件计（网络响应 .json 或页面读取的全文 .txt）
+const rawNames = existsSync(rawDir) ? readdirSync(rawDir).filter((n) => n.endsWith(".json") || n.endsWith(".txt")) : [];
+const detailPages = new Set(rawNames.filter((n) => n.includes("-detail-")).map((n) => n.replace(/\.(json|txt)$/, ""))).size;
+const timelinePages = Math.max(
+  new Set(rawNames.filter((n) => !n.includes("-detail-") && n.endsWith(".json")).map((n) => n.split("-")[0]!.toLowerCase())).size,
+  inboxNow.files.length,
+);
 
 // 在剩余预算内安排补抓
 const crawl = config.crawl;

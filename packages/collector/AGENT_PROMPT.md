@@ -43,6 +43,9 @@
 - 账号主页：地址含 `UserOriginalsTimeline` 或 `UserTweets` 的 GraphQL 响应 → `raw/<handle>-1.json`，滚动后新出现的依次存 `-2.json`、`-3.json`……；
   地址含 `UserByScreenName` 的响应（账号资料，含头像）→ `raw/<handle>-profile.json`。前一天没发推的账号也要保存。
 - 详情页：地址含 `TweetDetail` 的响应 → `raw/<handle>-detail-<id>.json`。不需要滚动，不要展开评论。
+  拿不到这个响应时（例如超过 256 KiB 被标记为 body_limit）：有"显示更多"先点开，把这条推文正文元素
+  `[data-testid="tweetText"]` 的 `textContent` 原样保存为纯文本 `raw/<handle>-detail-<id>.txt`，
+  再运行 `pnpm -s crawl done <key> --no-response "原因"`。脚本会检查全文比截断版长，并合并进账号文件。
 
 **原样保存完整的响应正文（JSON），不要摘录、改写或自己整理成别的格式。** `crawl done` 会解析这些文件，内容不对不会通过。
 
