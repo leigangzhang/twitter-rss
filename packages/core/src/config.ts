@@ -55,7 +55,7 @@ const DigestFile = z.object({
     image: z.number().min(0).default(1),
     video: z.number().min(0).default(0.6),
   }),
-  video_mode: z.enum(["summary", "thumbnail"]).default("summary"),
+  video_mode: z.enum(["summary", "thumbnail"]).default("thumbnail"),
   thread: z.object({
     merge: z.boolean().default(true),
     max_parts: z.number().int().min(1).default(8),

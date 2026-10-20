@@ -26,7 +26,7 @@ media_weight:
   image: 1.0
   video: 0.6               # 视频降权
 
-video_mode: summary        # summary：只发文字说明 | thumbnail：缩略图 + 文字说明
+video_mode: thumbnail      # thumbnail：显示视频封面 | summary：不显示封面，只有一行"视频 · 时长"
 
 thread:
   merge: true              # 合并作者本人的连续推文

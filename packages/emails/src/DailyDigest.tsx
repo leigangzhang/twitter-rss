@@ -28,12 +28,12 @@ import { CompactItem, TweetCard } from "./TweetCard.tsx";
  */
 const foldCss = [
   ".xr-in,.xs{display:none!important}",
-  ".xs:checked ~ .xs-root .xr-l{display:inline-block!important;max-height:none!important}",
+  ".xs:checked ~ .xs-root .xr-l{display:inline!important}",
   ".xs:checked ~ .xs-root .xr-body{display:none}",
   ".xs:checked ~ .xs-root .xr-in:checked ~ .xr-body{display:block!important}",
   ".xr-c{display:none}",
-  ".xr-in:checked ~ .xr-l .xr-o{display:none}",
-  ".xr-in:checked ~ .xr-l .xr-c{display:inline}",
+  ".xr-in:checked ~ .xr-s .xr-o{display:none}",
+  ".xr-in:checked ~ .xr-s .xr-c{display:inline}",
 ].join("\n");
 
 /**
@@ -429,7 +429,7 @@ export function DailyDigest({
                     <br />
                   </>
                 )}
-                内容版权归原作者所有 · 翻译与视频说明由 AI 生成，可能有误
+                内容版权归原作者所有 · 翻译和摘要由 AI 生成，可能有误
                 <br />
                 你收到这封邮件是因为订阅了精选晨报
               </Text>

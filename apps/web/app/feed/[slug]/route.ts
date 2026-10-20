@@ -21,14 +21,16 @@ function cardHtml(c: CardView): string {
       ? `<p>${esc(c.parts[0]!).replace(/\n/g, "<br>")}${more}</p>`
       : c.parts.map((p, i) => `<p><small>${i + 1}/${total}</small> ${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
   const images = c.images.map((img) => `<p><a href="${esc(img.href)}"><img src="${esc(img.url)}" alt="${esc(img.alt ?? "")}"></a></p>`).join("");
-  const note = c.mediaNote ? `<blockquote><strong>视频说明（AI 生成）：</strong>${esc(c.mediaNote)}</blockquote>` : "";
+  const video = c.video
+    ? `<p>${c.video.thumbUrl ? `<a href="${esc(c.url)}"><img src="${esc(c.video.thumbUrl)}" alt="视频封面"></a><br>` : ""}▶ 视频${c.video.duration ? ` · ${esc(c.video.duration)}` : ""} · <a href="${esc(c.url)}">在 X 上播放</a></p>`
+    : "";
   const quoted = c.quoted
     ? `<blockquote><strong>${esc(c.quoted.name)}</strong> <a href="${esc(c.quoted.url)}">@${esc(c.quoted.handle)}</a><br>${c.quoted.summary ? `${esc(c.quoted.summary)}${c.quoted.points?.length ? `<ul>${c.quoted.points.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}` : `${esc(c.quoted.text)}${c.quoted.truncated ? "……" : ""}`}${c.quoted.article ? articleHtml(c.quoted.article) : ""}</blockquote>`
     : "";
   const linkTitle = c.link?.title ?? (c.link?.kind === "x_article" ? "在 X（原 Twitter）上阅读这篇长文" : undefined);
   const link = c.link && linkTitle ? `<p>🔗 <a href="${esc(c.link.url)}">${esc(linkTitle)}</a>${c.link.description ? `<br>${esc(c.link.description)}` : ""}</p>` : "";
   const meta = `<p><small>${c.categoryLabel ? `【${c.categoryLabel}】` : ""}@${esc(c.author.handle)}${c.translatedFrom ? ` · ${c.translatedFrom}` : ""} · ♡ ${c.likes} · ⇄ ${c.reposts} · <a href="${esc(c.url)}">${c.ctaLabel}</a></small></p>`;
-  return parts + images + note + quoted + (c.article ? articleHtml(c.article) : link) + meta;
+  return parts + images + video + quoted + (c.article ? articleHtml(c.article) : link) + meta;
 }
 
 export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }> }) {

@@ -336,32 +336,35 @@ function Note({
   );
 }
 
+/**
+ * 视频：显示封面，点开在 X 上播放（时长已在作者行，"在 X 上看视频"在底部）；不做 AI 说明。
+ * 没有封面时（video_mode: summary）补一行提示。
+ */
 function Video({ card }: { card: CardView }) {
   if (!card.video) return null;
+  if (!card.video.thumbUrl) {
+    return (
+      <p style={{ ...small, marginTop: 12 }}>
+        ▶ 附视频{card.video.duration ? `（${card.video.duration}）` : ""}，请在
+        X 上观看
+      </p>
+    );
+  }
   return (
-    <>
-      {card.video.thumbUrl ? (
-        <a href={card.url} style={{ display: "block", marginTop: 14 }}>
-          <img
-            src={card.video.thumbUrl}
-            alt="视频封面，点开在 X（原 Twitter）上观看"
-            width={CONTENT_WIDTH}
-            style={{
-              width: "100%",
-              maxWidth: CONTENT_WIDTH,
-              height: "auto",
-              borderRadius: 8,
-              display: "block",
-            }}
-          />
-        </a>
-      ) : null}
-      {card.mediaNote ? (
-        <Note label="视频讲了什么（AI 生成）">
-          <p style={noteText}>{card.mediaNote}</p>
-        </Note>
-      ) : null}
-    </>
+    <a href={card.url} style={{ display: "block", marginTop: 14 }}>
+      <img
+        src={card.video.thumbUrl}
+        alt="视频封面，点开在 X（原 Twitter）上播放"
+        width={CONTENT_WIDTH}
+        style={{
+          width: "100%",
+          maxWidth: CONTENT_WIDTH,
+          height: "auto",
+          borderRadius: 8,
+          display: "block",
+        }}
+      />
+    </a>
   );
 }
 
@@ -547,13 +550,10 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
         </div>
         {summary ? (
           <>
-            <p style={summaryText}>
-              <span style={aiTag}>AI 摘要</span>
-              {summary}
-            </p>
             {/*
-              原文折叠：隐藏的复选框 + 标签。只在支持的邮箱（苹果邮件等）生效，见 DailyDigest 里的 foldCss；
+              原文折叠：隐藏的复选框 + 摘要末尾的"展开原文"。只在支持的邮箱（苹果邮件等）生效，见 DailyDigest 里的 foldCss；
               不支持的邮箱（Gmail、QQ 网页版）看不到"展开原文"，原文直接显示在摘要下面。
+              复选框放在摘要段落前面，CSS 才能用 ~ 选中后面的段落和原文。
             */}
             <input
               type="checkbox"
@@ -561,26 +561,28 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
               className="xr-in"
               style={{ display: "none", msoHide: "all" } as CSSProperties}
             />
-            <label
-              htmlFor={`xr-${card.id}`}
-              className="xr-l"
-              style={
-                {
-                  display: "none",
-                  maxHeight: 0,
-                  overflow: "hidden",
-                  fontSize: 14,
-                  lineHeight: "22px",
-                  color: color.link,
-                  fontWeight: 700,
-                  marginTop: 8,
-                  cursor: "pointer",
-                } as CSSProperties
-              }
-            >
-              <span className="xr-o">展开原文 ▾</span>
-              <span className="xr-c">收起原文 ▴</span>
-            </label>
+            <p className="xr-s" style={summaryText}>
+              <span style={aiTag}>AI 摘要</span>
+              {summary}
+              <label
+                htmlFor={`xr-${card.id}`}
+                className="xr-l"
+                style={
+                  {
+                    display: "none",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: color.link,
+                    marginLeft: 8,
+                    whiteSpace: "nowrap",
+                    cursor: "pointer",
+                  } as CSSProperties
+                }
+              >
+                <span className="xr-o">展开原文 ▾</span>
+                <span className="xr-c">收起原文 ▴</span>
+              </label>
+            </p>
             <div className="xr-body" style={{ marginTop: 12 }}>
               <Body card={card} />
             </div>

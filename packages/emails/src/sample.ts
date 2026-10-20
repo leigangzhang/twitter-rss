@@ -153,7 +153,7 @@ const samples: Array<{ topicId: string; raw: unknown; ai: AiResult; article?: Li
       topicId: "crypto",
       reason: "完整流程演示",
       zh: { text: "从头到尾演示了我们在主网上线前如何审计一份智能合约。", thread: [] },
-      mediaNote: "作者演示合约上线前的完整审计流程：静态扫描、权限检查、模糊测试，以及如何整理审计报告。",
+      mediaNote: null,
     },
   },
   {
@@ -193,7 +193,7 @@ export function sampleDigest(lang: Lang): DigestView {
     const raw = RawTweet.parse(s.raw);
     return toCardView(
       { id: raw.id, topicId: s.topicId, kind: mediaKind(raw), raw, ai: s.ai, article: s.article },
-      { lang, timezone: tz, videoMode: "summary", maxThreadParts: 8, now },
+      { lang, timezone: tz, videoMode: "thumbnail", maxThreadParts: 8, now },
     );
   });
   const groups = topics.map((topic) => ({ topic, items: cards.filter((c) => c.topicId === topic.id) }));

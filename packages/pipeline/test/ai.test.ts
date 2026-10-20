@@ -111,18 +111,13 @@ describe("createLlmReviewer（DeepSeek Anthropic 兼容接口）", () => {
     expect(JSON.stringify(requests[0]!.body.messages)).not.toContain("p.jpg");
   });
 
-  it("视频封面送给模型写视频说明；封面请求失败时退回纯文字评审", async () => {
+  it("图片和视频封面都不送给模型，mediaNote 一律为空", async () => {
     requests.length = 0;
     const withVideo = { ...tweet, media: [{ type: "video" as const, url: "https://example.com/cover.jpg" }] };
-    await createLlmReviewer({ apiKey: "sk-test", baseURL }).review(withVideo, [{ id: "ai", name: "AI" }]);
-    expect(requests[0]!.body.messages[0].content[0]).toEqual({ type: "image", source: { type: "url", url: "https://example.com/cover.jpg" } });
-    requests.length = 0;
-    rejectImages = true;
     const result = await createLlmReviewer({ apiKey: "sk-test", baseURL }).review(withVideo, [{ id: "ai", name: "AI" }]);
-    rejectImages = false;
-    expect(result).toMatchObject({ quality: 4, scale: 5 });
-    expect(requests).toHaveLength(2);
-    expect(requests[1]!.body.messages[0].content.every((b: any) => b.type === "text")).toBe(true);
+    expect(JSON.stringify(requests[0]!.body.messages)).not.toContain("cover.jpg");
+    expect(typeof requests[0]!.body.messages[0].content).toBe("string");
+    expect(result.mediaNote).toBeNull();
   });
 
   it("没有 API Key 时给出明确提示", () => {
@@ -300,11 +295,6 @@ describe("OpenAI 兼容接口", () => {
     calls.length = 0;
     await reviewer.review(tweet, [{ id: "ai", name: "AI" }]);
     expect(calls).toHaveLength(1);
-
-    // 视频封面按 OpenAI 格式放进 image_url
-    calls.length = 0;
-    await reviewer.review({ ...tweet, media: [{ type: "video", url: "https://example.com/cover.jpg" }] }, [{ id: "ai", name: "AI" }]);
-    expect(calls[0]!.body.messages[1].content[0]).toEqual({ type: "image_url", image_url: { url: "https://example.com/cover.jpg" } });
   });
 
   it("模型把 JSON 写在正文里时也能解析", async () => {

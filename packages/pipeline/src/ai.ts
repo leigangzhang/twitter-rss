@@ -43,8 +43,7 @@ ${guide || DEFAULT_GUIDE}
 6. reason：用一句中文说明你的判断理由，指出它属于哪类、具体价值在哪里，或者为什么剔除。
 7. 如果原文不是中文，把正文、Thread 后续部分、引用推文、链接标题和简介翻译成自然流畅的简体中文，填进 zh；
    保留专有名词、代码、数字和 @账号，不添加原文没有的内容。原文已是中文时 zh 为 null。drop 的内容也要照常翻译。
-8. 如果有视频，用一两句中文写 mediaNote，说明视频展示了什么；只根据你能看到的视频封面和推文内容来写，
-   不确定时说"根据封面和推文推测"。图片不需要说明；没有视频时 mediaNote 为 null。
+8. mediaNote 一律填 null（图片和视频都不需要说明）。
 9. 引用推文（quoted）较长（超过约 140 个汉字或 280 个英文字符），或 quoted.truncated 为 true（时间线只给了前一部分）时，
    填 quotedDigest：summary 用 1–2 句中文说清它讲了什么，points 列 2–4 条具体要点（做法、数据、结论）；
    被截断时只概括能看到的部分，不要猜测或补全没看到的内容。引用很短、或没有引用时 quotedDigest 为 null。
@@ -357,38 +356,21 @@ function extractJson(content: unknown): string | undefined {
  * 逐条评审：判断类型和去留、打分、写摘要、翻译、媒体说明。
  * 默认走 DeepSeek（deepseek-flash），通过 .env 的 LLM_API / LLM_BASE_URL / LLM_MODEL / LLM_API_KEY 可以换成其他兼容 Anthropic 或 OpenAI 接口的服务。
  */
-/** 送给模型看的视频（含 GIF）封面，最多 2 张 */
-function videoCovers(tweet: RawTweet): string[] {
-  return tweet.media.filter((m) => m.type !== "photo").slice(0, 2).map((m) => m.url);
-}
-
 export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
   const client = createClient(opts);
   const system = reviewSystemPrompt(opts.guide ?? "");
   const schema = z.toJSONSchema(ReviewOutput, { io: "input" }) as Record<string, unknown>;
 
-  function call(tweet: RawTweet, topics: Pick<Topic, "id" | "name">[], withImages: boolean, article?: LinkDigest) {
-    return client.callTool({
-      system,
-      // 只把视频封面给模型看，用于生成视频说明；图片不做识别（节省 token）
-      images: withImages ? videoCovers(tweet) : [],
-      text: `候选主题：${JSON.stringify(topics)}\n\n推文：\n${JSON.stringify(tweetPayload(tweet, article), null, 2)}`,
-      tool: { name: REVIEW_TOOL, description: "提交对这条推文的评审结果", schema },
-      maxTokens: 3000,
-      temperature: 0.2,
-    });
-  }
-
   return {
     async review(tweet, topics, article) {
-      let output: unknown;
-      try {
-        output = await call(tweet, topics, true, article);
-      } catch (e) {
-        // 封面读取失败或模型不接受图片时，退回纯文字评审，不让一张封面拖垮整条推文
-        if (videoCovers(tweet).length === 0) throw e;
-        output = await call(tweet, topics, false, article);
-      }
+      // 只送文字：图片和视频都不做识别（邮件里视频只显示封面），节省 token
+      const output = await client.callTool({
+        system,
+        text: `候选主题：${JSON.stringify(topics)}\n\n推文：\n${JSON.stringify(tweetPayload(tweet, article), null, 2)}`,
+        tool: { name: REVIEW_TOOL, description: "提交对这条推文的评审结果", schema },
+        maxTokens: 3000,
+        temperature: 0.2,
+      });
       const parsed = ReviewOutput.safeParse(output);
       if (!parsed.success) throw new Error(`评审结果格式不符：${z.prettifyError(parsed.error)}`);
       return normalizeReview({ ...parsed.data, scale: 5 }, tweet, topics);
@@ -400,7 +382,7 @@ export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
 export function normalizeReview(r: AiResult, tweet: RawTweet, topics: Pick<Topic, "id">[]): AiResult {
   const result = { ...r };
   if (!topics.some((t) => t.id === result.topicId)) result.topicId = topics[0]!.id;
-  if (!tweet.media.some((m) => m.type !== "photo")) result.mediaNote = null;
+  result.mediaNote = null;
   if (tweet.lang?.startsWith("zh")) result.zh = null;
   // 没有引用、或引用很短且完整时不需要摘要，直接显示原文
   const quotedText = tweet.quoted ? cleanTweetText(tweet.quoted.text) : "";

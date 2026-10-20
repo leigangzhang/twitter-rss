@@ -74,7 +74,7 @@ export async function buildPreviewSnapshot(db: Db, config: AppConfig, opts: { co
     const topicId = effectiveTopicId(config, r.topicId, r.handle) ?? config.topics[0]!.id;
     const topic = config.topics.find((t) => t.id === topicId)!;
     const view = (lang: "zh" | "orig") =>
-      toCardView({ id: r.id, topicId, kind: r.kind, raw: r.raw, ai: r.ai }, { lang, timezone: tz, videoMode: "summary", maxThreadParts: 3, now });
+      toCardView({ id: r.id, topicId, kind: r.kind, raw: r.raw, ai: r.ai }, { lang, timezone: tz, videoMode: "thumbnail", maxThreadParts: 3, now });
     const zh = view("zh");
     return {
       id: r.id,
