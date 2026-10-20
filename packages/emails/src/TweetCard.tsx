@@ -542,7 +542,6 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
           fontSize: 14,
           fontWeight: 400,
           color: color.link,
-          marginLeft: 8,
           whiteSpace: "nowrap",
           cursor: "pointer",
         } as CSSProperties
@@ -579,19 +578,18 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
               className="xr-in"
               style={{ display: "none", msoHide: "all" } as CSSProperties}
             />
-            {/* 摘要：结论一句（稍重），要点悬挂缩进；"展开原文"跟在最后一行后面 */}
+            {/* 摘要：结论一句（稍重），要点悬挂缩进；"展开原文"单独一行（不支持折叠的邮箱里这一行是空的） */}
             <div className="xr-s" style={summaryBox}>
               <p style={summaryLead}>
                 <span style={aiTag}>AI 摘要</span>
                 {summary.lead}
-                {summary.points.length ? null : toggle}
               </p>
               {summary.points.map((p, i) => (
                 <p key={i} style={{ ...summaryLine, color: color.body, marginTop: 4, paddingLeft: 14, textIndent: -14 }}>
                   · {p}
-                  {i === summary.points.length - 1 ? toggle : null}
                 </p>
               ))}
+              <p style={{ fontSize: 14, lineHeight: "22px", margin: "6px 0 0" }}>{toggle}</p>
             </div>
             <div className="xr-body" style={{ marginTop: 16 }}>
               <Body card={card} />
