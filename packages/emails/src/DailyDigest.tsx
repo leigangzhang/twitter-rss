@@ -35,51 +35,56 @@ const foldCss = [
  * 支持的邮箱（如苹果邮件）点标签切换主题；不支持或删掉表单元素的邮箱（如 Gmail），
  * 标签栏保持隐藏，显示原来的主题目录，各主题依次展开，和不开标签页时一样。
  */
-function tabsCss(count: number): string {
-  const ids = Array.from({ length: count }, (_, i) => i + 1);
-  const active = `background:${color.ink}!important;color:#FFFFFF!important;border-color:${color.ink}!important`;
+function tabsCss(topicColors: string[]): string {
+  const ids = topicColors.map((_, i) => i + 1);
+  // 选中项：深色粗体，下划线用该主题的颜色（和正文里主题标题下的色线一致）
+  const active = (c: string) =>
+    `color:${color.ink}!important;font-weight:700!important;border-bottom-color:${c}!important`;
   return [
     ".xt-in{display:none!important}",
     ".xt-in:checked ~ .xt-bar{display:block!important;max-height:none!important;overflow:visible!important}",
     ".xt-in:checked ~ .xt-toc{display:none!important}",
     ".xt-in:checked ~ .xt-probe .xt-yes{display:block!important;max-height:none!important}",
     ".xt-in:checked ~ .xt-probe .xt-no{display:none!important}",
-    `#xt-all:checked ~ .xt-bar .xt-l-all{${active}}`,
+    `#xt-all:checked ~ .xt-bar .xt-l-all{${active(color.ink)}}`,
     ...ids.flatMap((i) => [
       `#xt-${i}:checked ~ .xt-panels .xt-p{display:none!important}`,
       `#xt-${i}:checked ~ .xt-panels .xt-p-${i}{display:block!important}`,
-      `#xt-${i}:checked ~ .xt-bar .xt-l-${i}{${active}}`,
+      `#xt-${i}:checked ~ .xt-bar .xt-l-${i}{${active(topicColors[i - 1]!)}}`,
     ]),
     ".xt-l{cursor:pointer}",
+    // 手机上标签栏不换行，左右滑动（只在支持标签页的邮箱里出现，例如 iPhone 邮件）
+    `@media (max-width:${MOBILE_BREAKPOINT}px){.xt-bar .xnr{white-space:nowrap!important;overflow-x:auto!important;max-width:calc(100vw - 40px)!important;-webkit-overflow-scrolling:touch}.xt-bar .xt-l{margin-right:16px!important}}`,
   ].join("\n");
 }
 
 // 主题切换：浅灰底的圆角按钮，选中时深色
+// 主题导航：一行纯文字链接（不用色块按钮），换行时读起来仍是文字，不会堆成几排方块
 const tabLabel = {
   display: "inline-block",
-  borderRadius: 8,
-  border: `1px solid ${color.chip}`,
-  padding: "6px 12px",
-  margin: "0 6px 8px 0",
+  padding: "6px 0 5px",
+  margin: "0 20px 0 0",
   fontSize: 14,
   lineHeight: "20px",
-  color: color.ink,
-  backgroundColor: color.chip,
+  color: color.muted,
+  borderBottom: "2px solid transparent",
+  textDecoration: "none",
+  whiteSpace: "nowrap",
 } as const;
 
-const dot = (c: string) => (
-  <span
-    style={{
-      display: "inline-block",
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: c,
-      marginRight: 6,
-      verticalAlign: "1px",
-    }}
-  />
+/** 导航项：主题名 + 浅色条数 */
+const navText = (name: string, count: number) => (
+  <>
+    {name}
+    <span style={{ color: color.faint, marginLeft: 4 }}>{count}</span>
+  </>
 );
+
+/** 导航外层：下方一条细线，和正文分开 */
+const navRow = {
+  borderBottom: `1px solid ${color.line}`,
+  lineHeight: "20px",
+} as const;
 
 export function DailyDigest({
   view,
@@ -104,7 +109,7 @@ export function DailyDigest({
         {/* 手机和窄窗口：左右留白 32→20px，标题小一号 */}
         <style
           dangerouslySetInnerHTML={{
-            __html: `body{margin:0!important}@media (max-width:${MOBILE_BREAKPOINT}px){.xc{padding-left:20px!important;padding-right:20px!important}.xn{padding:10px 12px!important}.xh{font-size:22px!important;line-height:30px!important}}\n${foldCss}${tabs ? `\n${tabsCss(view.groups.length)}` : ""}`,
+            __html: `body{margin:0!important}@media (max-width:${MOBILE_BREAKPOINT}px){.xc{padding-left:20px!important;padding-right:20px!important}.xn{padding:10px 12px!important}.xh{font-size:22px!important;line-height:30px!important}}\n${foldCss}${tabs ? `\n${tabsCss(view.groups.map((g) => g.topic.color))}` : ""}`,
           }}
         />
       </Head>
@@ -203,12 +208,18 @@ export function DailyDigest({
                 {view.lang === "zh" ? " · 中文版（AI 翻译）" : " · 原文版"}
               </Text>
               {tabs ? null : (
-                <div>
-                  {view.groups.map((g) => (
-                    <span key={g.topic.id} style={tabLabel}>
-                      {dot(g.topic.color)}
-                      {g.topic.name} {g.items.length + (g.compact?.length ?? 0)}
-                    </span>
+                <div style={navRow}>
+                  {view.groups.map((g, i) => (
+                    <a
+                      key={g.topic.id}
+                      href={`#xt-p-${i + 1}`}
+                      style={tabLabel}
+                    >
+                      {navText(
+                        g.topic.name,
+                        g.items.length + (g.compact?.length ?? 0),
+                      )}
+                    </a>
                   ))}
                 </div>
               )}
@@ -280,42 +291,50 @@ export function DailyDigest({
                       display: "none",
                       maxHeight: 0,
                       overflow: "hidden",
-                      padding: "0 32px 8px",
+                      padding: "0 32px",
                       msoHide: "all",
                     } as React.CSSProperties
                   }
                 >
-                  <label
-                    htmlFor="xt-all"
-                    className="xt-l xt-l-all"
-                    style={tabLabel}
-                  >
-                    全部 {view.total}
-                  </label>
-                  {view.groups.map((g, i) => (
+                  <div className="xnr" style={navRow}>
                     <label
-                      key={g.topic.id}
-                      htmlFor={`xt-${i + 1}`}
-                      className={`xt-l xt-l-${i + 1}`}
+                      htmlFor="xt-all"
+                      className="xt-l xt-l-all"
                       style={tabLabel}
                     >
-                      {dot(g.topic.color)}
-                      {g.topic.name} {g.items.length + (g.compact?.length ?? 0)}
+                      {navText("全部", view.total)}
                     </label>
-                  ))}
+                    {view.groups.map((g, i) => (
+                      <label
+                        key={g.topic.id}
+                        htmlFor={`xt-${i + 1}`}
+                        className={`xt-l xt-l-${i + 1}`}
+                        style={tabLabel}
+                      >
+                        {navText(
+                          g.topic.name,
+                          g.items.length + (g.compact?.length ?? 0),
+                        )}
+                      </label>
+                    ))}
+                  </div>
                 </div>
                 {/* 目录：不支持标签页的邮箱显示，点击跳到对应主题 */}
-                <div className="xt-toc xc" style={{ padding: "0 32px 8px" }}>
-                  {view.groups.map((g, i) => (
-                    <a
-                      key={g.topic.id}
-                      href={`#xt-p-${i + 1}`}
-                      style={{ ...tabLabel, textDecoration: "none" }}
-                    >
-                      {dot(g.topic.color)}
-                      {g.topic.name} {g.items.length + (g.compact?.length ?? 0)}
-                    </a>
-                  ))}
+                <div className="xt-toc xc" style={{ padding: "0 32px" }}>
+                  <div style={navRow}>
+                    {view.groups.map((g, i) => (
+                      <a
+                        key={g.topic.id}
+                        href={`#xt-p-${i + 1}`}
+                        style={tabLabel}
+                      >
+                        {navText(
+                          g.topic.name,
+                          g.items.length + (g.compact?.length ?? 0),
+                        )}
+                      </a>
+                    ))}
+                  </div>
                 </div>
                 <div className="xt-panels">
                   {view.groups.map((g, i) => (
@@ -330,8 +349,10 @@ export function DailyDigest({
                 </div>
               </div>
             ) : (
-              view.groups.map((g) => (
-                <TopicSection key={g.topic.id} group={g} />
+              view.groups.map((g, i) => (
+                <div key={g.topic.id} id={`xt-p-${i + 1}`}>
+                  <TopicSection group={g} />
+                </div>
               ))
             )}
 
