@@ -51,7 +51,7 @@ export async function renderDigest(view: DigestView, opts: DigestRenderOptions =
     const fullest = candidates.reduce((a, b) => (b.items.length > a.items.length ? b : a));
     // 一次挪动的条数按超出的比例估算，减少重复渲染
     const over = Buffer.byteLength(email.html) - opts.maxBytes;
-    const step = Math.max(1, Math.min(fullest.items.length - 1, Math.ceil(over / 3500)));
+    const step = Math.max(1, Math.min(fullest.items.length - 1, Math.ceil(over / 2000)));
     current = {
       ...current,
       groups: current.groups.map((g) =>

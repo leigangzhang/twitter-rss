@@ -29,18 +29,17 @@ function tabsCss(count: number): string {
   ].join("\n");
 }
 
-// 仿 X 的胶囊按钮：描边、粗体，选中时黑底白字
+// 主题切换：浅灰底的圆角按钮，选中时深色
 const tabLabel = {
   display: "inline-block",
-  border: `1px solid ${color.frame}`,
-  borderRadius: 999,
-  padding: "5px 14px",
+  borderRadius: 8,
+  border: `1px solid ${color.chip}`,
+  padding: "6px 12px",
   margin: "0 6px 8px 0",
   fontSize: 14,
   lineHeight: "20px",
-  fontWeight: 700,
   color: color.ink,
-  backgroundColor: "#FFFFFF",
+  backgroundColor: color.chip,
 } as const;
 
 const dot = (c: string) => <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 4, backgroundColor: c, marginRight: 6, verticalAlign: "1px" }} />;
@@ -57,14 +56,14 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
       <Head>
         {/* 没有 viewport 时 iPhone 邮件按桌面宽度排版，手机样式不会生效 */}
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        {/* 600px 以下（手机、窄窗口）：去掉外框和灰底、铺满屏幕，左右留白和头像间距收窄，标题小一号 */}
-        <style dangerouslySetInnerHTML={{ __html: `body{margin:0!important}@media (max-width:600px){.xb,.xb>table>tbody>tr>td{padding:0!important;background-color:#FFFFFF!important}.xw{border:0!important;border-radius:0!important;max-width:100%!important}.xc{padding-left:12px!important;padding-right:12px!important}.xa{width:48px!important;min-width:48px!important}.xa3{width:27px!important;min-width:27px!important}.xq{padding:10px!important}.xh{font-size:20px!important;line-height:26px!important}}${tabs ? `\n${tabsCss(view.groups.length)}` : ""}` }} />
+        {/* 手机和窄窗口：左右留白 32→20px，标题小一号 */}
+        <style dangerouslySetInnerHTML={{ __html: `body{margin:0!important}@media (max-width:640px){.xc{padding-left:20px!important;padding-right:20px!important}.xn{padding:10px 12px!important}.xh{font-size:22px!important;line-height:30px!important}}${tabs ? `\n${tabsCss(view.groups.length)}` : ""}` }} />
       </Head>
       <Preview>{preview}</Preview>
-      <Body className="xb" style={{ backgroundColor: color.ground, fontFamily: font.sans, color: color.ink, margin: 0, padding: "16px 0", WebkitTextSizeAdjust: "100%" }}>
-        <Container className="xw" style={{ width: "100%", maxWidth: MAIL_WIDTH, backgroundColor: color.card, border: `1px solid ${color.line}`, borderRadius: 16, overflow: "hidden", fontFamily: font.sans }}>
+      <Body style={{ backgroundColor: color.ground, fontFamily: font.sans, color: color.ink, margin: 0, padding: 0, WebkitTextSizeAdjust: "100%" }}>
+        <Container style={{ width: "100%", maxWidth: MAIL_WIDTH, backgroundColor: color.card, fontFamily: font.sans }}>
           {/* 头部 */}
-          <Section className="xc" style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${color.line}` }}>
+          <Section className="xc" style={{ padding: "28px 32px 20px" }}>
             <Row>
               <Column>
                 <span
@@ -90,8 +89,8 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
                 <Text style={{ fontSize: 13, color: color.muted, margin: 0 }}>{view.dateLabel}</Text>
               </Column>
             </Row>
-            <Text className="xh" style={{ fontSize: 23, fontWeight: 800, lineHeight: "28px", color: color.ink, margin: "16px 0 4px" }}>{view.periodLabel ? `${view.periodLabel}值得读的 ${view.total} 条` : `今天值得读的 ${view.total} 条`}</Text>
-            <Text style={{ fontSize: 15, lineHeight: "20px", color: color.muted, margin: "0 0 12px" }}>
+            <Text className="xh" style={{ fontSize: 26, fontWeight: 800, lineHeight: "34px", color: color.ink, margin: "20px 0 8px" }}>{view.periodLabel ? `${view.periodLabel}值得读的 ${view.total} 条` : `今天值得读的 ${view.total} 条`}</Text>
+            <Text style={{ fontSize: 14, lineHeight: "22px", color: color.muted, margin: "0 0 16px" }}>
               来自你订阅的 {view.topicCount} 个主题、{view.accountCount} 位 X（原 Twitter）博主 · 从{view.periodLabel ? `${view.periodLabel}发布的 ` : " "}{view.scannedCount} 条新推文中筛选
               {view.lang === "zh" ? " · 中文版（AI 翻译）" : " · 原文版"}
             </Text>
@@ -114,7 +113,7 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
                 <input key={g.topic.id} type="radio" name="xt" id={`xt-${i + 1}`} className="xt-in" style={{ display: "none", msoHide: "all" } as React.CSSProperties} />
               ))}
               {probe ? (
-                <div className="xt-probe" style={{ margin: "12px 16px 0", padding: "12px 16px", borderRadius: 16, backgroundColor: color.note, fontSize: 13, lineHeight: "20px" }}>
+                <div className="xt-probe" style={{ margin: "0 32px 12px", padding: "12px 16px", borderRadius: 8, backgroundColor: color.note, fontSize: 13, lineHeight: "20px" }}>
                   <div className="xt-yes" style={{ display: "none", maxHeight: 0, overflow: "hidden", color: "#22663D", fontWeight: 700 } as React.CSSProperties}>
                     ✓ 这个邮箱支持标签页：点下面的主题可以切换
                   </div>
@@ -124,7 +123,7 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
                 </div>
               ) : null}
               {/* 标签栏：默认隐藏，支持的邮箱才显示 */}
-              <div className="xt-bar xc" style={{ display: "none", maxHeight: 0, overflow: "hidden", padding: "12px 16px 4px", borderBottom: `1px solid ${color.line}`, msoHide: "all" } as React.CSSProperties}>
+              <div className="xt-bar xc" style={{ display: "none", maxHeight: 0, overflow: "hidden", padding: "0 32px 8px", msoHide: "all" } as React.CSSProperties}>
                 <label htmlFor="xt-all" className="xt-l xt-l-all" style={tabLabel}>
                   全部 {view.total}
                 </label>
@@ -136,7 +135,7 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
                 ))}
               </div>
               {/* 目录：不支持标签页的邮箱显示，点击跳到对应主题 */}
-              <div className="xt-toc xc" style={{ padding: "12px 16px 4px", borderBottom: `1px solid ${color.line}` }}>
+              <div className="xt-toc xc" style={{ padding: "0 32px 8px" }}>
                 {view.groups.map((g, i) => (
                   <a key={g.topic.id} href={`#xt-p-${i + 1}`} style={{ ...tabLabel, textDecoration: "none" }}>
                     {dot(g.topic.color)}
@@ -157,7 +156,7 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
           )}
 
           {/* 页脚 */}
-          <Section className="xc" style={{ backgroundColor: color.footer, padding: "20px 16px 24px", borderTop: `1px solid ${color.line}`, textAlign: "center" }}>
+          <Section className="xc" style={{ backgroundColor: color.footer, padding: "24px 32px 28px", marginTop: 24, textAlign: "center" }}>
             <Text style={{ fontSize: 13, margin: "0 0 8px" }}>
               <Link href={view.links.manage} style={{ color: color.link }}>管理订阅主题</Link>
               {"　"}
@@ -189,16 +188,19 @@ function TopicSection({ group: g }: { group: DigestView["groups"][number] }) {
   return (
     <div>
       {/* 主题标题：不用多列表格，避免部分网页邮箱把标题挤成竖排 */}
-      {/* 主题标题：仿 X 的分区标题（20px 粗体），左侧一条主题色竖条 */}
-      <div className="xc" style={{ padding: "14px 16px 12px", borderBottom: `1px solid ${color.line}`, backgroundColor: color.ground }}>
-        <p style={{ fontSize: 20, fontWeight: 800, lineHeight: "24px", color: color.ink, margin: 0, borderLeft: `4px solid ${g.topic.color}`, paddingLeft: 10 }}>{g.topic.name}</p>
+      {/* 主题标题：主题色粗线 + 名称和条数，像书的章节开头 */}
+      <div className="xc" style={{ padding: "28px 32px 0" }}>
+        <p style={{ fontSize: 20, fontWeight: 800, lineHeight: "28px", color: color.ink, margin: 0, paddingBottom: 10, borderBottom: `3px solid ${g.topic.color}` }}>
+          {g.topic.name}
+          <span style={{ fontSize: 14, fontWeight: 400, color: color.muted }}>{`　${g.items.length + (g.compact?.length ?? 0)} 条`}</span>
+        </p>
       </div>
       {g.items.map((card, i) => (
         <TweetCard key={card.id} card={card} last={i === g.items.length - 1 && !g.compact?.length} />
       ))}
       {g.compact?.length ? (
-        <div className="xc" style={{ padding: "12px 16px 6px", borderTop: `1px solid ${color.line}` }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: color.muted, margin: "0 0 8px" }}>还有 {g.compact.length} 条，篇幅所限只列摘要</p>
+        <div className="xc" style={{ padding: "20px 32px 8px", borderTop: `1px solid ${color.line}` }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: color.muted, margin: "0 0 12px" }}>还有 {g.compact.length} 条，篇幅所限只列摘要</p>
           {g.compact.map((card) => (
             <CompactItem key={card.id} card={card} />
           ))}

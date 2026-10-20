@@ -1,37 +1,35 @@
 /**
- * 颜色、字体和尺寸，尽量贴近 X（原 Twitter）网页版时间线：
- * 600px 宽的单栏、15px 正文、#0F1419 主文字、#536471 次要文字、#EFF3F4 分隔线、#1D9BF0 链接。
- * 邮件客户端不保证加载网页字体，使用和 X 相同的系统字体栈，再补上中文字体。
+ * 邮件的颜色、字体和尺寸。为阅读而设计：白底单栏、16px 正文、适合中文的 1.75 倍行距，
+ * 不给每条内容套边框，让正文在任何设备上都占满可用宽度。
+ * 邮件客户端不保证加载网页字体，使用系统字体栈（苹方优先）。
  */
 export const color = {
-  ground: "#F7F9F9",
+  ground: "#FFFFFF",
   card: "#FFFFFF",
-  ink: "#0F1419",
-  body: "#0F1419",
-  muted: "#536471",
-  faint: "#8B98A5",
-  line: "#EFF3F4",
-  lineSoft: "#EFF3F4",
-  /** 引用框、图片描边、Thread 连接线 */
-  frame: "#CFD9DE",
-  note: "#F7F9F9",
-  chip: "#EFF3F4",
+  ink: "#16191D",
+  body: "#2A2F36",
+  muted: "#6A717B",
+  faint: "#9AA1AA",
+  line: "#E8EAEE",
+  lineSoft: "#F0F1F4",
+  /** 引用左侧竖线 */
+  rule: "#D5D9DF",
+  /** AI 说明等辅助信息的底色 */
+  note: "#F5F6F8",
+  chip: "#F1F3F5",
   placeholder: "#E9ECF0",
-  footer: "#F7F9F9",
-  link: "#1D9BF0",
-  linkSoft: "#E8F5FD",
+  footer: "#F7F8FA",
+  link: "#2F5BD3",
 };
 
 export const font = {
-  sans: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif',
+  sans: '-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Segoe UI","Microsoft YaHei","Noto Sans SC",Roboto,Helvetica,Arial,sans-serif',
   mono: "Menlo,Consolas,monospace",
 };
 
-/** 邮件宽度（与 X 时间线一致） */
-export const MAIL_WIDTH = 600;
-/** 卡片左右留白 */
-export const GUTTER = 16;
-/** 头像栏：40px 头像 + 12px 间距 */
-export const AVATAR_COL = 52;
-/** 正文栏宽度：600 - 左右留白 - 头像栏 */
-export const CONTENT_WIDTH = MAIL_WIDTH - GUTTER * 2 - AVATAR_COL;
+/** 邮件最大宽度：桌面端每行约 36 个汉字，长段落读起来不累 */
+export const MAIL_WIDTH = 640;
+/** 左右留白（桌面）；手机上由媒体查询改为 20px */
+export const GUTTER = 32;
+/** 正文宽度 */
+export const CONTENT_WIDTH = MAIL_WIDTH - GUTTER * 2;

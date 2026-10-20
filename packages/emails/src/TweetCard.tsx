@@ -1,20 +1,43 @@
 /** @jsxRuntime automatic @jsxImportSource react */
 // 本包也会被其他包的 tsx 进程直接加载，这里显式指定 JSX 运行时
 //
-// 版式贴近 X（原 Twitter）时间线：左边 40px 头像，正文缩进在头像右侧；名字、@账号、时间在一行；
-// Thread 用头像下方的竖线串起来；图片和引用是 16px 圆角的描边框；底部是灰色的互动数据。
+// 为阅读设计的条目版式：
+// - 长推文先给一行 AI 摘要做标题，方便扫读；短推文直接看正文
+// - 头像放在作者行里，正文占满整栏宽度（不在左侧留头像栏），手机上也不显窄
+// - 不给条目、引用套边框：引用用左侧竖线，AI 说明用浅灰底，层级靠字号和颜色区分
 // 为了控制邮件体积（Gmail 超过约 102KB 会折叠末尾），样式只写必要的属性，字体从外层继承。
 import type { ArticleView, CardView } from "@xrss/core";
 import type { CSSProperties, ReactNode } from "react";
-import { AVATAR_COL, CONTENT_WIDTH, color } from "./theme.ts";
+import { CONTENT_WIDTH, color } from "./theme.ts";
 
-// 长链接、长英文单词在窄屏上换行，不撑破卡片
-const wrap: CSSProperties = { wordBreak: "break-word", overflowWrap: "anywhere" };
-const bodyText: CSSProperties = { fontSize: 15, lineHeight: "22px", color: color.body, margin: 0, whiteSpace: "pre-line", ...wrap };
-const subText: CSSProperties = { fontSize: 15, lineHeight: "22px", color: color.body, margin: 0, ...wrap };
-const gray: CSSProperties = { fontSize: 13, lineHeight: "18px", color: color.muted, margin: "8px 0 0", ...wrap };
+// 长链接、长英文单词在窄屏上换行，不撑破版面
+const wrap: CSSProperties = {
+  wordBreak: "break-word",
+  overflowWrap: "anywhere",
+};
+const bodyText: CSSProperties = {
+  fontSize: 16,
+  lineHeight: "28px",
+  color: color.body,
+  margin: 0,
+  whiteSpace: "pre-line",
+  ...wrap,
+};
+const noteText: CSSProperties = {
+  fontSize: 15,
+  lineHeight: "25px",
+  color: color.body,
+  margin: 0,
+  ...wrap,
+};
+const small: CSSProperties = {
+  fontSize: 13,
+  lineHeight: "20px",
+  color: color.muted,
+  margin: "8px 0 0",
+  ...wrap,
+};
 const link: CSSProperties = { color: color.link, textDecoration: "none" };
-const tableAttrs = { role: "presentation", cellPadding: 0, cellSpacing: 0, border: 0 } as const;
 
 /** 没有头像时按账号名固定挑一组底色 */
 const AVATAR_TONES: Array<[string, string]> = [
@@ -33,40 +56,125 @@ function tone(handle: string): [string, string] {
 
 function Avatar({ card }: { card: CardView }) {
   if (card.author.avatarUrl) {
-    return <img src={card.author.avatarUrl} width={40} height={40} alt="" style={{ borderRadius: 20, display: "block" }} />;
+    return (
+      <img
+        src={card.author.avatarUrl}
+        width={32}
+        height={32}
+        alt=""
+        style={{ borderRadius: 16, display: "block" }}
+      />
+    );
   }
   const [bg, fg] = tone(card.author.handle);
-  return <div style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: bg, color: fg, fontWeight: 700, fontSize: 15, lineHeight: "40px", textAlign: "center" }}>{card.author.initials}</div>;
-}
-
-/** 名字 · 标签 · @账号 · 时间，和 X 一样排在一行（窄屏上自然折行） */
-function Header({ card }: { card: CardView }) {
-  const tail = [`@${card.author.handle}`, card.time].map((s) => s.replace(/ /g, " ")).join(" · ");
   return (
-    <p style={{ fontSize: 15, lineHeight: "20px", color: color.muted, margin: "0 0 2px", ...wrap }}>
-      <b style={{ color: color.ink }}>{card.author.name}</b>
-      {card.categoryLabel ? <span style={{ fontSize: 12, fontWeight: 700, color: color.link, backgroundColor: color.linkSoft, borderRadius: 4, padding: "1px 6px", marginLeft: 6, whiteSpace: "nowrap" }}>{card.categoryLabel}</span> : null}{" "}
-      {tail}
-      {card.badge ? ` · ${card.badge.replace(/ /g, " ")}` : ""}
-    </p>
+    <div
+      style={{
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: bg,
+        color: fg,
+        fontWeight: 700,
+        fontSize: 12,
+        lineHeight: "32px",
+        textAlign: "center",
+      }}
+    >
+      {card.author.initials}
+    </div>
   );
 }
 
-function FirstPart({ card }: { card: CardView }) {
-  const text = card.parts[0];
-  if (!text) return null;
-  const single = card.parts.length === 1;
+/** 长推文、Thread 用 AI 一句话摘要做标题；短推文的标题就是正文本身，不重复 */
+function headline(card: CardView): string | undefined {
+  if (!card.summary) return undefined;
+  const length = card.parts.reduce((n, p) => n + p.length, 0);
+  return card.parts.length > 1 || length > 120 || card.truncated
+    ? card.summary
+    : undefined;
+}
+
+/** 作者行：小头像 + 名字，第二行是 @账号、时间和内容类型 */
+function Byline({ card }: { card: CardView }) {
+  const meta = [`@${card.author.handle}`, card.time, card.badge]
+    .filter(Boolean)
+    .map((s) => s!.replace(/ /g, " "));
+  return (
+    <table
+      role="presentation"
+      cellPadding={0}
+      cellSpacing={0}
+      border={0}
+      width="100%"
+    >
+      <tbody>
+        <tr>
+          <td width={42} style={{ width: 42, verticalAlign: "middle" }}>
+            <Avatar card={card} />
+          </td>
+          <td style={{ verticalAlign: "middle", ...wrap }}>
+            <p
+              style={{
+                fontSize: 14,
+                lineHeight: "18px",
+                fontWeight: 700,
+                color: color.ink,
+                margin: 0,
+              }}
+            >
+              {card.author.name}
+              {card.categoryLabel ? (
+                <span
+                  style={{ fontWeight: 400, color: color.muted }}
+                >{`　${card.categoryLabel}`}</span>
+              ) : null}
+            </p>
+            <p
+              style={{
+                fontSize: 13,
+                lineHeight: "18px",
+                color: color.muted,
+                margin: 0,
+              }}
+            >
+              {meta.join("　")}
+            </p>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+function Body({ card }: { card: CardView }) {
+  const [first, ...rest] = card.parts;
   return (
     <>
-      <p style={bodyText}>
-        {text}
-        {single && card.truncated ? "……" : ""}
-      </p>
-      {single && card.truncated ? (
-        <p style={gray}>
+      {first ? (
+        <p style={bodyText}>
+          {first}
+          {card.parts.length === 1 && card.truncated ? "……" : ""}
+        </p>
+      ) : null}
+      {rest.map((p, i) => (
+        <p key={i} style={{ ...bodyText, marginTop: 14 }}>
+          {p}
+        </p>
+      ))}
+      {card.parts.length === 1 && card.truncated ? (
+        <p style={small}>
           全文较长，
           <a href={card.url} style={link}>
             在 X（原 Twitter）上阅读全文
+          </a>
+        </p>
+      ) : null}
+      {card.moreParts > 0 ? (
+        <p style={small}>
+          这组连续推文还有 {card.moreParts} 条，
+          <a href={card.url} style={link}>
+            在 X（原 Twitter）上查看
           </a>
         </p>
       ) : null}
@@ -74,19 +182,28 @@ function FirstPart({ card }: { card: CardView }) {
   );
 }
 
-/** 图片一张一行、铺满正文栏（截图里的文字才看得清），点开是大图 */
+/** 图片一张一行、铺满正文宽度（截图里的文字才看得清），点开是大图 */
 function Images({ card }: { card: CardView }) {
-  if (card.images.length === 0) return null;
   return (
     <>
       {card.images.map((img, i) => (
-        <a key={i} href={img.href} style={{ display: "block", marginTop: 12 }}>
+        <a key={i} href={img.href} style={{ display: "block", marginTop: 14 }}>
           <img
             src={img.url}
             alt={img.alt ?? ""}
             width={CONTENT_WIDTH}
-            height={img.width && img.height ? Math.round((CONTENT_WIDTH * img.height) / img.width) : undefined}
-            style={{ width: "100%", maxWidth: CONTENT_WIDTH, height: "auto", borderRadius: 16, border: `1px solid ${color.frame}`, display: "block" }}
+            height={
+              img.width && img.height
+                ? Math.round((CONTENT_WIDTH * img.height) / img.width)
+                : undefined
+            }
+            style={{
+              width: "100%",
+              maxWidth: CONTENT_WIDTH,
+              height: "auto",
+              borderRadius: 8,
+              display: "block",
+            }}
           />
         </a>
       ))}
@@ -94,11 +211,29 @@ function Images({ card }: { card: CardView }) {
   );
 }
 
-/** AI 生成的说明：仿 X 的"读者补充背景信息"框 */
-function NoteBlock({ label, children }: { label: string; children: ReactNode }) {
+/** AI 生成的辅助信息：浅灰底，和作者原文区分开 */
+function Note({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="xq" style={{ border: `1px solid ${color.frame}`, borderRadius: 16, padding: "10px 12px", marginTop: 12 }}>
-      <p style={{ fontSize: 13, lineHeight: "18px", fontWeight: 700, color: color.ink, margin: "0 0 4px" }}>{label}</p>
+    <div
+      className="xn"
+      style={{
+        backgroundColor: color.note,
+        borderRadius: 8,
+        padding: "12px 16px",
+        marginTop: 14,
+      }}
+    >
+      <p
+        style={{
+          fontSize: 13,
+          lineHeight: "20px",
+          fontWeight: 700,
+          color: color.muted,
+          margin: "0 0 4px",
+        }}
+      >
+        {label}
+      </p>
       {children}
     </div>
   );
@@ -106,18 +241,28 @@ function NoteBlock({ label, children }: { label: string; children: ReactNode }) 
 
 function Video({ card }: { card: CardView }) {
   if (!card.video) return null;
-  const note = card.mediaNote ?? "视频内容请在 X（原 Twitter）上观看。";
   return (
     <>
       {card.video.thumbUrl ? (
-        <a href={card.url} style={{ display: "block", marginTop: 12 }}>
-          <img src={card.video.thumbUrl} alt="视频封面" width={CONTENT_WIDTH} style={{ width: "100%", maxWidth: CONTENT_WIDTH, height: "auto", borderRadius: 16, border: `1px solid ${color.frame}`, display: "block" }} />
+        <a href={card.url} style={{ display: "block", marginTop: 14 }}>
+          <img
+            src={card.video.thumbUrl}
+            alt="视频封面，点开在 X（原 Twitter）上观看"
+            width={CONTENT_WIDTH}
+            style={{
+              width: "100%",
+              maxWidth: CONTENT_WIDTH,
+              height: "auto",
+              borderRadius: 8,
+              display: "block",
+            }}
+          />
         </a>
       ) : null}
-      {card.mediaNote || card.video.thumbUrl ? (
-        <NoteBlock label="▶ 视频说明（AI 生成）">
-          <p style={subText}>{note}</p>
-        </NoteBlock>
+      {card.mediaNote ? (
+        <Note label="视频讲了什么（AI 生成）">
+          <p style={noteText}>{card.mediaNote}</p>
+        </Note>
       ) : null}
     </>
   );
@@ -129,49 +274,90 @@ function Points({ items }: { items?: string[] }) {
     <>
       {items.map((p, i) => (
         // 悬挂缩进：圆点在左，折行后的文字和第一行对齐
-        <p key={i} style={{ ...subText, margin: "4px 0 0", paddingLeft: 10, textIndent: -10 }}>
-          · {p}
+        <p
+          key={i}
+          style={{
+            ...noteText,
+            margin: "4px 0 0",
+            paddingLeft: 12,
+            textIndent: -12,
+          }}
+        >
+          • {p}
         </p>
       ))}
     </>
   );
 }
 
-/** 外部文章：一行小字标出来源和标题（可点开），下面是 AI 概要和要点，不用抢眼的大卡片 */
-function ArticleCard({ article }: { article: ArticleView }) {
+/** 外部文章：来源和标题一行（可点开），下面是 AI 概要和要点 */
+function Article({ article }: { article: ArticleView }) {
   return (
-    <NoteBlock label="文章概要（AI 生成）">
-      <p style={{ fontSize: 13, lineHeight: "18px", color: color.muted, margin: "0 0 6px", ...wrap }}>
-        {article.site ? `${article.site} · ` : ""}
+    <Note label="链接文章概要（AI 生成）">
+      <p
+        style={{
+          fontSize: 14,
+          lineHeight: "22px",
+          fontWeight: 700,
+          margin: "0 0 4px",
+          ...wrap,
+        }}
+      >
         <a href={article.url} style={link}>
-          {article.title} ↗
+          {article.title}
         </a>
-        {article.originalTitle ? `（${article.originalTitle}）` : ""}
       </p>
-      {article.summary ? <p style={subText}>{article.summary}</p> : null}
+      {article.site || article.originalTitle ? (
+        <p
+          style={{
+            fontSize: 13,
+            lineHeight: "20px",
+            color: color.muted,
+            margin: "0 0 6px",
+            ...wrap,
+          }}
+        >
+          {[article.site, article.originalTitle].filter(Boolean).join("　")}
+        </p>
+      ) : null}
+      {article.summary ? <p style={noteText}>{article.summary}</p> : null}
       <Points items={article.points} />
-    </NoteBlock>
+    </Note>
   );
 }
 
-/** 引用推文：和 X 一样的 16px 圆角描边框，内部字号与正文一致 */
+/** 引用推文：左侧竖线，不套框，内容不被压窄 */
 function Quoted({ card }: { card: CardView }) {
   const q = card.quoted;
   if (!q) return null;
   return (
-    <div className="xq" style={{ border: `1px solid ${color.frame}`, borderRadius: 16, padding: 12, marginTop: 12 }}>
-      <p style={{ fontSize: 15, lineHeight: "20px", color: color.muted, margin: "0 0 4px", ...wrap }}>
-        <b style={{ color: color.ink }}>{q.name}</b>{" "}
+    <div
+      style={{
+        borderLeft: `3px solid ${color.rule}`,
+        paddingLeft: 14,
+        marginTop: 16,
+      }}
+    >
+      <p
+        style={{
+          fontSize: 13,
+          lineHeight: "20px",
+          color: color.muted,
+          margin: "0 0 4px",
+          ...wrap,
+        }}
+      >
+        引用 <b style={{ color: color.ink }}>{q.name}</b>{" "}
         <a href={q.url} style={{ color: color.muted, textDecoration: "none" }}>
           @{q.handle}
         </a>
       </p>
       {q.summary ? (
         <>
-          <p style={subText}>{q.summary}</p>
+          <p style={noteText}>{q.summary}</p>
           <Points items={q.points} />
-          <p style={gray}>
-            引用内容较长，以上为 AI 摘要 ·{" "}
+          <p style={small}>
+            原文较长，以上是 AI 摘要。
             <a href={q.url} style={link}>
               查看原文
             </a>
@@ -179,12 +365,12 @@ function Quoted({ card }: { card: CardView }) {
         </>
       ) : q.text ? (
         <>
-          <p style={bodyText}>
+          <p style={{ ...noteText, whiteSpace: "pre-line" }}>
             {q.text}
             {q.truncated ? "……" : ""}
           </p>
           {q.truncated ? (
-            <p style={gray}>
+            <p style={small}>
               <a href={q.url} style={link}>
                 查看完整引用
               </a>
@@ -192,132 +378,85 @@ function Quoted({ card }: { card: CardView }) {
           ) : null}
         </>
       ) : null}
-      {q.article ? <ArticleCard article={q.article} /> : null}
+      {q.article ? <Article article={q.article} /> : null}
     </div>
   );
 }
 
 /** 没有 AI 概要的普通链接：一行小字 */
-function LinkPreview({ card }: { card: CardView }) {
+function LinkLine({ card }: { card: CardView }) {
   const l = card.link;
   if (!l) return null;
   if (!l.title && !l.description && l.kind !== "x_article") return null;
-  const title = l.title ?? (l.kind === "x_article" ? "在 X（原 Twitter）上阅读这篇长文" : l.url);
+  const title =
+    l.title ??
+    (l.kind === "x_article" ? "在 X（原 Twitter）上阅读这篇长文" : l.url);
   return (
-    <p style={{ ...gray, marginTop: 12 }}>
-      {l.domain ? `${l.domain} · ` : ""}
+    <p style={{ ...small, marginTop: 12 }}>
+      链接：
       <a href={l.url} style={link}>
-        {title} ↗
+        {title}
       </a>
+      {l.domain ? `（${l.domain}）` : ""}
     </p>
   );
 }
 
-/** 第一条之后的内容：媒体、引用、链接、翻译说明、互动数据 */
-function Rest({ card }: { card: CardView }) {
+export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
+  const title = headline(card);
+  const counts = `${card.likes} 赞　${card.reposts} 转发`;
   return (
-    <>
-      {card.moreParts > 0 ? (
-        <p style={gray}>
-          这个 Thread 另有 {card.moreParts} 条，
-          <a href={card.url} style={link}>
-            在 X（原 Twitter）上查看
+    // 分隔线只画在正文宽度内，和主题标题下的色线对齐
+    <div className="xc" style={{ padding: "0 32px" }}>
+      <div
+        style={{
+          padding: "24px 0 22px",
+          borderBottom: last ? undefined : `1px solid ${color.line}`,
+        }}
+      >
+        {title ? (
+          <p
+            style={{
+              fontSize: 18,
+              lineHeight: "27px",
+              fontWeight: 700,
+              color: color.ink,
+              margin: "0 0 12px",
+              ...wrap,
+            }}
+          >
+            {title}
+          </p>
+        ) : null}
+        <Byline card={card} />
+        <div style={{ height: 12, lineHeight: "12px", fontSize: 0 }}>
+          &nbsp;
+        </div>
+        <Body card={card} />
+        <Images card={card} />
+        {card.kind === "image" && card.mediaNote ? (
+          <Note label="图片里有什么（AI 生成）">
+            <p style={noteText}>{card.mediaNote}</p>
+          </Note>
+        ) : null}
+        <Video card={card} />
+        <Quoted card={card} />
+        {card.article ? (
+          <Article article={card.article} />
+        ) : (
+          <LinkLine card={card} />
+        )}
+        <p style={{ ...small, marginTop: 14 }}>
+          {card.translatedFrom
+            ? `AI ${card.translatedFrom.replace(/^译自/, "翻译自")}　`
+            : ""}
+          {counts}
+          {"　"}
+          <a href={card.url} style={{ ...link, fontWeight: 700 }}>
+            {card.video ? "在 X 上看视频" : "在 X 上查看"}
           </a>
         </p>
-      ) : null}
-      <Images card={card} />
-      {card.kind === "image" && card.mediaNote ? (
-        <NoteBlock label="图片说明（AI 生成）">
-          <p style={subText}>{card.mediaNote}</p>
-        </NoteBlock>
-      ) : null}
-      <Video card={card} />
-      <Quoted card={card} />
-      {card.article ? <ArticleCard article={card.article} /> : <LinkPreview card={card} />}
-      {card.translatedFrom ? <p style={gray}>由 AI {card.translatedFrom}</p> : null}
-      <table {...tableAttrs} width="100%" style={{ marginTop: 10 }}>
-        <tbody>
-          <tr>
-            <td style={{ fontSize: 13, lineHeight: "18px", color: color.muted }}>
-              ♡&nbsp;{card.likes}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;⇄&nbsp;{card.reposts}
-            </td>
-            <td align="right" style={{ fontSize: 13, lineHeight: "18px", whiteSpace: "nowrap" }}>
-              <a href={card.url} style={link}>
-                {card.ctaLabel}
-              </a>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </>
-  );
-}
-
-/** Thread 连接线：头像栏里居中的一根 2px 竖线（表格单元格会自动撑满整行高度，所有邮箱都能显示） */
-function LineCells() {
-  return (
-    <>
-      <td />
-      <td {...({ bgcolor: color.frame } as object)} style={{ backgroundColor: color.frame }} />
-      <td />
-    </>
-  );
-}
-
-/** 固定头像栏三列的宽度（19 + 2 + 31 = 52），不让正文的长短影响对齐 */
-function SizingRow() {
-  const cell = (w: number, cls?: string) => <td className={cls} width={w} style={{ width: w, minWidth: w, height: 0, lineHeight: 0, fontSize: 0 }} />;
-  return (
-    <tr>
-      {cell(19)}
-      {cell(2)}
-      {cell(AVATAR_COL - 21, "xa3")}
-      <td style={{ height: 0, lineHeight: 0, fontSize: 0 }} />
-    </tr>
-  );
-}
-
-export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
-  const thread = card.parts.slice(1);
-  const top: CSSProperties = { verticalAlign: "top" };
-  return (
-    <div className="xc" style={{ padding: "12px 16px", borderBottom: last ? undefined : `1px solid ${color.line}` }}>
-      <table {...tableAttrs} width="100%">
-        <tbody>
-          {thread.length ? <SizingRow /> : null}
-          <tr>
-            <td className="xa" colSpan={thread.length ? 3 : 1} width={AVATAR_COL} style={{ ...top, width: AVATAR_COL, minWidth: AVATAR_COL }}>
-              <Avatar card={card} />
-            </td>
-            <td rowSpan={thread.length ? 2 : 1} style={top}>
-              <Header card={card} />
-              <FirstPart card={card} />
-              {thread.length ? null : <Rest card={card} />}
-            </td>
-          </tr>
-          {thread.length ? (
-            <>
-              <tr>
-                <LineCells />
-              </tr>
-              {thread.map((p, i) => (
-                <tr key={i}>
-                  <LineCells />
-                  <td style={{ ...top, paddingTop: 12 }}>
-                    <p style={bodyText}>{p}</p>
-                  </td>
-                </tr>
-              ))}
-              <tr>
-                <td colSpan={3} />
-                <td style={top}>
-                  <Rest card={card} />
-                </td>
-              </tr>
-            </>
-          ) : null}
-        </tbody>
-      </table>
+      </div>
     </div>
   );
 }
@@ -325,14 +464,25 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
 /** 超出邮件大小预算的条目：一行作者 + AI 一句话摘要，点开看原推 */
 export function CompactItem({ card }: { card: CardView }) {
   return (
-    <p style={{ fontSize: 15, lineHeight: "22px", color: color.body, margin: "0 0 10px", ...wrap }}>
-      <b>{card.author.name}</b>
-      <span style={{ color: color.muted }}> @{card.author.handle}</span>
-      {" · "}
-      {card.summary ?? card.parts[0]?.slice(0, 80)}{" "}
-      <a href={card.url} style={{ ...link, fontSize: 13 }}>
-        {card.ctaLabel}
+    <p
+      style={{
+        fontSize: 15,
+        lineHeight: "25px",
+        color: color.body,
+        margin: "0 0 12px",
+        ...wrap,
+      }}
+    >
+      <a
+        href={card.url}
+        style={{ color: color.ink, textDecoration: "none", fontWeight: 700 }}
+      >
+        {card.summary ?? card.parts[0]?.slice(0, 80)}
       </a>
+      <br />
+      <span style={{ fontSize: 13, color: color.muted }}>
+        {card.author.name}　@{card.author.handle}
+      </span>
     </p>
   );
 }

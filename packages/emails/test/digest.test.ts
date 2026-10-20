@@ -7,7 +7,7 @@ describe("每日邮件", () => {
     const view = sampleDigest("zh");
     const full = await renderDigest(view);
     expect(full.compacted).toBe(0);
-    const limit = Buffer.byteLength(full.html) - 3000;
+    const limit = Buffer.byteLength(full.html) - 2000;
     const slim = await renderDigest(view, { maxBytes: limit });
     expect(slim.compacted).toBeGreaterThan(0);
     expect(Buffer.byteLength(slim.html)).toBeLessThanOrEqual(limit);
