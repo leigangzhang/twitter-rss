@@ -2,7 +2,7 @@
 // 本包也会被其他包的 tsx 进程直接加载，这里显式指定 JSX 运行时
 import { Body, Column, Container, Head, Html, Link, Preview, Row, Section, Text } from "@react-email/components";
 import type { DigestView } from "@xrss/core";
-import { color, font, MAIL_WIDTH } from "./theme.ts";
+import { color, font, MAIL_WIDTH, MOBILE_BREAKPOINT } from "./theme.ts";
 import { CompactItem, TweetCard } from "./TweetCard.tsx";
 
 /**
@@ -57,8 +57,8 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
       <Head>
         {/* 没有 viewport 时 iPhone 邮件按桌面宽度排版，手机样式不会生效 */}
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        {/* 600px 以下（手机、窄窗口）：去掉外框和灰底、铺满屏幕，左右留白和头像间距收窄，标题小一号 */}
-        <style dangerouslySetInnerHTML={{ __html: `body{margin:0!important}@media (max-width:600px){.xb,.xb>table>tbody>tr>td{padding:0!important;background-color:#FFFFFF!important}.xw{border:0!important;border-radius:0!important;max-width:100%!important}.xc{padding-left:12px!important;padding-right:12px!important}.xa{width:48px!important;min-width:48px!important}.xa3{width:27px!important;min-width:27px!important}.xq{padding:10px!important}.xh{font-size:20px!important;line-height:26px!important}}${tabs ? `\n${tabsCss(view.groups.length)}` : ""}` }} />
+        {/* 720px 以下（手机、窄窗口）：去掉外框和灰底、铺满屏幕，左右留白和头像间距收窄，标题小一号 */}
+        <style dangerouslySetInnerHTML={{ __html: `body{margin:0!important}@media (max-width:${MOBILE_BREAKPOINT}px){.xb,.xb>table>tbody>tr>td{padding:0!important;background-color:#FFFFFF!important}.xw{border:0!important;border-radius:0!important;max-width:100%!important}.xc{padding-left:12px!important;padding-right:12px!important}.xa{width:48px!important;min-width:48px!important}.xa3{width:27px!important;min-width:27px!important}.xq{padding:10px!important}.xh{font-size:20px!important;line-height:26px!important}}${tabs ? `\n${tabsCss(view.groups.length)}` : ""}` }} />
       </Head>
       <Preview>{preview}</Preview>
       <Body className="xb" style={{ backgroundColor: color.ground, fontFamily: font.sans, color: color.ink, margin: 0, padding: "16px 0", WebkitTextSizeAdjust: "100%" }}>

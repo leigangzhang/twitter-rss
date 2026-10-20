@@ -23,6 +23,13 @@ describe("每日邮件", () => {
     expect(html).toContain("#xt-1:checked");
   });
 
+  it("桌面容器 900px，移动端断点 720px", async () => {
+    const { html } = await renderDigest(sampleDigest("zh"));
+    expect(html).toContain("max-width:900px");
+    expect(html).toContain("@media (max-width:720px)");
+    expect(html).not.toContain("@media (max-width:600px)");
+  });
+
   it("单张卡片的体积控制在 3KB 左右", async () => {
     const view = sampleDigest("zh");
     const one = await renderDigest({ ...view, groups: [{ ...view.groups[0]!, items: [view.groups[0]!.items[0]!] }] });

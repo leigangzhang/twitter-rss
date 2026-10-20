@@ -1,6 +1,6 @@
 /**
  * 颜色、字体和尺寸，尽量贴近 X（原 Twitter）网页版时间线：
- * 600px 宽的单栏、15px 正文、#0F1419 主文字、#536471 次要文字、#EFF3F4 分隔线、#1D9BF0 链接。
+ * 900px 宽的单栏、15px 正文、#0F1419 主文字、#536471 次要文字、#EFF3F4 分隔线、#1D9BF0 链接。
  * 邮件客户端不保证加载网页字体，使用和 X 相同的系统字体栈，再补上中文字体。
  */
 export const color = {
@@ -27,8 +27,10 @@ export const font = {
   mono: "Menlo,Consolas,monospace",
 };
 
-/** 邮件宽度（与 X 时间线一致） */
-export const MAIL_WIDTH = 600;
+/** 桌面邮件宽度 */
+export const MAIL_WIDTH = 900;
+/** 移动端断点：原 600px 宽的 1.2x，此宽度以下使用满屏移动版布局 */
+export const MOBILE_BREAKPOINT = 720;
 /** 卡片左右留白 */
 export const GUTTER = 16;
 /** 头像栏：40px 头像 + 12px 间距 */
