@@ -48,12 +48,14 @@ const mediaCss = [
   ".xi-in{display:none!important}",
   `${S} .xi-a{pointer-events:none}`,
   `${S} .xi-l{cursor:zoom-in}`,
-  `${S} .xgm{display:flex!important;align-items:flex-start;overflow-x:auto;scroll-snap-type:x mandatory;width:${CONTENT_WIDTH}px;max-width:calc(100vw - 40px);margin-top:14px;padding-bottom:6px;scrollbar-width:thin}`,
+  `${S} .xgm{display:flex!important;align-items:stretch;overflow-x:auto;scroll-snap-type:x mandatory;width:${CONTENT_WIDTH}px;max-width:calc(100vw - 40px);margin-top:14px;padding-bottom:6px;scrollbar-width:thin}`,
   `${S} .xgm::-webkit-scrollbar{height:4px}`,
   `${S} .xgm::-webkit-scrollbar-thumb{background:#D5D9DF;border-radius:2px}`,
-  `${S} .xgm .xgi{flex:0 0 88%;scroll-snap-align:start;margin:0 8px 0 0!important}`,
-  // 不裁切：按原比例完整显示；特别高的图限制在 480px，两侧留浅灰底
-  `${S} .xgm .xgi img{width:100%!important;height:auto!important;max-height:480px;object-fit:contain;background:#F5F6F8}`,
+  // 每张占一个同样高的浅灰底框（高度取这一组里最高的图），图在框里上下、左右居中
+  `${S} .xgm .xgi{flex:0 0 88%;scroll-snap-align:start;margin:0 8px 0 0!important;display:flex;align-items:center;justify-content:center;background:#F5F6F8;border-radius:8px;overflow:hidden}`,
+  `${S} .xgm .xi-l{width:100%}`,
+  // 不裁切：按原比例完整显示，特别高的图限制在 480px
+  `${S} .xgm .xgi img{width:auto!important;max-width:100%!important;height:auto!important;max-height:480px;margin:0 auto;border-radius:0!important}`,
   `${S} .xg-tip{display:block!important}`,
   `${S} .xi-in:checked ~ .xi-box{display:block!important;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,.92);cursor:zoom-out}`,
   ".xi-big{position:absolute;top:40px;left:12px;right:12px;bottom:48px;background-size:contain;background-position:center;background-repeat:no-repeat}",
@@ -78,7 +80,7 @@ function carouselCss(view: DigestView): string {
       Math.max(...card.images.map((i) => i.height! / i.width!)),
     );
     rules.push(
-      `${S} .xg-${card.id} .xgi img{aspect-ratio:1000/${Math.round(1000 * ratio)};max-height:none}`,
+      `${S} .xg-${card.id} .xgi img{width:100%!important;aspect-ratio:1000/${Math.round(1000 * ratio)};object-fit:contain;max-height:none}`,
     );
   }
   return rules.join("\n");

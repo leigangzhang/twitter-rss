@@ -91,12 +91,17 @@ export function primaryArticle(raw: RawTweet): { link: Link; source: "tweet" | "
 }
 
 const cleanOptional = (s: string | null | undefined) => (s ? cleanTweetText(s) : (s ?? undefined));
+const bareUrl = (s: string | undefined) => Boolean(s && /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i.test(s.trim()));
 
 function toArticleView(link: Link, d: LinkDigest | undefined, lang: Lang, zhTitle?: string | null, zhDesc?: string | null): ArticleView | undefined {
   const original = cleanOptional(d?.title ?? link.title);
   const title = (lang === "zh" ? cleanOptional(d?.titleZh ?? zhTitle) : undefined) ?? original;
   if (!title) return undefined;
   const aiSummary = Boolean(d?.summary);
+  const summary = d?.summary ?? (lang === "zh" ? (zhDesc ?? undefined) : undefined) ?? d?.description ?? link.description;
+  const points = d?.points ?? [];
+  // 没抓到正文、也没有简介（产品首页、需要登录、拒绝抓取的站点）时不做成文章卡片，交给普通链接处理
+  if (!summary?.trim() && points.length === 0) return undefined;
   let url = cleanTweetText(d?.finalUrl ?? link.expandedUrl);
   // 页面读取时链接常常只拿到 t.co 短链，标题本身就是完整地址：直接链到真实地址
   if (/^https?:\/\/t\.co\//.test(url) && /^https?:\/\/\S+$/.test(title)) url = title;
@@ -105,9 +110,9 @@ function toArticleView(link: Link, d: LinkDigest | undefined, lang: Lang, zhTitl
     site: d?.siteName ?? link.domain,
     title,
     originalTitle: original && original !== title ? original : undefined,
-    summary: d?.summary ?? (lang === "zh" ? (zhDesc ?? undefined) : undefined) ?? d?.description ?? link.description,
+    summary,
     aiSummary,
-    points: d?.points ?? [],
+    points,
     imageUrl: d?.imageUrl ?? link.imageUrl,
   };
 }
@@ -208,7 +213,8 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
       ? {
           kind: link.kind,
           url: cleanTweetText(link.expandedUrl),
-          title: cleanOptional(zh?.linkTitle ?? link.title),
+          // 页面读取时标题常常就是链接地址本身：不算标题（推文正文里已经有这个链接）
+          title: bareUrl(cleanOptional(zh?.linkTitle ?? link.title)) ? undefined : cleanOptional(zh?.linkTitle ?? link.title),
           description: cleanOptional(zh?.linkDescription ?? link.description),
           domain: link.kind === "x_article" ? "X（原 Twitter）长文" : link.domain,
           imageUrl: link.imageUrl,
