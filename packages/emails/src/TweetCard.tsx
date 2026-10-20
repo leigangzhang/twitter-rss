@@ -97,7 +97,7 @@ function Images({ card }: { card: CardView }) {
 /** AI 生成的说明：仿 X 的"读者补充背景信息"框 */
 function NoteBlock({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div style={{ border: `1px solid ${color.frame}`, borderRadius: 16, padding: "10px 12px", marginTop: 12 }}>
+    <div className="xq" style={{ border: `1px solid ${color.frame}`, borderRadius: 16, padding: "10px 12px", marginTop: 12 }}>
       <p style={{ fontSize: 13, lineHeight: "18px", fontWeight: 700, color: color.ink, margin: "0 0 4px" }}>{label}</p>
       {children}
     </div>
@@ -159,7 +159,7 @@ function Quoted({ card }: { card: CardView }) {
   const q = card.quoted;
   if (!q) return null;
   return (
-    <div style={{ border: `1px solid ${color.frame}`, borderRadius: 16, padding: 12, marginTop: 12 }}>
+    <div className="xq" style={{ border: `1px solid ${color.frame}`, borderRadius: 16, padding: 12, marginTop: 12 }}>
       <p style={{ fontSize: 15, lineHeight: "20px", color: color.muted, margin: "0 0 4px", ...wrap }}>
         <b style={{ color: color.ink }}>{q.name}</b>{" "}
         <a href={q.url} style={{ color: color.muted, textDecoration: "none" }}>
@@ -266,12 +266,12 @@ function LineCells() {
 
 /** 固定头像栏三列的宽度（19 + 2 + 31 = 52），不让正文的长短影响对齐 */
 function SizingRow() {
-  const cell = (w: number) => <td width={w} style={{ width: w, minWidth: w, height: 0, lineHeight: 0, fontSize: 0 }} />;
+  const cell = (w: number, cls?: string) => <td className={cls} width={w} style={{ width: w, minWidth: w, height: 0, lineHeight: 0, fontSize: 0 }} />;
   return (
     <tr>
       {cell(19)}
       {cell(2)}
-      {cell(AVATAR_COL - 21)}
+      {cell(AVATAR_COL - 21, "xa3")}
       <td style={{ height: 0, lineHeight: 0, fontSize: 0 }} />
     </tr>
   );
@@ -281,12 +281,12 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
   const thread = card.parts.slice(1);
   const top: CSSProperties = { verticalAlign: "top" };
   return (
-    <div style={{ padding: "12px 16px", borderBottom: last ? undefined : `1px solid ${color.line}` }}>
+    <div className="xc" style={{ padding: "12px 16px", borderBottom: last ? undefined : `1px solid ${color.line}` }}>
       <table {...tableAttrs} width="100%">
         <tbody>
           {thread.length ? <SizingRow /> : null}
           <tr>
-            <td colSpan={thread.length ? 3 : 1} width={AVATAR_COL} style={{ ...top, width: AVATAR_COL, minWidth: AVATAR_COL }}>
+            <td className="xa" colSpan={thread.length ? 3 : 1} width={AVATAR_COL} style={{ ...top, width: AVATAR_COL, minWidth: AVATAR_COL }}>
               <Avatar card={card} />
             </td>
             <td rowSpan={thread.length ? 2 : 1} style={top}>
