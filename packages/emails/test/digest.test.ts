@@ -51,4 +51,16 @@ describe("每日邮件", () => {
     expect(html).toMatch(/class="xr-body"[^>]*>/);
     expect(html).not.toMatch(/class="xr-body"[^>]*display:none/);
   });
+
+  it("多图：可滑动的横条和点图放大层；大图用背景图，不支持的邮箱点图打开大图文件而不是 X", async () => {
+    const view = sampleDigest("zh");
+    const imgs = [1, 2].map((n) => ({ url: `https://pbs.twimg.com/media/i${n}?name=small`, href: `https://pbs.twimg.com/media/i${n}?name=large` }));
+    const card = { ...view.groups[0]!.items[0]!, images: imgs };
+    const { html } = await renderDigest({ ...view, groups: [{ ...view.groups[0]!, items: [card] }] });
+    expect(html).toContain('class="xgm"');
+    expect(html).toContain(`id="xi-${card.id}-1"`);
+    expect(html).toMatch(/background-image:url\(&quot;https:\/\/pbs\.twimg\.com\/media\/i2\?name=large&quot;\)/);
+    expect(html).toMatch(/class="xi-a"[^>]*href="https:\/\/pbs\.twimg\.com\/media\/i1\?name=large"|href="https:\/\/pbs\.twimg\.com\/media\/i1\?name=large"[^>]*class="xi-a"/);
+    expect(html).toContain("左右滑动查看");
+  });
 });

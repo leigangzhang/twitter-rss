@@ -212,30 +212,82 @@ function Body({ card }: { card: CardView }) {
 
 /** 图片一张一行、铺满正文宽度（截图里的文字才看得清），点开是大图 */
 function Images({ card }: { card: CardView }) {
+  if (card.images.length === 0) return null;
+  const multi = card.images.length > 1;
   return (
-    <>
-      {card.images.map((img, i) => (
-        <a key={i} href={img.href} style={{ display: "block", marginTop: 14 }}>
-          <img
-            src={img.url}
-            alt={img.alt ?? ""}
-            width={CONTENT_WIDTH}
-            height={
-              img.width && img.height
-                ? Math.round((CONTENT_WIDTH * img.height) / img.width)
-                : undefined
-            }
-            style={{
-              width: "100%",
-              maxWidth: CONTENT_WIDTH,
-              height: "auto",
-              borderRadius: 8,
-              display: "block",
-            }}
-          />
-        </a>
-      ))}
-    </>
+    // 支持 :checked 的邮箱（苹果邮件等）：多图变成左右滑动的横条，点图在当前页面全屏放大（见 DailyDigest 的 mediaCss）。
+    // 不支持的邮箱（Gmail、QQ 网页版）：一张一行铺满宽度，点图打开大图文件。
+    <div className="xg">
+      <div className={multi ? "xgm" : undefined}>
+        {card.images.map((img, i) => {
+          const id = `xi-${card.id}-${i}`;
+          return (
+            <div key={i} className="xgi" style={{ marginTop: 14 }}>
+              <input
+                type="checkbox"
+                id={id}
+                className="xi-in"
+                style={{ display: "none", msoHide: "all" } as CSSProperties}
+              />
+              <label htmlFor={id} className="xi-l" style={{ display: "block" }}>
+                <a
+                  href={img.href}
+                  className="xi-a"
+                  style={{ display: "block" }}
+                >
+                  <img
+                    src={img.url}
+                    alt={img.alt ?? ""}
+                    width={CONTENT_WIDTH}
+                    height={
+                      img.width && img.height
+                        ? Math.round((CONTENT_WIDTH * img.height) / img.width)
+                        : undefined
+                    }
+                    style={{
+                      width: "100%",
+                      maxWidth: CONTENT_WIDTH,
+                      height: "auto",
+                      borderRadius: 8,
+                      display: "block",
+                    }}
+                  />
+                </a>
+              </label>
+              {/* 放大层：默认隐藏；大图用背景图，点开时才下载 */}
+              <label
+                htmlFor={id}
+                className="xi-box"
+                style={{ display: "none" }}
+              >
+                <span
+                  className="xi-big"
+                  style={{ backgroundImage: `url("${img.href}")` }}
+                />
+                <span className="xi-tip">
+                  {multi ? `${i + 1} / ${card.images.length}　` : ""}
+                  点击任意处关闭
+                </span>
+              </label>
+            </div>
+          );
+        })}
+      </div>
+      {multi ? (
+        <p
+          className="xg-tip"
+          style={{
+            display: "none",
+            fontSize: 12,
+            lineHeight: "18px",
+            color: color.muted,
+            margin: "6px 0 0",
+          }}
+        >
+          共 {card.images.length} 张，左右滑动查看，点图放大
+        </p>
+      ) : null}
+    </div>
   );
 }
 

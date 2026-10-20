@@ -13,7 +13,13 @@ import {
   Text,
 } from "@react-email/components";
 import type { DigestView } from "@xrss/core";
-import { color, font, MAIL_WIDTH, MOBILE_BREAKPOINT } from "./theme.ts";
+import {
+  CONTENT_WIDTH,
+  color,
+  font,
+  MAIL_WIDTH,
+  MOBILE_BREAKPOINT,
+} from "./theme.ts";
 import { CompactItem, TweetCard } from "./TweetCard.tsx";
 
 /**
@@ -28,6 +34,26 @@ const foldCss = [
   ".xr-c{display:none}",
   ".xr-in:checked ~ .xr-l .xr-o{display:none}",
   ".xr-in:checked ~ .xr-l .xr-c{display:inline}",
+].join("\n");
+
+/**
+ * 推文图片（纯 CSS，同样依赖 .xs 检测）：
+ * - 多图：左右滑动的横条，按张吸附，露出下一张的边缘提示还能滑
+ * - 点图：隐藏的复选框打开全屏放大层，点任意处关闭；大图是背景图，打开时才下载
+ * 不支持的邮箱规则不生效，图片一张一行，点图打开大图文件。
+ */
+const S = ".xs:checked ~ .xs-root";
+const mediaCss = [
+  ".xi-in{display:none!important}",
+  `${S} .xi-a{pointer-events:none}`,
+  `${S} .xi-l{cursor:zoom-in}`,
+  `${S} .xgm{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;width:${CONTENT_WIDTH}px;max-width:calc(100vw - 40px);margin-top:14px}`,
+  `${S} .xgm .xgi{flex:0 0 82%;scroll-snap-align:start;margin:0 8px 0 0!important}`,
+  `${S} .xgm .xgi img{height:260px!important;width:100%!important;object-fit:cover}`,
+  `${S} .xg-tip{display:block!important}`,
+  `${S} .xi-in:checked ~ .xi-box{display:block!important;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,.92);cursor:zoom-out}`,
+  ".xi-big{position:absolute;top:40px;left:12px;right:12px;bottom:48px;background-size:contain;background-position:center;background-repeat:no-repeat}",
+  ".xi-tip{position:absolute;left:0;right:0;bottom:16px;text-align:center;color:#C9CDD3;font-size:13px}",
 ].join("\n");
 
 /**
@@ -109,7 +135,7 @@ export function DailyDigest({
         {/* 手机和窄窗口：左右留白 32→20px，标题小一号 */}
         <style
           dangerouslySetInnerHTML={{
-            __html: `body{margin:0!important}@media (max-width:${MOBILE_BREAKPOINT}px){.xc{padding-left:20px!important;padding-right:20px!important}.xn{padding:10px 12px!important}.xh{font-size:22px!important;line-height:30px!important}}\n${foldCss}${tabs ? `\n${tabsCss(view.groups.map((g) => g.topic.color))}` : ""}`,
+            __html: `body{margin:0!important}@media (max-width:${MOBILE_BREAKPOINT}px){.xc{padding-left:20px!important;padding-right:20px!important}.xn{padding:10px 12px!important}.xh{font-size:22px!important;line-height:30px!important}}\n${foldCss}\n${mediaCss}${tabs ? `\n${tabsCss(view.groups.map((g) => g.topic.color))}` : ""}`,
           }}
         />
       </Head>
