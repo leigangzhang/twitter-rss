@@ -8,7 +8,7 @@
 // 为了控制邮件体积（Gmail 超过约 102KB 会折叠末尾），样式只写必要的属性，字体从外层继承。
 import type { ArticleView, CardView } from "@xrss/core";
 import type { CSSProperties, ReactNode } from "react";
-import { CONTENT_WIDTH, color } from "./theme.ts";
+import { CONTENT_WIDTH, color, font } from "./theme.ts";
 
 // 长链接、长英文单词在窄屏上换行，不撑破版面
 const wrap: CSSProperties = {
@@ -240,16 +240,33 @@ function Images({ card }: { card: CardView }) {
 }
 
 /** AI 生成的辅助信息：浅灰底，和作者原文区分开 */
-function Note({ label, children }: { label: string; children: ReactNode }) {
+function Note({
+  label,
+  children,
+  flat,
+}: {
+  label: string;
+  children: ReactNode;
+  flat?: boolean;
+}) {
   return (
     <div
-      className="xn"
-      style={{
-        backgroundColor: color.note,
-        borderRadius: 8,
-        padding: "12px 16px",
-        marginTop: 14,
-      }}
+      className={flat ? undefined : "xn"}
+      style={
+        // 放在引用框里时不再套灰底框，用虚线和引用内容分开
+        flat
+          ? {
+              borderTop: `1px dashed ${color.line}`,
+              paddingTop: 10,
+              marginTop: 12,
+            }
+          : {
+              backgroundColor: color.note,
+              borderRadius: 8,
+              padding: "12px 16px",
+              marginTop: 14,
+            }
+      }
     >
       <p
         style={{
@@ -296,7 +313,13 @@ function Video({ card }: { card: CardView }) {
   );
 }
 
-function Points({ items }: { items?: string[] }) {
+function Points({
+  items,
+  style = noteText,
+}: {
+  items?: string[];
+  style?: CSSProperties;
+}) {
   if (!items?.length) return null;
   return (
     <>
@@ -305,13 +328,13 @@ function Points({ items }: { items?: string[] }) {
         <p
           key={i}
           style={{
-            ...noteText,
+            ...style,
             margin: "4px 0 0",
-            paddingLeft: 12,
-            textIndent: -12,
+            paddingLeft: 14,
+            textIndent: -14,
           }}
         >
-          • {p}
+          · {p}
         </p>
       ))}
     </>
@@ -319,9 +342,9 @@ function Points({ items }: { items?: string[] }) {
 }
 
 /** 外部文章：来源和标题一行（可点开），下面是 AI 概要和要点 */
-function Article({ article }: { article: ArticleView }) {
+function Article({ article, flat }: { article: ArticleView; flat?: boolean }) {
   return (
-    <Note label="链接文章概要（AI 生成）">
+    <Note label="链接文章概要（AI 生成）" flat={flat}>
       <p
         style={{
           fontSize: 14,
@@ -354,51 +377,75 @@ function Article({ article }: { article: ArticleView }) {
   );
 }
 
-/** 引用推文：左侧竖线，不套框，内容不被压窄 */
+/** 引用推文：浅灰底、细边框的圆角框，标题行是名字 + @账号 · 引用 */
+const quoteText: CSSProperties = {
+  fontSize: 14,
+  lineHeight: "23px",
+  color: color.body,
+  margin: 0,
+  ...wrap,
+};
+
 function Quoted({ card }: { card: CardView }) {
   const q = card.quoted;
   if (!q) return null;
   return (
     <div
+      className="xn"
       style={{
-        borderLeft: `3px solid ${color.rule}`,
-        paddingLeft: 14,
-        marginTop: 16,
+        border: `1px solid ${color.line}`,
+        borderRadius: 10,
+        padding: "14px 16px",
+        marginTop: 14,
+        backgroundColor: color.quoteBg,
       }}
     >
       <p
         style={{
           fontSize: 13,
           lineHeight: "20px",
-          color: color.muted,
-          margin: "0 0 4px",
+          fontWeight: 700,
+          color: color.ink,
+          margin: "0 0 6px",
           ...wrap,
         }}
       >
-        引用 <b style={{ color: color.ink }}>{q.name}</b>{" "}
-        <a href={q.url} style={{ color: color.muted, textDecoration: "none" }}>
-          @{q.handle}
+        {q.name}{" "}
+        <a
+          href={q.url}
+          style={{
+            fontFamily: font.mono,
+            fontSize: 12,
+            fontWeight: 400,
+            color: color.muted,
+            textDecoration: "none",
+          }}
+        >
+          @{q.handle} · 引用
         </a>
       </p>
       {q.summary ? (
         <>
-          <p style={noteText}>{q.summary}</p>
-          <Points items={q.points} />
-          <p style={small}>
-            原文较长，以上是 AI 摘要。
+          <p style={quoteText}>{q.summary}</p>
+          <Points items={q.points} style={quoteText} />
+          <p style={{ ...small, fontSize: 12 }}>
+            引用内容摘要由 AI 生成 ·{" "}
             <a href={q.url} style={link}>
-              查看原文
+              查看引用原文
             </a>
           </p>
         </>
       ) : q.text ? (
         <>
-          <p style={{ ...noteText, whiteSpace: "pre-line" }}>
+          <p
+            style={{ ...quoteText, lineHeight: "24px", whiteSpace: "pre-line" }}
+          >
             {q.text}
             {q.truncated ? "……" : ""}
           </p>
           {q.truncated ? (
-            <p style={small}>
+            <p style={{ ...small, fontSize: 12 }}>
+              引用内容较长，
               <a href={q.url} style={link}>
                 查看完整引用
               </a>
@@ -406,7 +453,7 @@ function Quoted({ card }: { card: CardView }) {
           ) : null}
         </>
       ) : null}
-      {q.article ? <Article article={q.article} /> : null}
+      {q.article ? <Article article={q.article} flat /> : null}
     </div>
   );
 }

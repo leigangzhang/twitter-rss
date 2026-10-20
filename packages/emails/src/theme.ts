@@ -16,6 +16,8 @@ export const color = {
   rule: "#D5D9DF",
   /** AI 说明等辅助信息的底色 */
   note: "#F5F6F8",
+  /** 引用推文框的底色 */
+  quoteBg: "#FBFBFC",
   chip: "#F1F3F5",
   placeholder: "#E9ECF0",
   footer: "#F7F8FA",
