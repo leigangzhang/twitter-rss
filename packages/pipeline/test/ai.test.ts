@@ -8,6 +8,10 @@ import { createLlmEditor, createLlmReviewer, describeLlm, editorSystemPrompt, ll
 const requests: Array<{ path: string; auth: string | undefined; body: any }> = [];
 let rejectImages = false;
 let editorialReply: unknown = { drops: [] };
+// 下一次评审请求模拟"输出达到上限被截断"
+let truncateNext = false;
+// 覆盖评审结果里的字段
+let reviewPatch: Record<string, unknown> = {};
 let server: Server;
 let baseURL = "";
 
@@ -40,6 +44,21 @@ beforeAll(async () => {
         );
         return;
       }
+      if (truncateNext) {
+        truncateNext = false;
+        res.end(
+          JSON.stringify({
+            id: "msg_t",
+            type: "message",
+            role: "assistant",
+            model: body.model,
+            stop_reason: "max_tokens",
+            usage: { input_tokens: 10, output_tokens: body.max_tokens },
+            content: [{ type: "tool_use", id: "tu_t", name: "submit_review", input: {} }],
+          }),
+        );
+        return;
+      }
       res.end(
         JSON.stringify({
           id: "msg_1",
@@ -63,6 +82,7 @@ beforeAll(async () => {
                 reason: "一手经验",
                 zh: { text: "你好", thread: [], quotedText: null, linkTitle: null, linkDescription: null },
                 mediaNote: null,
+                ...reviewPatch,
               },
             },
           ],
@@ -118,6 +138,16 @@ describe("createLlmReviewer（DeepSeek Anthropic 兼容接口）", () => {
     expect(JSON.stringify(requests[0]!.body.messages)).not.toContain("cover.jpg");
     expect(typeof requests[0]!.body.messages[0].content).toBe("string");
     expect(result.mediaNote).toBeNull();
+  });
+
+  it("输出被截断时调高上限重试；keep 时剔除原因填了无效值不算失败", async () => {
+    requests.length = 0;
+    truncateNext = true;
+    reviewPatch = { dropReason: "" };
+    const result = await createLlmReviewer({ apiKey: "sk-test", baseURL }).review(tweet, [{ id: "ai", name: "AI" }]);
+    reviewPatch = {};
+    expect(result).toMatchObject({ verdict: "keep", dropReason: null, quality: 4 });
+    expect(requests.map((r) => r.body.max_tokens)).toEqual([6000, 8000]);
   });
 
   it("没有 API Key 时给出明确提示", () => {
@@ -295,7 +325,7 @@ describe("OpenAI 兼容接口", () => {
     expect(last).toMatchObject({ path: "/v1/chat/completions", auth: "Bearer sk-oa" });
     expect(last.body).toMatchObject({
       model: "gpt-x",
-      max_completion_tokens: 3000,
+      max_completion_tokens: 6000,
       tool_choice: { type: "function", function: { name: "submit_review" } },
     });
     expect(last.body).not.toHaveProperty("temperature");

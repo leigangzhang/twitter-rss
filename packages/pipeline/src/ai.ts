@@ -88,6 +88,8 @@ const REVIEW_TOOL = "submit_review";
 /** 模型要填的评审结果：5 分制整数分，scale 由程序补上 */
 export const ReviewOutput = AiResult.omit({ scale: true }).extend({
   quality: z.number().int().min(1).max(5).describe("5 分制：5 必读，4 值得读，3 有收获，2 价值低，1 不推荐"),
+  // keep 时模型偶尔把剔除原因填成空字符串或"none"，这不影响结果，按"没有"处理（drop 时 normalizeReview 会补成 other）
+  dropReason: AiResult.shape.dropReason.catch(null),
 });
 const EDIT_TOOL = "submit_editorial";
 
@@ -254,11 +256,19 @@ function anthropicClient(apiKey: string, baseURL: string, model: string): LlmCli
         tool_choice: { type: "tool", name: req.tool.name },
         messages: [{ role: "user", content: req.images === undefined ? req.text : [...images, { type: "text", text: req.text }] }],
       });
+      if (response.stop_reason === "max_tokens") throw new LlmTruncatedError(req.maxTokens);
       const block = response.content.find((b) => b.type === "tool_use" && b.name === req.tool.name);
       if (!block || block.type !== "tool_use") throw new Error("模型没有按要求返回结果");
       return block.input;
     },
   };
+}
+
+/** 输出达到 token 上限被截断：工具参数不完整，需要调高上限重试 */
+export class LlmTruncatedError extends Error {
+  constructor(readonly maxTokens: number) {
+    super(`输出超过 ${maxTokens} token 被截断`);
+  }
 }
 
 export class LlmHttpError extends Error {
@@ -336,6 +346,7 @@ function openaiClient(apiKey: string, baseURL: string, model: string): LlmClient
           if (adjust(e)) continue;
           throw e;
         }
+        if (data?.choices?.[0]?.finish_reason === "length") throw new LlmTruncatedError(req.maxTokens);
         const message = data?.choices?.[0]?.message;
         const call = (message?.tool_calls ?? []).find((c: any) => c?.function?.name === req.tool.name) ?? message?.tool_calls?.[0];
         const raw: string | undefined = call?.function?.arguments ?? extractJson(message?.content);
@@ -372,16 +383,30 @@ export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
   return {
     async review(tweet, topics, article) {
       // 只送文字：图片和视频都不做识别（邮件里视频只显示封面），节省 token
-      const output = await client.callTool({
-        system,
-        text: `候选主题：${JSON.stringify(topics)}\n\n推文：\n${JSON.stringify(tweetPayload(tweet, article), null, 2)}`,
-        tool: { name: REVIEW_TOOL, description: "提交对这条推文的评审结果", schema },
-        maxTokens: 3000,
-        temperature: 0.2,
-      });
-      const parsed = ReviewOutput.safeParse(output);
-      if (!parsed.success) throw new Error(`评审结果格式不符：${z.prettifyError(parsed.error)}`);
-      return normalizeReview({ ...parsed.data, scale: 5 }, tweet, topics);
+      const text = `候选主题：${JSON.stringify(topics)}\n\n推文：\n${JSON.stringify(tweetPayload(tweet, article), null, 2)}`;
+      // 长推文要翻译全文、写阅读摘要，输出可能很长：先给 6000 token，被截断就用 8000 再试；
+      // 格式不符（偶发）也再试一次。最多两次。
+      let maxTokens = 6000;
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const output = await client.callTool({
+            system,
+            text,
+            tool: { name: REVIEW_TOOL, description: "提交对这条推文的评审结果", schema },
+            maxTokens,
+            temperature: 0.2,
+          });
+          const parsed = ReviewOutput.safeParse(output);
+          if (!parsed.success) throw new Error(`评审结果格式不符：${z.prettifyError(parsed.error)}`);
+          return normalizeReview({ ...parsed.data, scale: 5 }, tweet, topics);
+        } catch (e) {
+          lastError = e;
+          if (e instanceof LlmTruncatedError) maxTokens = 8000;
+          else if (e instanceof LlmHttpError && e.status !== 429 && e.status < 500) throw e;
+        }
+      }
+      throw lastError;
     },
   };
 }
