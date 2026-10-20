@@ -2,7 +2,7 @@
 // 本包也会被其他包的 tsx 进程直接加载，这里显式指定 JSX 运行时
 import { Body, Column, Container, Head, Html, Link, Preview, Row, Section, Text } from "@react-email/components";
 import type { DigestView } from "@xrss/core";
-import { color, font, MAIL_WIDTH } from "./theme.ts";
+import { color, font, MAIL_WIDTH, MOBILE_BREAKPOINT } from "./theme.ts";
 import { CompactItem, TweetCard } from "./TweetCard.tsx";
 
 /**
@@ -57,7 +57,7 @@ export function DailyDigest({ view, tabs = false, probe = false }: { view: Diges
         {/* 没有 viewport 时 iPhone 邮件按桌面宽度排版，手机样式不会生效 */}
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {/* 手机和窄窗口：左右留白 32→20px，标题小一号 */}
-        <style dangerouslySetInnerHTML={{ __html: `body{margin:0!important}@media (max-width:640px){.xc{padding-left:20px!important;padding-right:20px!important}.xn{padding:10px 12px!important}.xh{font-size:22px!important;line-height:30px!important}}${tabs ? `\n${tabsCss(view.groups.length)}` : ""}` }} />
+        <style dangerouslySetInnerHTML={{ __html: `body{margin:0!important}@media (max-width:${MOBILE_BREAKPOINT}px){.xc{padding-left:20px!important;padding-right:20px!important}.xn{padding:10px 12px!important}.xh{font-size:22px!important;line-height:30px!important}}${tabs ? `\n${tabsCss(view.groups.length)}` : ""}` }} />
       </Head>
       <Preview>{preview}</Preview>
       <Body style={{ backgroundColor: color.ground, fontFamily: font.sans, color: color.ink, margin: 0, padding: 0, WebkitTextSizeAdjust: "100%" }}>

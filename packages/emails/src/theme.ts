@@ -29,6 +29,11 @@ export const font = {
 
 /** 邮件最大宽度：桌面端每行约 36 个汉字，长段落读起来不累 */
 export const MAIL_WIDTH = 640;
+/**
+ * 窄屏断点：窗口窄于邮件宽度时切换为手机版（左右留白 32→20px，标题小一号）。
+ * 不再加宽桌面版：中文每行超过约 40 字，长段落换行时容易读串行。
+ */
+export const MOBILE_BREAKPOINT = MAIL_WIDTH;
 /** 左右留白（桌面）；手机上由媒体查询改为 20px */
 export const GUTTER = 32;
 /** 正文宽度 */
