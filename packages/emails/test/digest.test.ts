@@ -57,7 +57,9 @@ describe("每日邮件", () => {
     const imgs = [1, 2].map((n) => ({ url: `https://pbs.twimg.com/media/i${n}?name=small`, href: `https://pbs.twimg.com/media/i${n}?name=large` }));
     const card = { ...view.groups[0]!.items[0]!, images: imgs };
     const { html } = await renderDigest({ ...view, groups: [{ ...view.groups[0]!, items: [card] }] });
-    expect(html).toContain('class="xgm"');
+    expect(html).toContain(`class="xgm xg-${card.id}"`);
+    // 两张图都没给尺寸时不生成比例规则，用默认的最高 480px
+    expect(html).not.toContain(`.xg-${card.id} .xgi img{aspect-ratio`);
     expect(html).toContain(`id="xi-${card.id}-1"`);
     expect(html).toMatch(/background-image:url\(&quot;https:\/\/pbs\.twimg\.com\/media\/i2\?name=large&quot;\)/);
     expect(html).toMatch(/class="xi-a"[^>]*href="https:\/\/pbs\.twimg\.com\/media\/i1\?name=large"|href="https:\/\/pbs\.twimg\.com\/media\/i1\?name=large"[^>]*class="xi-a"/);

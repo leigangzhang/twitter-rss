@@ -218,7 +218,7 @@ function Images({ card }: { card: CardView }) {
     // 支持 :checked 的邮箱（苹果邮件等）：多图变成左右滑动的横条，点图在当前页面全屏放大（见 DailyDigest 的 mediaCss）。
     // 不支持的邮箱（Gmail、QQ 网页版）：一张一行铺满宽度，点图打开大图文件。
     <div className="xg">
-      <div className={multi ? "xgm" : undefined}>
+      <div className={multi ? `xgm xg-${card.id}` : undefined}>
         {card.images.map((img, i) => {
           const id = `xi-${card.id}-${i}`;
           return (

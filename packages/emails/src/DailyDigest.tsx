@@ -38,7 +38,7 @@ const foldCss = [
 
 /**
  * 推文图片（纯 CSS，同样依赖 .xs 检测）：
- * - 多图：左右滑动的横条，按张吸附，露出下一张的边缘提示还能滑
+ * - 多图：左右滑动的横条，按张吸附，露出下一张的边缘提示还能滑；每张按原比例完整显示，不裁切
  * - 点图：隐藏的复选框打开全屏放大层，点任意处关闭；大图是背景图，打开时才下载
  * 不支持的邮箱规则不生效，图片一张一行，点图打开大图文件。
  */
@@ -47,14 +47,41 @@ const mediaCss = [
   ".xi-in{display:none!important}",
   `${S} .xi-a{pointer-events:none}`,
   `${S} .xi-l{cursor:zoom-in}`,
-  `${S} .xgm{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;width:${CONTENT_WIDTH}px;max-width:calc(100vw - 40px);margin-top:14px}`,
-  `${S} .xgm .xgi{flex:0 0 82%;scroll-snap-align:start;margin:0 8px 0 0!important}`,
-  `${S} .xgm .xgi img{height:260px!important;width:100%!important;object-fit:cover}`,
+  `${S} .xgm{display:flex!important;align-items:flex-start;overflow-x:auto;scroll-snap-type:x mandatory;width:${CONTENT_WIDTH}px;max-width:calc(100vw - 40px);margin-top:14px;padding-bottom:6px;scrollbar-width:thin}`,
+  `${S} .xgm::-webkit-scrollbar{height:4px}`,
+  `${S} .xgm::-webkit-scrollbar-thumb{background:#D5D9DF;border-radius:2px}`,
+  `${S} .xgm .xgi{flex:0 0 88%;scroll-snap-align:start;margin:0 8px 0 0!important}`,
+  // 不裁切：按原比例完整显示；特别高的图限制在 480px，两侧留浅灰底
+  `${S} .xgm .xgi img{width:100%!important;height:auto!important;max-height:480px;object-fit:contain;background:#F5F6F8}`,
   `${S} .xg-tip{display:block!important}`,
   `${S} .xi-in:checked ~ .xi-box{display:block!important;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,.92);cursor:zoom-out}`,
   ".xi-big{position:absolute;top:40px;left:12px;right:12px;bottom:48px;background-size:contain;background-position:center;background-repeat:no-repeat}",
   ".xi-tip{position:absolute;left:0;right:0;bottom:16px;text-align:center;color:#C9CDD3;font-size:13px}",
 ].join("\n");
+
+/**
+ * 多图横条的高度：同一条推文的几张图用同一个框，框的比例取其中最"高"的那张（最多 4:5 竖图），
+ * 每张图在框里按原比例完整显示（object-fit: contain），不裁切，也不会因为一张长图让其他图下面空出一大块。
+ * 图片尺寸在生成邮件时已知，所以按推文生成规则；不知道尺寸时用 .xgm 的默认规则（最高 480px）。
+ */
+function carouselCss(view: DigestView): string {
+  const rules: string[] = [];
+  for (const card of view.groups.flatMap((g) => g.items)) {
+    if (
+      card.images.length < 2 ||
+      !card.images.every((i) => i.width && i.height)
+    )
+      continue;
+    const ratio = Math.min(
+      1.25,
+      Math.max(...card.images.map((i) => i.height! / i.width!)),
+    );
+    rules.push(
+      `${S} .xg-${card.id} .xgi img{aspect-ratio:1000/${Math.round(1000 * ratio)};max-height:none}`,
+    );
+  }
+  return rules.join("\n");
+}
 
 /**
  * 主题标签页（纯 CSS：隐藏的单选按钮 + :checked）。
@@ -135,7 +162,7 @@ export function DailyDigest({
         {/* 手机和窄窗口：左右留白 32→20px，标题小一号 */}
         <style
           dangerouslySetInnerHTML={{
-            __html: `body{margin:0!important}@media (max-width:${MOBILE_BREAKPOINT}px){.xc{padding-left:20px!important;padding-right:20px!important}.xn{padding:10px 12px!important}.xh{font-size:22px!important;line-height:30px!important}}\n${foldCss}\n${mediaCss}${tabs ? `\n${tabsCss(view.groups.map((g) => g.topic.color))}` : ""}`,
+            __html: `body{margin:0!important}@media (max-width:${MOBILE_BREAKPOINT}px){.xc{padding-left:20px!important;padding-right:20px!important}.xn{padding:10px 12px!important}.xh{font-size:22px!important;line-height:30px!important}}\n${foldCss}\n${mediaCss}\n${carouselCss(view)}${tabs ? `\n${tabsCss(view.groups.map((g) => g.topic.color))}` : ""}`,
           }}
         />
       </Head>
