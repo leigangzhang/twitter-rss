@@ -31,6 +31,7 @@ const foldCss = [
   ".xs:checked ~ .xs-root .xr-l{display:inline!important}",
   ".xs:checked ~ .xs-root .xr-body{display:none}",
   ".xs:checked ~ .xs-root .xr-in:checked ~ .xr-body{display:block!important}",
+  ".xs:checked ~ .xs-root .xr-l2{display:inline-block!important}",
   ".xr-c{display:none}",
   ".xr-in:checked ~ .xr-s .xr-o{display:none}",
   ".xr-in:checked ~ .xr-s .xr-c{display:inline}",

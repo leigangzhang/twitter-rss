@@ -585,6 +585,24 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
             </p>
             <div className="xr-body" style={{ marginTop: 12 }}>
               <Body card={card} />
+              {/* 读到原文末尾时就地收起，不用翻回摘要；只在支持折叠的邮箱里显示 */}
+              <label
+                htmlFor={`xr-${card.id}`}
+                className="xr-l2"
+                style={
+                  {
+                    display: "none",
+                    fontSize: 14,
+                    lineHeight: "22px",
+                    fontWeight: 700,
+                    color: color.link,
+                    marginTop: 8,
+                    cursor: "pointer",
+                  } as CSSProperties
+                }
+              >
+                收起原文 ▴
+              </label>
             </div>
           </>
         ) : (
