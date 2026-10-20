@@ -164,6 +164,15 @@ export function qualityOf(ai: { quality: number; scale?: number } | null | undef
 }
 
 /** AI 评审结果：价值判断 + 中文版内容 + 说明 */
+/** 长推文阅读摘要：先给结论，再列关键依据 */
+export const ReaderSummary = z.object({
+  /** 一句话核心结论或最重要的发现（40 字以内） */
+  lead: z.string(),
+  /** 0–3 条关键依据：数据、做法、条件，每条一句 */
+  points: z.array(z.string()).max(5).default([]),
+});
+export type ReaderSummary = z.infer<typeof ReaderSummary>;
+
 export const AiResult = z.object({
   /** keep：值得推荐；drop：剔除 */
   verdict: z.enum(["keep", "drop"]),
@@ -183,10 +192,10 @@ export const AiResult = z.object({
   /** 一句话中文摘要（30–60 字），说清这条讲了什么，用于终审去重 */
   summary: z.string(),
   /**
-   * 长推文、Thread 的阅读摘要：2–4 句中文，邮件里替代原文先给读者看（原文折叠）。
-   * 有大胆预测或反主流观点时放在开头；短推文为 null；旧数据没有这个字段。
+   * 长推文、Thread 的阅读摘要，邮件里先给读者看（原文折叠）：一句结论 + 最多 3 条要点。
+   * 短推文为 null；旧数据没有这个字段，或是一段文字（字符串）。
    */
-  readerSummary: z.string().nullish(),
+  readerSummary: z.union([ReaderSummary, z.string()]).nullish(),
   /** 一句话说明判断理由，便于调整精选标准 */
   reason: z.string(),
   /** 原文已是中文时为 null */

@@ -38,4 +38,11 @@ describe("链接展示", () => {
     );
     expect(card.article).toMatchObject({ title: "MiniMax Platform", summary: "开放平台提供 M3.1 系列模型的 API。" });
   });
+
+  it("旧数据的阅读摘要是一段文字时，当作结论、没有要点", () => {
+    const raw = tweetWithLink({ title: "x" });
+    const ai = { verdict: "keep", category: "expert_insight", dropReason: null, quality: 4, scale: 5, topicId: "ai", summary: "s", reason: "r", zh: null, mediaNote: null, readerSummary: "一段旧摘要" } as const;
+    const card = toCardView({ id: "1", topicId: "ai", kind: "text", raw, ai: ai as never }, opts);
+    expect(card.readerSummary).toEqual({ lead: "一段旧摘要", points: [] });
+  });
 });

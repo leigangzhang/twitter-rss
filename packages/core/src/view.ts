@@ -51,8 +51,8 @@ export interface CardView {
   ctaLabel: string;
   /** AI 一句话摘要（中文版），邮件放不下时用它代替完整卡片 */
   summary?: string;
-  /** 长推文、Thread 的阅读摘要（中文版，2–4 句），邮件里先显示它、原文折叠 */
-  readerSummary?: string;
+  /** 长推文、Thread 的阅读摘要（中文版）：一句结论 + 最多 3 条要点，邮件里先显示它、原文折叠 */
+  readerSummary?: { lead: string; points: string[] };
 }
 
 /** 外部文章的图文摘要卡片 */
@@ -115,6 +115,13 @@ function toArticleView(link: Link, d: LinkDigest | undefined, lang: Lang, zhTitl
     points,
     imageUrl: d?.imageUrl ?? link.imageUrl,
   };
+}
+
+/** 旧数据的阅读摘要是一段文字，统一成"结论 + 要点"（要点为空） */
+function toReaderSummary(r: AiResult["readerSummary"]): CardView["readerSummary"] {
+  if (!r) return undefined;
+  if (typeof r === "string") return r.trim() ? { lead: r.trim(), points: [] } : undefined;
+  return r.lead.trim() ? { lead: r.lead.trim(), points: r.points } : undefined;
 }
 
 const LANG_NAMES: Record<string, string> = {
@@ -224,7 +231,7 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
     reposts: compactNumber(raw.metrics.reposts),
     ctaLabel: videoMedia ? "看视频 ↗" : "原推 ↗",
     summary: opts.lang === "zh" ? (t.ai?.summary ?? undefined) : undefined,
-    readerSummary: opts.lang === "zh" ? (t.ai?.readerSummary ?? undefined) : undefined,
+    readerSummary: opts.lang === "zh" ? toReaderSummary(t.ai?.readerSummary) : undefined,
   };
 }
 

@@ -40,17 +40,8 @@ const small: CSSProperties = {
 const link: CSSProperties = { color: color.link, textDecoration: "none" };
 // 摘要只比正文稍重一点：同样字号，中等字重、颜色更深
 // 摘要和邮件里其他 AI 内容一样用浅灰底区分，常规字重、比正文小一号，不抢正文
-const summaryText: CSSProperties = {
-  fontSize: 15,
-  lineHeight: "26px",
-  fontWeight: 400,
-  color: color.body,
-  backgroundColor: color.note,
-  borderRadius: 8,
-  padding: "10px 14px",
-  margin: 0,
-  ...wrap,
-};
+const summaryBox: CSSProperties = { backgroundColor: color.note, borderRadius: 8, padding: "10px 14px" };
+const summaryLine: CSSProperties = { fontSize: 15, lineHeight: "25px", fontWeight: 400, margin: 0, ...wrap };
 const aiTag: CSSProperties = {
   fontSize: 12,
   fontWeight: 400,
@@ -109,12 +100,12 @@ function Avatar({ card }: { card: CardView }) {
 /** 超过这个字数的推文：作者行下先给 AI 摘要，原文默认折叠 */
 export const SUMMARY_MIN_CHARS = 300;
 
-/** 优先用 2–4 句的阅读摘要；旧数据没有时退回一句话摘要 */
-function summaryOf(card: CardView): string | undefined {
-  const text = card.readerSummary ?? card.summary;
-  if (!text) return undefined;
+/** 优先用阅读摘要（结论 + 要点）；旧数据没有时退回一句话摘要 */
+function summaryOf(card: CardView): { lead: string; points: string[] } | undefined {
+  const s = card.readerSummary ?? (card.summary ? { lead: card.summary, points: [] } : undefined);
+  if (!s) return undefined;
   const length = card.parts.reduce((n, p) => n + p.length, 0);
-  return length > SUMMARY_MIN_CHARS ? text : undefined;
+  return length > SUMMARY_MIN_CHARS ? s : undefined;
 }
 
 /** 作者行：小头像 + 名字，第二行是 @账号、时间和内容类型 */
@@ -540,6 +531,26 @@ function LinkLine({ card }: { card: CardView }) {
 
 export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
   const summary = summaryOf(card);
+  const toggle = (
+    <label
+      htmlFor={`xr-${card.id}`}
+      className="xr-l"
+      style={
+        {
+          display: "none",
+          fontSize: 14,
+          fontWeight: 400,
+          color: color.link,
+          marginLeft: 8,
+          whiteSpace: "nowrap",
+          cursor: "pointer",
+        } as CSSProperties
+      }
+    >
+      <span className="xr-o">展开原文 ▾</span>
+      <span className="xr-c">收起原文 ▴</span>
+    </label>
+  );
   const counts = `${card.likes} 赞　${card.reposts} 转发`;
   return (
     // 分隔线只画在正文宽度内，和主题标题下的色线对齐
@@ -567,28 +578,20 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
               className="xr-in"
               style={{ display: "none", msoHide: "all" } as CSSProperties}
             />
-            <p className="xr-s xn" style={summaryText}>
-              <span style={aiTag}>AI 摘要</span>
-              {summary}
-              <label
-                htmlFor={`xr-${card.id}`}
-                className="xr-l"
-                style={
-                  {
-                    display: "none",
-                    fontSize: 14,
-                    fontWeight: 400,
-                    color: color.link,
-                    marginLeft: 8,
-                    whiteSpace: "nowrap",
-                    cursor: "pointer",
-                  } as CSSProperties
-                }
-              >
-                <span className="xr-o">展开原文 ▾</span>
-                <span className="xr-c">收起原文 ▴</span>
-              </label>
-            </p>
+            {/* 摘要块：结论一句（正文色），要点灰色悬挂缩进；"展开原文"跟在最后一行后面 */}
+            <div className="xr-s xn" style={summaryBox}>
+              <p style={{ ...summaryLine, color: color.ink }}>
+                <span style={aiTag}>AI 摘要</span>
+                {summary.lead}
+                {summary.points.length ? null : toggle}
+              </p>
+              {summary.points.map((p, i) => (
+                <p key={i} style={{ ...summaryLine, color: color.body, marginTop: 4, paddingLeft: 14, textIndent: -14 }}>
+                  · {p}
+                  {i === summary.points.length - 1 ? toggle : null}
+                </p>
+              ))}
+            </div>
             <div className="xr-body" style={{ marginTop: 12 }}>
               <Body card={card} />
               {/* 读到原文末尾时就地收起，不用翻回摘要；只在支持折叠的邮箱里显示 */}

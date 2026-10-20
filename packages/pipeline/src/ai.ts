@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { AiResult, cleanTweetText, type ContentCategory, type LinkDigest, looksTruncated, type RawTweet, type Topic, xWeightedLength } from "@xrss/core";
+import { AiResult, cleanTweetText, ReaderSummary, type ContentCategory, type LinkDigest, looksTruncated, type RawTweet, type Topic, xWeightedLength } from "@xrss/core";
 import { z } from "zod";
 
 /** DeepSeek 的 Anthropic 兼容接口：https://api-docs.deepseek.com/guides/anthropic_api */
@@ -48,12 +48,13 @@ ${guide || DEFAULT_GUIDE}
    填 quotedDigest：summary 用 1–2 句中文说清它讲了什么，points 列 2–4 条具体要点（做法、数据、结论）；
    被截断时只概括能看到的部分，不要猜测或补全没看到的内容。引用很短、或没有引用时 quotedDigest 为 null。
 10. readerSummary：正文较长（超过约 200 个汉字或 400 个英文字符，含 Thread）或是 Thread 时填写，
-   给没时间读原文的读者看，邮件里会先显示它、原文折叠。要求：
-   - 2–4 句简体中文，把正文和 Thread 当作一个整体总结，不要逐条复述
-   - 有大胆预测或反主流观点时，用它开头
-   - 有引用推文时，说清作者在回应什么
-   - 提到工具、产品、模型、演示、论文、数据集时写出名称
-   - 只写原文里有的信息，不评价、不夸大；内容不多时写 1–2 句即可，不要凑满
+   给没时间读原文的读者看，邮件里会先显示它、原文折叠。读者扫一眼 lead 就要知道这条讲什么。
+   - lead：一句简体中文，40 字以内，直接写核心结论或最重要的发现（有大胆预测或反主流观点时就写它），
+     不要写"作者分享了……""本文介绍了……"这类铺垫；有引用推文时说清作者在回应什么
+   - points：0–3 条关键依据（数据、做法、前提条件），每条一句、30 字以内，只保留最关键的 1–2 个数字；
+     不要重复 lead；内容只有一个观点时 points 为空数组
+   - 把正文和 Thread 当作一个整体总结；提到工具、产品、模型、论文时写出名称
+   - 只写原文里有的信息，不评价、不夸大；lead 加 points 合计不超过约 150 字
    正文较短时 readerSummary 为 null。
 
 linkedArticle 是推文（或引用推文）所附外部文章的标题、简介和正文开头（fetched 为 false 时只有标题和简介）。
@@ -90,6 +91,8 @@ export const ReviewOutput = AiResult.omit({ scale: true }).extend({
   quality: z.number().int().min(1).max(5).describe("5 分制：5 必读，4 值得读，3 有收获，2 价值低，1 不推荐"),
   // keep 时模型偶尔把剔除原因填成空字符串或"none"，这不影响结果，按"没有"处理（drop 时 normalizeReview 会补成 other）
   dropReason: AiResult.shape.dropReason.catch(null),
+  // 模型只输出新格式（结论 + 要点）；字符串格式只在旧数据里出现
+  readerSummary: ReaderSummary.nullish(),
 });
 const EDIT_TOOL = "submit_editorial";
 
@@ -417,7 +420,10 @@ export function normalizeReview(r: AiResult, tweet: RawTweet, topics: Pick<Topic
   if (!topics.some((t) => t.id === result.topicId)) result.topicId = topics[0]!.id;
   // 阅读摘要只给长推文和 Thread；短推文直接读原文
   const fullText = [tweet.text, ...tweet.thread.map((p) => p.text)].map(cleanTweetText).join("\n");
-  if (!result.readerSummary?.trim() || (tweet.thread.length === 0 && xWeightedLength(fullText) < 360)) result.readerSummary = null;
+  const rs = result.readerSummary;
+  if (rs && typeof rs === "object") result.readerSummary = { lead: rs.lead.trim(), points: rs.points.map((p) => p.trim()).filter(Boolean).slice(0, 3) };
+  const lead = typeof result.readerSummary === "string" ? result.readerSummary : result.readerSummary?.lead;
+  if (!lead?.trim() || (tweet.thread.length === 0 && xWeightedLength(fullText) < 360)) result.readerSummary = null;
   result.mediaNote = null;
   if (tweet.lang?.startsWith("zh")) result.zh = null;
   // 没有引用、或引用很短且完整时不需要摘要，直接显示原文

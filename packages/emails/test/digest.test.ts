@@ -69,9 +69,12 @@ describe("每日邮件", () => {
   it("长推文优先显示 2–4 句的阅读摘要，没有时退回一句话摘要", async () => {
     const view = sampleDigest("zh");
     const base = { ...view.groups[0]!.items[0]!, parts: ["很长的正文。".repeat(60)] };
-    const withReader = { ...base, readerSummary: "作者断言长上下文的瓶颈在位置而不是规模。他用四种长度、四个尺寸的模型做了对照。" };
+    const withReader = { ...base, readerSummary: { lead: "长上下文的瓶颈在位置而不是规模", points: ["超过 32k 后不同尺寸差距消失", "关键指令放末尾召回率提升 18%"] } };
     const one = await renderDigest({ ...view, groups: [{ ...view.groups[0]!, items: [withReader] }] });
-    expect(one.html).toContain("作者断言长上下文的瓶颈在位置而不是规模");
+    expect(one.html).toContain("长上下文的瓶颈在位置而不是规模");
+    expect(one.html).toContain("· <!-- -->关键指令放末尾召回率提升 18%");
+    // "展开原文"跟在最后一条要点后面，只出现一次
+    expect(one.html.match(/class="xr-l"/g)).toHaveLength(1);
     const two = await renderDigest({ ...view, groups: [{ ...view.groups[0]!, items: [base] }] });
     expect(two.html).toContain(base.summary!);
   });
