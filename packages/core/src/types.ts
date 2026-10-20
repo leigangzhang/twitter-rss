@@ -182,6 +182,11 @@ export const AiResult = z.object({
   topicId: z.string(),
   /** 一句话中文摘要（30–60 字），说清这条讲了什么，用于终审去重 */
   summary: z.string(),
+  /**
+   * 长推文、Thread 的阅读摘要：2–4 句中文，邮件里替代原文先给读者看（原文折叠）。
+   * 有大胆预测或反主流观点时放在开头；短推文为 null；旧数据没有这个字段。
+   */
+  readerSummary: z.string().nullish(),
   /** 一句话说明判断理由，便于调整精选标准 */
   reason: z.string(),
   /** 原文已是中文时为 null */

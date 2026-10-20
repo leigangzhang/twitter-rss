@@ -65,4 +65,14 @@ describe("每日邮件", () => {
     expect(html).toMatch(/class="xi-a"[^>]*href="https:\/\/pbs\.twimg\.com\/media\/i1\?name=large"|href="https:\/\/pbs\.twimg\.com\/media\/i1\?name=large"[^>]*class="xi-a"/);
     expect(html).toContain("左右滑动查看");
   });
+
+  it("长推文优先显示 2–4 句的阅读摘要，没有时退回一句话摘要", async () => {
+    const view = sampleDigest("zh");
+    const base = { ...view.groups[0]!.items[0]!, parts: ["很长的正文。".repeat(60)] };
+    const withReader = { ...base, readerSummary: "作者断言长上下文的瓶颈在位置而不是规模。他用四种长度、四个尺寸的模型做了对照。" };
+    const one = await renderDigest({ ...view, groups: [{ ...view.groups[0]!, items: [withReader] }] });
+    expect(one.html).toContain("作者断言长上下文的瓶颈在位置而不是规模");
+    const two = await renderDigest({ ...view, groups: [{ ...view.groups[0]!, items: [base] }] });
+    expect(two.html).toContain(base.summary!);
+  });
 });

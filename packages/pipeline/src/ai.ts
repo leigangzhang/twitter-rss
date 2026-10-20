@@ -47,6 +47,14 @@ ${guide || DEFAULT_GUIDE}
 9. 引用推文（quoted）较长（超过约 140 个汉字或 280 个英文字符），或 quoted.truncated 为 true（时间线只给了前一部分）时，
    填 quotedDigest：summary 用 1–2 句中文说清它讲了什么，points 列 2–4 条具体要点（做法、数据、结论）；
    被截断时只概括能看到的部分，不要猜测或补全没看到的内容。引用很短、或没有引用时 quotedDigest 为 null。
+10. readerSummary：正文较长（超过约 200 个汉字或 400 个英文字符，含 Thread）或是 Thread 时填写，
+   给没时间读原文的读者看，邮件里会先显示它、原文折叠。要求：
+   - 2–4 句简体中文，把正文和 Thread 当作一个整体总结，不要逐条复述
+   - 有大胆预测或反主流观点时，用它开头
+   - 有引用推文时，说清作者在回应什么
+   - 提到工具、产品、模型、演示、论文、数据集时写出名称
+   - 只写原文里有的信息，不评价、不夸大；内容不多时写 1–2 句即可，不要凑满
+   正文较短时 readerSummary 为 null。
 
 linkedArticle 是推文（或引用推文）所附外部文章的标题、简介和正文开头（fetched 为 false 时只有标题和简介）。
 推文主要是在分享这篇文章时，按文章本身的价值判断类型和去留：实践复盘、技术博客、研究报告等有实质内容的可以保留，
@@ -382,6 +390,9 @@ export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
 export function normalizeReview(r: AiResult, tweet: RawTweet, topics: Pick<Topic, "id">[]): AiResult {
   const result = { ...r };
   if (!topics.some((t) => t.id === result.topicId)) result.topicId = topics[0]!.id;
+  // 阅读摘要只给长推文和 Thread；短推文直接读原文
+  const fullText = [tweet.text, ...tweet.thread.map((p) => p.text)].map(cleanTweetText).join("\n");
+  if (!result.readerSummary?.trim() || (tweet.thread.length === 0 && xWeightedLength(fullText) < 360)) result.readerSummary = null;
   result.mediaNote = null;
   if (tweet.lang?.startsWith("zh")) result.zh = null;
   // 没有引用、或引用很短且完整时不需要摘要，直接显示原文

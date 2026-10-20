@@ -105,10 +105,12 @@ function Avatar({ card }: { card: CardView }) {
 /** 超过这个字数的推文：作者行下先给 AI 摘要，原文默认折叠 */
 export const SUMMARY_MIN_CHARS = 300;
 
+/** 优先用 2–4 句的阅读摘要；旧数据没有时退回一句话摘要 */
 function summaryOf(card: CardView): string | undefined {
-  if (!card.summary) return undefined;
+  const text = card.readerSummary ?? card.summary;
+  if (!text) return undefined;
   const length = card.parts.reduce((n, p) => n + p.length, 0);
-  return length > SUMMARY_MIN_CHARS ? card.summary : undefined;
+  return length > SUMMARY_MIN_CHARS ? text : undefined;
 }
 
 /** 作者行：小头像 + 名字，第二行是 @账号、时间和内容类型 */

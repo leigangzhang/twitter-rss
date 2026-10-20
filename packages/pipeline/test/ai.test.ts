@@ -168,6 +168,17 @@ describe("精选规则", () => {
     mediaNote: null,
   };
 
+  it("阅读摘要只留给长推文和 Thread，短推文清空", () => {
+    const withSummary = { ...base, readerSummary: "作者认为……" };
+    const short = normalizeReview(withSummary, tweet, [{ id: "ai" }]);
+    expect(short.readerSummary).toBeNull();
+    const long = normalizeReview(withSummary, { ...tweet, text: "word ".repeat(120) }, [{ id: "ai" }]);
+    expect(long.readerSummary).toBe("作者认为……");
+    const thread = normalizeReview(withSummary, { ...tweet, thread: [{ id: "2", text: "more" }] } as typeof tweet, [{ id: "ai" }]);
+    expect(thread.readerSummary).toBe("作者认为……");
+    expect(reviewSystemPrompt("")).toContain("readerSummary");
+  });
+
   it("提示词包含 config/curation.md 的内容，缺省时使用内置标准", () => {
     expect(reviewSystemPrompt("自定义标准 XYZ")).toContain("自定义标准 XYZ");
     expect(reviewSystemPrompt("")).toContain("best_practice");

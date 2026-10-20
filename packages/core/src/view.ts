@@ -51,6 +51,8 @@ export interface CardView {
   ctaLabel: string;
   /** AI 一句话摘要（中文版），邮件放不下时用它代替完整卡片 */
   summary?: string;
+  /** 长推文、Thread 的阅读摘要（中文版，2–4 句），邮件里先显示它、原文折叠 */
+  readerSummary?: string;
 }
 
 /** 外部文章的图文摘要卡片 */
@@ -216,6 +218,7 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
     reposts: compactNumber(raw.metrics.reposts),
     ctaLabel: videoMedia ? "看视频 ↗" : "原推 ↗",
     summary: opts.lang === "zh" ? (t.ai?.summary ?? undefined) : undefined,
+    readerSummary: opts.lang === "zh" ? (t.ai?.readerSummary ?? undefined) : undefined,
   };
 }
 
