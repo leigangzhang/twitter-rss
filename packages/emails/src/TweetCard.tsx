@@ -39,11 +39,15 @@ const small: CSSProperties = {
 };
 const link: CSSProperties = { color: color.link, textDecoration: "none" };
 // 摘要只比正文稍重一点：同样字号，中等字重、颜色更深
+// 摘要和邮件里其他 AI 内容一样用浅灰底区分，常规字重、比正文小一号，不抢正文
 const summaryText: CSSProperties = {
-  fontSize: 16,
-  lineHeight: "28px",
-  fontWeight: 500,
-  color: color.ink,
+  fontSize: 15,
+  lineHeight: "26px",
+  fontWeight: 400,
+  color: color.body,
+  backgroundColor: color.note,
+  borderRadius: 8,
+  padding: "10px 14px",
   margin: 0,
   ...wrap,
 };
@@ -563,7 +567,7 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
               className="xr-in"
               style={{ display: "none", msoHide: "all" } as CSSProperties}
             />
-            <p className="xr-s" style={summaryText}>
+            <p className="xr-s xn" style={summaryText}>
               <span style={aiTag}>AI 摘要</span>
               {summary}
               <label
@@ -573,7 +577,7 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
                   {
                     display: "none",
                     fontSize: 14,
-                    fontWeight: 700,
+                    fontWeight: 400,
                     color: color.link,
                     marginLeft: 8,
                     whiteSpace: "nowrap",
@@ -596,7 +600,7 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
                     display: "none",
                     fontSize: 14,
                     lineHeight: "22px",
-                    fontWeight: 700,
+                    fontWeight: 400,
                     color: color.link,
                     marginTop: 8,
                     cursor: "pointer",
