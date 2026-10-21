@@ -41,8 +41,21 @@ const link: CSSProperties = { color: color.link, textDecoration: "none" };
 // 摘要只比正文稍重一点：同样字号，中等字重、颜色更深
 // 摘要不加底色：结论和正文同字号、稍重一点（中等字重、深色），要点用常规字重，靠"AI 摘要"标签和层次区分
 const summaryBox: CSSProperties = {};
-const summaryLine: CSSProperties = { fontSize: 15, lineHeight: "25px", fontWeight: 400, margin: 0, ...wrap };
-const summaryLead: CSSProperties = { fontSize: 16, lineHeight: "28px", fontWeight: 500, color: color.ink, margin: 0, ...wrap };
+const summaryLine: CSSProperties = {
+  fontSize: 15,
+  lineHeight: "25px",
+  fontWeight: 400,
+  margin: 0,
+  ...wrap,
+};
+const summaryLead: CSSProperties = {
+  fontSize: 16,
+  lineHeight: "28px",
+  fontWeight: 500,
+  color: color.ink,
+  margin: 0,
+  ...wrap,
+};
 const aiTag: CSSProperties = {
   fontSize: 12,
   fontWeight: 400,
@@ -102,8 +115,12 @@ function Avatar({ card }: { card: CardView }) {
 export const SUMMARY_MIN_CHARS = 300;
 
 /** 优先用阅读摘要（结论 + 要点）；旧数据没有时退回一句话摘要 */
-function summaryOf(card: CardView): { lead: string; points: string[] } | undefined {
-  const s = card.readerSummary ?? (card.summary ? { lead: card.summary, points: [] } : undefined);
+function summaryOf(
+  card: CardView,
+): { lead: string; points: string[] } | undefined {
+  const s =
+    card.readerSummary ??
+    (card.summary ? { lead: card.summary, points: [] } : undefined);
   if (!s) return undefined;
   const length = card.parts.reduce((n, p) => n + p.length, 0);
   return length > SUMMARY_MIN_CHARS ? s : undefined;
@@ -211,80 +228,115 @@ function Body({ card }: { card: CardView }) {
 /** 图片一张一行、铺满正文宽度（截图里的文字才看得清），点开是大图 */
 function Images({ card }: { card: CardView }) {
   if (card.images.length === 0) return null;
-  const multi = card.images.length > 1;
+  const imgTag = (img: CardView["images"][number], style: CSSProperties) => (
+    <img
+      src={img.url}
+      alt={img.alt ?? ""}
+      width={CONTENT_WIDTH}
+      height={
+        img.width && img.height
+          ? Math.round((CONTENT_WIDTH * img.height) / img.width)
+          : undefined
+      }
+      style={{
+        width: "100%",
+        maxWidth: CONTENT_WIDTH,
+        height: "auto",
+        borderRadius: 8,
+        display: "block",
+        ...style,
+      }}
+    />
+  );
+  // 单张图：本来就铺满宽度、按原比例完整显示，不需要放大。
+  // 苹果邮件等点了不跳转（见 mediaCss 的 .xi-a）；Gmail 等不支持的邮箱点开是大图文件
+  if (card.images.length === 1) {
+    const img = card.images[0]!;
+    return (
+      <a
+        href={img.href}
+        className="xi-a"
+        style={{ display: "block", marginTop: 14 }}
+      >
+        {imgTag(img, {})}
+      </a>
+    );
+  }
+  const group = `xi-${card.id}`;
   return (
-    // 支持 :checked 的邮箱（苹果邮件等）：多图变成左右滑动的横条，点图在当前页面全屏放大（见 DailyDigest 的 mediaCss）。
+    // 多张图（支持 :checked 的邮箱，如苹果邮件）：左右滑动的横条；点某一张，横条原地换成这张图的全宽大图，再点收起。
+    // 不弹出浮层：iPhone 邮件里浮层会定位到整封邮件的中间，而不是当前屏幕。
     // 不支持的邮箱（Gmail、QQ 网页版）：一张一行铺满宽度，点图打开大图文件。
     <div className="xg">
-      <div className={multi ? `xgm xg-${card.id}` : undefined}>
-        {card.images.map((img, i) => {
-          const id = `xi-${card.id}-${i}`;
-          return (
-            <div key={i} className="xgi" style={{ marginTop: 14 }}>
-              <input
-                type="checkbox"
-                id={id}
-                className="xi-in"
-                style={{ display: "none", msoHide: "all" } as CSSProperties}
-              />
-              <label htmlFor={id} className="xi-l" style={{ display: "block" }}>
-                <a
-                  href={img.href}
-                  className="xi-a"
-                  style={{ display: "block" }}
-                >
-                  <img
-                    src={img.url}
-                    alt={img.alt ?? ""}
-                    width={CONTENT_WIDTH}
-                    height={
-                      img.width && img.height
-                        ? Math.round((CONTENT_WIDTH * img.height) / img.width)
-                        : undefined
-                    }
-                    style={{
-                      width: "100%",
-                      maxWidth: CONTENT_WIDTH,
-                      height: "auto",
-                      borderRadius: 8,
-                      display: "block",
-                    }}
-                  />
-                </a>
-              </label>
-              {/* 放大层：默认隐藏；大图用背景图，点开时才下载 */}
-              <label
-                htmlFor={id}
-                className="xi-box"
-                style={{ display: "none" }}
-              >
-                <span
-                  className="xi-big"
-                  style={{ backgroundImage: `url("${img.href}")` }}
-                />
-                <span className="xi-tip">
-                  {multi ? `${i + 1} / ${card.images.length}　` : ""}
-                  点击任意处关闭
-                </span>
-              </label>
-            </div>
-          );
-        })}
+      <input
+        type="radio"
+        name={group}
+        id={`${group}-n`}
+        className="xi-in"
+        defaultChecked
+        style={{ display: "none", msoHide: "all" } as CSSProperties}
+      />
+      {card.images.map((_, i) => (
+        <input
+          key={i}
+          type="radio"
+          name={group}
+          id={`${group}-${i}`}
+          className={`xi-in xi-z xi-in-${i}`}
+          style={{ display: "none", msoHide: "all" } as CSSProperties}
+        />
+      ))}
+      <div className={`xgm xg-${card.id}`}>
+        {card.images.map((img, i) => (
+          <div key={i} className="xgi" style={{ marginTop: 14 }}>
+            <label
+              htmlFor={`${group}-${i}`}
+              className="xi-l"
+              style={{ display: "block" }}
+            >
+              <a href={img.href} className="xi-a" style={{ display: "block" }}>
+                {imgTag(img, {})}
+              </a>
+            </label>
+          </div>
+        ))}
       </div>
-      {multi ? (
-        <p
-          className="xg-tip"
-          style={{
-            display: "none",
-            fontSize: 12,
-            lineHeight: "18px",
-            color: color.muted,
-            margin: "6px 0 0",
-          }}
-        >
-          共 {card.images.length} 张，左右滑动查看，点图放大
-        </p>
-      ) : null}
+      {/* 放大：默认隐藏，选中哪张显示哪张；点图片回到横条 */}
+      <div className="xz">
+        {card.images.map((img, i) => (
+          <label
+            key={i}
+            htmlFor={`${group}-n`}
+            className={`xz-${i}`}
+            style={{ display: "none", marginTop: 14 }}
+          >
+            {imgTag(img, {})}
+            <span
+              style={{
+                display: "block",
+                fontSize: 12,
+                lineHeight: "18px",
+                color: color.muted,
+                marginTop: 6,
+              }}
+            >
+              第 {i + 1} / {card.images.length} 张，点图片收起
+            </span>
+          </label>
+        ))}
+      </div>
+      <p
+        className="xg-tip"
+        style={{
+          display: "none",
+          fontSize: 12,
+          lineHeight: "18px",
+          color: color.muted,
+          margin: "6px 0 0",
+        }}
+      >
+        共 {card.images.length} 张，左右滑动查看，点图放大
+      </p>
     </div>
   );
 }
@@ -348,21 +400,21 @@ function Video({ card }: { card: CardView }) {
       </p>
     );
   }
+  // 只显示封面，点了不跳转；看视频用底部的"在 X 上看视频"
   return (
-    <a href={card.url} style={{ display: "block", marginTop: 14 }}>
-      <img
-        src={card.video.thumbUrl}
-        alt="视频封面，点开在 X（原 Twitter）上播放"
-        width={CONTENT_WIDTH}
-        style={{
-          width: "100%",
-          maxWidth: CONTENT_WIDTH,
-          height: "auto",
-          borderRadius: 8,
-          display: "block",
-        }}
-      />
-    </a>
+    <img
+      src={card.video.thumbUrl}
+      alt="视频封面"
+      width={CONTENT_WIDTH}
+      style={{
+        width: "100%",
+        maxWidth: CONTENT_WIDTH,
+        height: "auto",
+        borderRadius: 8,
+        display: "block",
+        marginTop: 14,
+      }}
+    />
   );
 }
 
@@ -585,11 +637,24 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
                 {summary.lead}
               </p>
               {summary.points.map((p, i) => (
-                <p key={i} style={{ ...summaryLine, color: color.body, marginTop: 4, paddingLeft: 14, textIndent: -14 }}>
+                <p
+                  key={i}
+                  style={{
+                    ...summaryLine,
+                    color: color.body,
+                    marginTop: 4,
+                    paddingLeft: 14,
+                    textIndent: -14,
+                  }}
+                >
                   · {p}
                 </p>
               ))}
-              <p style={{ fontSize: 14, lineHeight: "22px", margin: "6px 0 0" }}>{toggle}</p>
+              <p
+                style={{ fontSize: 14, lineHeight: "22px", margin: "6px 0 0" }}
+              >
+                {toggle}
+              </p>
             </div>
             <div className="xr-body" style={{ marginTop: 16 }}>
               <Body card={card} />

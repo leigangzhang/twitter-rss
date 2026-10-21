@@ -51,3 +51,25 @@ export function looksTruncated(text: string): boolean {
   // 时间线里的引用推文大约在 100 个汉字 / 200 个英文字符处被截断
   return xWeightedLength(t) >= 200 && !/[。！？.!?)）」』"”'’\p{Extended_Pictographic}]$/u.test(t);
 }
+
+/**
+ * 推文自己的图片和视频：去掉从页面读取时误收进来的引用卡片缩略图。
+ * X 页面上引用推文的图片 / 视频封面用小尺寸（地址带 name=240x240、360x360 之类）显示，
+ * 采集端读页面时可能把它们当成这条推文自己的媒体，导致视频封面"错位"（显示的是被引用推文的视频）。
+ * 规则：小于等于 360 的方形缩略图视为引用卡片；同一张图（去掉参数和扩展名后相同）的其他尺寸也一并去掉；重复的只留一个。
+ */
+export function ownMedia<T extends { url: string }>(media: T[]): T[] {
+  const key = (url: string) => url.replace(/[?#].*$/, "").replace(/\.(jpe?g|png|webp|gif)$/i, "");
+  const isCardThumb = (url: string) => {
+    const m = /[?&]name=(\d+)x(\d+)/.exec(url);
+    return Boolean(m && Number(m[1]) <= 360 && Number(m[2]) <= 360);
+  };
+  const cardKeys = new Set(media.filter((m) => isCardThumb(m.url)).map((m) => key(m.url)));
+  const seen = new Set<string>();
+  return media.filter((m) => {
+    const k = key(m.url);
+    if (cardKeys.has(k) || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}

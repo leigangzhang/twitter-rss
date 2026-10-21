@@ -1,5 +1,5 @@
 import { readInbox, smallAvatar } from "@xrss/collector";
-import { type AppConfig, catchUpSince, cleanTweetText, engagement, mediaKind, passesFilters, type RawTweet, type TimeRange } from "@xrss/core";
+import { type AppConfig, catchUpSince, cleanTweetText, engagement, mediaKind, ownMedia, passesFilters, type RawTweet, type TimeRange } from "@xrss/core";
 import { accounts, type Db, tweets } from "@xrss/core/db";
 import { eq, sql } from "drizzle-orm";
 
@@ -34,6 +34,7 @@ function cleanRaw(t: RawTweet): RawTweet {
     text: cleanTweetText(t.text),
     thread: t.thread.map((p) => ({ ...p, text: cleanTweetText(p.text) })),
     quoted: t.quoted ? { ...t.quoted, text: cleanTweetText(t.quoted.text) } : undefined,
+    media: ownMedia(t.media),
   };
 }
 

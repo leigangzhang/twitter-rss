@@ -1,6 +1,6 @@
 import type { DigestConfig, Topic } from "./config.ts";
-import { xWeightedLength } from "./scoring.ts";
-import { cleanTweetText, largeImageUrl, looksTruncated } from "./text.ts";
+import { mediaKind, xWeightedLength } from "./scoring.ts";
+import { cleanTweetText, largeImageUrl, looksTruncated, ownMedia } from "./text.ts";
 import { compactNumber, displayTime, localDate } from "./time.ts";
 import { type AiResult, CATEGORY_LABELS, type Lang, type Link, type LinkDigest, type MediaKind, type RawTweet } from "./types.ts";
 
@@ -164,7 +164,9 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
   const allParts = [zh?.text ?? raw.text, ...raw.thread.map((p, i) => zh?.thread[i] ?? p.text)].map(cleanTweetText);
   const parts = allParts.slice(0, opts.maxThreadParts);
 
-  const videoMedia = raw.media.find((m) => m.type === "video" || m.type === "gif");
+  // 已入库的旧数据也按"推文自己的媒体"过滤一遍（去掉误收的引用卡片缩略图）
+  const media = ownMedia(raw.media);
+  const videoMedia = media.find((m) => m.type === "video" || m.type === "gif");
   let badge: string | undefined;
   if (videoMedia) badge = `视频${videoMedia.durationSec ? ` · ${duration(videoMedia.durationSec)}` : ""}`;
   else if (raw.thread.length > 0) badge = `Thread · ${raw.thread.length + 1}`;
@@ -191,11 +193,11 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
         ? `译自${LANG_NAMES[raw.lang ?? ""] ?? "外文"}`
         : undefined,
     badge,
-    kind: t.kind,
+    kind: mediaKind({ media }),
     parts,
     moreParts: allParts.length - parts.length,
     truncated: raw.textTruncated,
-    images: raw.media
+    images: media
       .filter((m) => m.type === "photo")
       .slice(0, 4)
       .map((m) => ({ url: m.url, href: largeImageUrl(m.url), width: m.width, height: m.height, alt: m.altText })),

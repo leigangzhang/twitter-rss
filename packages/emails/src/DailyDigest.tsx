@@ -40,14 +40,15 @@ const foldCss = [
 /**
  * 推文图片（纯 CSS，同样依赖 .xs 检测）：
  * - 多图：左右滑动的横条，按张吸附，露出下一张的边缘提示还能滑；每张按原比例完整显示，不裁切
- * - 点图：隐藏的复选框打开全屏放大层，点任意处关闭；大图是背景图，打开时才下载
+ * - 点图：横条原地换成这张图的全宽大图，再点收起（不用浮层：iPhone 邮件里浮层会定位到整封邮件中间）
  * 不支持的邮箱规则不生效，图片一张一行，点图打开大图文件。
  */
 const S = ".xs:checked ~ .xs-root";
 const mediaCss = [
   ".xi-in{display:none!important}",
   `${S} .xi-a{pointer-events:none}`,
-  `${S} .xi-l{cursor:zoom-in}`,
+  `${S} .xgm .xi-l{cursor:zoom-in}`,
+  `${S} .xz label{cursor:zoom-out}`,
   `${S} .xgm{display:flex!important;align-items:stretch;overflow-x:auto;scroll-snap-type:x mandatory;width:${CONTENT_WIDTH}px;max-width:calc(100vw - 40px);margin-top:14px;padding-bottom:6px;scrollbar-width:thin}`,
   `${S} .xgm::-webkit-scrollbar{height:4px}`,
   `${S} .xgm::-webkit-scrollbar-thumb{background:#D5D9DF;border-radius:2px}`,
@@ -57,9 +58,11 @@ const mediaCss = [
   // 不裁切：按原比例完整显示，特别高的图限制在 480px
   `${S} .xgm .xgi img{width:auto!important;max-width:100%!important;height:auto!important;max-height:480px;margin:0 auto;border-radius:0!important}`,
   `${S} .xg-tip{display:block!important}`,
-  `${S} .xi-in:checked ~ .xi-box{display:block!important;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,.92);cursor:zoom-out}`,
-  ".xi-big{position:absolute;top:40px;left:12px;right:12px;bottom:48px;background-size:contain;background-position:center;background-repeat:no-repeat}",
-  ".xi-tip{position:absolute;left:0;right:0;bottom:16px;text-align:center;color:#C9CDD3;font-size:13px}",
+  // 点了某一张：横条和提示隐藏，原地显示这张的全宽大图（按原比例，不限高）
+  `${S} .xi-z:checked ~ .xgm,${S} .xi-z:checked ~ .xg-tip{display:none!important}`,
+  ...[0, 1, 2, 3].map(
+    (k) => `${S} .xi-in-${k}:checked ~ .xz .xz-${k}{display:block!important}`,
+  ),
 ].join("\n");
 
 /**

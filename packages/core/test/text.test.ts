@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanTweetText, largeImageUrl, looksTruncated } from "../src/text.ts";
+import { cleanTweetText, largeImageUrl, looksTruncated, ownMedia } from "../src/text.ts";
 
 describe("cleanTweetText：修复页面读取带来的断行", () => {
   it("拼回被拆开的链接", () => {
@@ -38,5 +38,53 @@ describe("图片和截断", () => {
     // 真实例子：时间线里的引用推文停在半句话
     expect(looksTruncated("这次 Rust 大会的主题是 Rust and AI。而 Rust 常被人诟病的一点是编译废 CPU、产物废磁盘，AI 堆 Rust 代码的速度也明显慢于其他语言。 但反过来想，这个“缺点”在当下可能恰恰是一个特性：一个项目如果选择用 Rust 开发，至少说明作者和 AI")).toBe(true);
     expect(looksTruncated("rust是个好语言，但大项目编译速度太慢")).toBe(false);
+  });
+});
+
+import { ownMedia } from "../src/text.ts";
+
+describe("ownMedia", () => {
+  it("去掉引用卡片的小缩略图，以及同一张图的其他尺寸", () => {
+    const media = [
+      { type: "photo", url: "https://pbs.twimg.com/media/HVA10JfW0AAVMt5?format=jpg&name=900x900" },
+      { type: "video", url: "https://pbs.twimg.com/amplify_video_thumb/2112211805858836480/img/lpIJgnhBGDMo4rZ3.jpg" },
+      { type: "video", url: "https://pbs.twimg.com/amplify_video_thumb/2112211805858836480/img/lpIJgnhBGDMo4rZ3?format=jpg&name=240x240" },
+    ];
+    expect(ownMedia(media).map((m) => m.type)).toEqual(["photo"]);
+  });
+
+  it("只有引用卡片缩略图时视频封面被去掉；自己的视频保留；重复的只留一个", () => {
+    expect(ownMedia([{ url: "https://pbs.twimg.com/amplify_video_thumb/1/img/a?format=jpg&name=360x360" }])).toEqual([]);
+    const own = { url: "https://pbs.twimg.com/amplify_video_thumb/2/img/b.jpg" };
+    expect(ownMedia([own, { ...own }])).toEqual([own]);
+    expect(ownMedia([{ url: "https://pbs.twimg.com/media/X?format=jpg&name=large" }])).toHaveLength(1);
+  });
+});
+
+describe("ownMedia：去掉误收的引用卡片封面", () => {
+  it("引用推文的视频封面（小尺寸）排在前面时，留下推文自己的视频", () => {
+    // @ayi_ainotes 2112556199589642611：自己的视频是 Altman 访谈，引用的是 MiniMax 那条
+    const media = [
+      { type: "video", url: "https://pbs.twimg.com/amplify_video_thumb/2112519800911994880/img/YMH78TCGDidCHbLs?format=jpg&name=360x360" },
+      { type: "video", url: "https://pbs.twimg.com/amplify_video_thumb/2112197835882110976/img/b2WD51uiwue_T6Ph.jpg" },
+    ];
+    expect(ownMedia(media).map((m) => m.url)).toEqual(["https://pbs.twimg.com/amplify_video_thumb/2112197835882110976/img/b2WD51uiwue_T6Ph.jpg"]);
+  });
+
+  it("同一张图的大尺寸也一并去掉；推文只有自己的图片时不再有视频", () => {
+    // @ayi_ainotes 2112247404325974195：两张自己的图，视频是引用的苹果预告（第一帧是黑的）
+    const media = [
+      { type: "photo", url: "https://pbs.twimg.com/media/HVA10JfW0AAVMt5?format=jpg&name=900x900" },
+      { type: "photo", url: "https://pbs.twimg.com/media/HVA10JpWsAAUF08?format=jpg&name=large" },
+      { type: "video", url: "https://pbs.twimg.com/amplify_video_thumb/2112211805858836480/img/lpIJgnhBGDMo4rZ3.jpg" },
+      { type: "video", url: "https://pbs.twimg.com/amplify_video_thumb/2112211805858836480/img/lpIJgnhBGDMo4rZ3?format=jpg&name=240x240" },
+    ];
+    expect(ownMedia(media).map((m) => m.type)).toEqual(["photo", "photo"]);
+  });
+
+  it("重复的只留一个，正常尺寸不受影响", () => {
+    const own = { url: "https://pbs.twimg.com/amplify_video_thumb/2/img/b.jpg" };
+    expect(ownMedia([own, { ...own }])).toEqual([own]);
+    expect(ownMedia([{ url: "https://pbs.twimg.com/media/X?format=jpg&name=large" }])).toHaveLength(1);
   });
 });

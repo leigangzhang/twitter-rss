@@ -52,18 +52,24 @@ describe("每日邮件", () => {
     expect(html).not.toMatch(/class="xr-body"[^>]*display:none/);
   });
 
-  it("多图：可滑动的横条和点图放大层；大图用背景图，不支持的邮箱点图打开大图文件而不是 X", async () => {
+  it("多图：滑动横条 + 原地放大（不用浮层）；视频封面不链到 X；不支持的邮箱点图打开大图文件", async () => {
     const view = sampleDigest("zh");
     const imgs = [1, 2].map((n) => ({ url: `https://pbs.twimg.com/media/i${n}?name=small`, href: `https://pbs.twimg.com/media/i${n}?name=large` }));
     const card = { ...view.groups[0]!.items[0]!, images: imgs };
-    const { html } = await renderDigest({ ...view, groups: [{ ...view.groups[0]!, items: [card] }] });
+    const video = { ...view.groups[0]!.items[1]!, images: [], video: { thumbUrl: "https://pbs.twimg.com/amplify_video_thumb/1/img/a.jpg" } };
+    const { html } = await renderDigest({ ...view, groups: [{ ...view.groups[0]!, items: [card, video] }] });
     expect(html).toContain(`class="xgm xg-${card.id}"`);
-    // 两张图都没给尺寸时不生成比例规则，用默认的最高 480px
-    expect(html).not.toContain(`.xg-${card.id} .xgi img{aspect-ratio`);
+    // 两张图共用一组单选按钮：默认"都不放大"，点哪张放大哪张
+    expect(html).toContain(`id="xi-${card.id}-n"`);
     expect(html).toContain(`id="xi-${card.id}-1"`);
-    expect(html).toMatch(/background-image:url\(&quot;https:\/\/pbs\.twimg\.com\/media\/i2\?name=large&quot;\)/);
+    expect(html).toContain('class="xz-1"');
+    expect(html).not.toContain("position:fixed");
     expect(html).toMatch(/class="xi-a"[^>]*href="https:\/\/pbs\.twimg\.com\/media\/i1\?name=large"|href="https:\/\/pbs\.twimg\.com\/media\/i1\?name=large"[^>]*class="xi-a"/);
     expect(html).toContain("左右滑动查看");
+    // 视频封面不再包在链接里
+    expect(html).not.toMatch(/<a[^>]*>\s*<img[^>]*amplify_video_thumb/);
+    // 两张图都没给尺寸时不生成比例规则，用默认的最高 480px
+    expect(html).not.toContain(`.xg-${card.id} .xgi img{aspect-ratio`);
   });
 
   it("长推文优先显示 2–4 句的阅读摘要，没有时退回一句话摘要", async () => {
