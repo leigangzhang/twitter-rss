@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { CrawlPlan } from "../src/plan.ts";
-import { addDetailSteps, completeStep, counts, currentStep, initProgress, isFinished, mergeDetailText, saveProgress, stopProgress, verifyStep } from "../src/runner.ts";
+import { addDetailSteps, completeStep, counts, currentStep, initProgress, isFinished, mergeDetailText, pauseStep, resumeProgress, saveProgress, stopProgress, verifyStep } from "../src/runner.ts";
 
 const fixture = readFileSync(join(import.meta.dirname, "fixtures", "user-tweets.json"), "utf8");
 const date = "2026-10-19";
@@ -153,5 +153,36 @@ describe("详情页拿不到响应时从页面读取全文", () => {
     const r = mergeDetailText(date, "pluvio9yte", "9", "body_limit");
     expect(r.ok).toBe(false);
     expect(r.message).toContain("显示更多");
+  });
+});
+
+describe("本机断网：暂停与恢复", () => {
+  it("误判为异常后恢复：从出错的账号继续，已完成的不重采，空的异常文件删掉", () => {
+    mkdirSync(join(dir, date), { recursive: true });
+    const p = initProgress(plan());
+    completeStep(p, p.steps[0]!, "页面读取 15 条推文");
+    stopProgress(p, p.steps[1]!, "error", "时间线在页面加载后仍未渲染出推文");
+    expect(p.stopped).not.toBeNull();
+
+    expect(resumeProgress(p)).toBe("theopark");
+    expect(p.stopped).toBeNull();
+    expect(p.phase).toBe("timeline");
+    expect(p.steps[0]!.status).toBe("done");
+    expect(p.steps[1]!.status).toBe("pending");
+    expect(currentStep(p)?.handle).toBe("theopark");
+    expect(() => readFileSync(join(dir, date, "theopark.json"))).toThrow();
+    // 没有因异常停止时什么也不做
+    expect(resumeProgress(p)).toBeNull();
+  });
+
+  it("断网暂停：这一步退回待采集，不停止、不写账号文件", () => {
+    mkdirSync(join(dir, date), { recursive: true });
+    const p = initProgress(plan());
+    p.steps[0]!.status = "in_progress";
+    pauseStep(p, p.steps[0]!);
+    expect(p.stopped).toBeNull();
+    expect(p.steps[0]!.status).toBe("pending");
+    expect(currentStep(p)?.handle).toBe("mirachen_ml");
+    expect(() => readFileSync(join(dir, date, "mirachen_ml.json"))).toThrow();
   });
 });

@@ -83,8 +83,10 @@ Browser Skill 的网络捕获对响应正文有 256 KiB 的上限，X 的时间�
 | 跳转到登录页、提示重新登录、账号被锁定 | `pnpm -s crawl done <key> --status login_required --error "页面提示"` |
 | 出现人机验证 / 验证码 / "确认你是人类" | `pnpm -s crawl done <key> --status captcha --error "页面提示"` |
 | 其他异常 | `pnpm -s crawl done <key> --status error --error "现象"` |
+| 浏览器自己的错误页（不是 X 的页面）："无法访问此网站""未连接到互联网"、`ERR_INTERNET_DISCONNECTED`、`ERR_CONNECTION_*`、`ERR_PROXY_*` 等 | `pnpm -s crawl done <key> --status offline`（本机断网或代理没开，不计入异常、不冷却） |
 
-它会记录异常并进入冷却期（限流 24 小时、验证码 48 小时，连续出现时加倍；登录失效需要人工处理），冷却期内不会再安排采集。
+`--status offline` 会输出 PAUSE：今天的采集暂停在这一步，**不要运行 scripts/daily.sh**，结束任务并报告网络不通；网络恢复后重新运行每日任务会从这一步继续。
+其他状态会记录异常并进入冷却期（限流 24 小时、验证码 48 小时，连续出现时加倍；登录失效需要人工处理），冷却期内不会再安排采集。
 
 ## 绝对不要做的事
 

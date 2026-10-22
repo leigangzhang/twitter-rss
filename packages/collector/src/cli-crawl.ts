@@ -14,11 +14,14 @@ import {
   loadPlan,
   loadProgress,
   type Progress,
+  pauseStep,
+  resumeProgress,
   saveProgress,
   type Step,
   stopProgress,
   verifyStep,
 } from "./runner.ts";
+import { writePlan } from "./plan.ts";
 
 loadDotEnv();
 
@@ -28,6 +31,8 @@ loadDotEnv();
  *   pnpm crawl progress   查看今天的采集进度；没采完时退出码为 4
  *   pnpm crawl:status     查看采集健康状态：冷却期、暂停原因、最近异常和用量
  *   pnpm crawl:reset      人工确认 X 账号正常（如已重新登录）后，解除暂停和冷却
+ *   pnpm crawl:resume     本机断网、代理没开等原因被误判为异常时：解除冷却，从出错的那一步接着采今天的清单
+ *   本机网络不通时：pnpm crawl done <key> --status offline（不计入异常、不冷却，网络恢复后从这一步继续）
  */
 const command = process.argv[2];
 const config = loadConfig();
@@ -161,10 +166,19 @@ if (command === "done") {
     console.log(`这一步已经完成过了。下一步运行 pnpm crawl next。${progressLine(progress)}`);
     process.exit(0);
   }
+  if (values.status === "offline") {
+    pauseStep(progress, step);
+    saveProgress(progress);
+    console.log(
+      `PAUSE 本机网络不通（浏览器打不开网页，不是 X 的提示），不计入异常、不冷却。今天的采集暂停在 @${step.handle}，已完成的不受影响。` +
+        `不要运行 scripts/daily.sh；网络恢复后重新运行每日任务（或 pnpm crawl next），会从这一步继续。${progressLine(progress)}`,
+    );
+    process.exit(5);
+  }
   if (values.status && values.status !== "ok") {
     const allowed: BlockStatus[] = ["rate_limited", "login_required", "captcha", "error"];
     if (!allowed.includes(values.status as BlockStatus)) {
-      console.log(`ERROR --status 只能是 ${allowed.join(" / ")}`);
+      console.log(`ERROR --status 只能是 ${allowed.join(" / ")} / offline`);
       process.exit(1);
     }
     stopProgress(progress, step, values.status as BlockStatus, values.error);
@@ -194,6 +208,24 @@ if (command === "progress") {
     }
   }
   process.exit(f.finished ? 0 : 4);
+}
+
+if (command === "resume") {
+  // 本机断网、代理没开等原因被误判为异常：解除冷却，从出错的那一步接着采今天的清单
+  saveState(resetState(state));
+  const progress = loadProgress(date);
+  const handle = progress ? resumeProgress(progress) : null;
+  if (progress) saveProgress(progress);
+  const plan = loadPlan(date);
+  if (plan?.skip && progress) {
+    // 冷却期间重新生成过清单（被标成"今天不采集"）：进度里的步骤还在，取消跳过即可
+    plan.skip = null;
+    writePlan(plan);
+  }
+  if (!progress) console.log("已解除冷却。今天还没有开始采集，运行每日任务（或 pnpm plan）即可");
+  else if (!handle) console.log(`已解除冷却。今天的采集没有因异常停止，运行 pnpm crawl next 继续。${progressLine(progress)}`);
+  else console.log(`已解除冷却，从 @${handle} 继续今天的采集。${progressLine(progress)}。运行 pnpm crawl next（或重新运行每日任务）`);
+  process.exit(0);
 }
 
 if (command === "reset") {

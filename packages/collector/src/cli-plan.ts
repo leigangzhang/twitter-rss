@@ -1,8 +1,9 @@
-import { loadConfig, loadDotEnv } from "@xrss/core";
+import { loadConfig, loadDotEnv, localDate } from "@xrss/core";
 import { createDb, migrateDb } from "@xrss/core/db";
 import { loadState } from "./health.ts";
 import { buildPlan, writePlan } from "./plan.ts";
 import { TIER_LABELS } from "./quality.ts";
+import { counts, loadPlan, loadProgress } from "./runner.ts";
 
 function groupBy<T>(list: T[], key: (x: T) => string): Map<string, T[]> {
   const m = new Map<string, T[]>();
@@ -15,6 +16,28 @@ loadDotEnv();
 // 生成今天的采集清单 data/inbox/<date>/plan.json，交给 Browser Skill 按清单采集。
 // 冷却期、人工暂停或不在允许时段时，清单里 skip 不为空，并以退出码 3 结束。
 const config = loadConfig();
+
+// 今天的采集已经开始、还没结束（比如中途断网暂停后重新运行每日任务）：沿用原来的清单，不重新生成，
+// 否则新清单会和进行到一半的进度对不上
+const today = localDate(new Date(), config.digest.timezone);
+const running = loadProgress(today);
+const existing = loadPlan(today);
+if (running && existing && !existing.skip) {
+  if (running.stopped) {
+    // 已因异常停止：保留原清单（不覆盖成"今天不采集"），方便确认是本机原因后用 crawl:resume 接着采
+    console.warn(
+      `今天的采集已因异常停止（@${running.stopped.handle} ${running.stopped.status}）。` +
+        `如果是本机断网、代理没开等原因，恢复网络后运行 pnpm crawl:resume，再重新运行每日任务；否则今天不再采集`,
+    );
+    process.exit(3);
+  }
+  if (running.phase !== "finished") {
+    const c = counts(running);
+    console.log(`今天的采集已在进行中（账号 ${c.accountsDone}/${c.accounts}），沿用原来的清单，继续运行 pnpm crawl next`);
+    process.exit(0);
+  }
+}
+
 const db = createDb();
 await migrateDb(db);
 const plan = await buildPlan(config, db, loadState());

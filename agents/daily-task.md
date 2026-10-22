@@ -11,12 +11,14 @@
 
 1. 生成采集清单：运行 `pnpm plan`。退出码为 3 时今天不采集（冷却期、登录失效或非允许时段），不要打开浏览器，直接执行第 3 步，并在汇报开头说明原因。
 
-2. 采集：先完整阅读 `packages/collector/AGENT_PROMPT.md`，然后重复下面的循环，直到输出 FINISHED、STOP 或 SKIP：
+2. 采集：先完整阅读 `packages/collector/AGENT_PROMPT.md`，然后重复下面的循环，直到输出 FINISHED、STOP、SKIP 或 PAUSE：
    a. 运行 `pnpm -s crawl next`。
    b. 输出 WAIT：立即再运行一次 `pnpm -s crawl next`（它自己会等待），不要自己 sleep，也不要跳过。
    c. 输出 STEP：用浏览器工具完成它列出的操作（打开页面、保存网络响应或按说明从页面读取、按给定停顿滚动），然后运行它给出的 `pnpm -s crawl done <key>`。
    d. done 输出 NOT_DONE：按提示补做这一步，再运行 done；输出 OK：回到 a。
    e. 遇到限流、验证码、登录失效：运行 `pnpm -s crawl done <key> --status rate_limited|captcha|login_required|error --error "页面提示"`，然后结束循环，不要重试或绕过。
+   f. 浏览器打不开网页、显示的是浏览器自己的错误页（"无法访问此网站""未连接到互联网"、ERR_INTERNET_DISCONNECTED、ERR_PROXY_* 等，不是 X 的提示）：
+      运行 `pnpm -s crawl done <key> --status offline`。它输出 PAUSE 后结束任务，**不要执行第 3 步**，汇报"网络不通，采集暂停在 @账号"。
    不要自己挑选或跳过账号。只浏览，不点赞、不转发、不关注、不发帖。
 
 3. 精选并发送：运行 `scripts/daily.sh`（不要加 --dry-run）。

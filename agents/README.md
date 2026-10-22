@@ -70,4 +70,6 @@ Agent 的输出写在 `data/logs/agent-<日期>-<agent>.log`，流水线日志�
 | Agent 中途停了 | 再运行一次即可，`pnpm crawl next` 会从断点继续 |
 | `pnpm plan` 退出码 3 | 冷却期或不在允许时段，今天不采集；`pnpm crawl:status` 看原因 |
 | 登录失效 | 在 Chrome 里重新登录 X，然后 `pnpm crawl:reset` |
+| 断网、代理没开导致采集暂停（PAUSE） | 恢复网络后重新运行每日任务，会从暂停的那一步继续 |
+| 断网、代理没开却被记成异常、进入冷却 | 恢复网络后运行 `pnpm crawl:resume`（解除冷却，从出错的那一步接着采），再重新运行每日任务 |
 | `scripts/daily.sh` 退出码 4 | 清单还没采完，让 Agent 继续 `pnpm crawl next` |

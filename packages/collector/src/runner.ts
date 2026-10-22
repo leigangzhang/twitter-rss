@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanTweetText, InboxFile } from "@xrss/core";
 import { parseXGraphQL } from "./parsers/x-graphql.ts";
@@ -248,4 +248,41 @@ export function isFinished(date: string): { finished: boolean; reason: string } 
   const c = counts(progress);
   if (progress.phase === "finished") return { finished: true, reason: `已完成：账号 ${c.accountsDone}/${c.accounts}，详情页 ${c.detailsDone}/${c.details}` };
   return { finished: false, reason: `还没采完：账号 ${c.accountsDone}/${c.accounts}，详情页 ${c.detailsDone}/${c.details}（继续运行 pnpm crawl next）` };
+}
+
+/**
+ * 本机原因（断网、代理没开）被误判为异常后，从出错的那一步接着采：
+ * 取消停止状态，把出错的账号步骤恢复为待采集，删掉它空的异常账号文件（有推文的只改回正常）。
+ * 返回恢复的账号；没有因异常停止时返回 null。
+ */
+export function resumeProgress(progress: Progress, now = new Date()): string | null {
+  const stopped = progress.stopped;
+  if (!stopped) return null;
+  const step = progress.steps.find((s) => s.kind === "account" && s.handle.toLowerCase() === stopped.handle.toLowerCase());
+  if (step) {
+    step.status = "pending";
+    delete step.result;
+    delete step.doneAt;
+  }
+  const file = join(inboxDir(progress.date), `${stopped.handle}.json`);
+  if (existsSync(file)) {
+    const parsed = InboxFile.safeParse(JSON.parse(readFileSync(file, "utf8")));
+    if (parsed.success && parsed.data.status !== "ok") {
+      if (parsed.data.tweets.length === 0) unlinkSync(file);
+      else writeFileSync(file, `${JSON.stringify({ ...parsed.data, status: "ok", error: undefined }, null, 2)}\n`);
+    }
+  }
+  progress.stopped = null;
+  const pending = progress.steps.find((s) => s.status !== "done");
+  progress.phase = !pending ? "finished" : pending.kind === "account" ? "timeline" : "detail";
+  progress.nextAt = now.toISOString();
+  return stopped.handle;
+}
+
+/** 本机网络不通：这一步退回待采集，不写账号文件、不停止、不计入异常，网络恢复后从这一步继续 */
+export function pauseStep(progress: Progress, step: Step, now = new Date()): void {
+  step.status = "pending";
+  delete step.result;
+  delete step.doneAt;
+  progress.nextAt = now.toISOString();
 }
