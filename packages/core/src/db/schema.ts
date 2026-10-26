@@ -130,7 +130,30 @@ export const linkDigests = sqliteTable("link_digests", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
 });
 
+/**
+ * 读者对邮件里单条推文的反馈（👍 / 👎，可选原因）。
+ * 单独发送的邮件带订阅者 token，记到这位订阅者名下，重复点击覆盖上一次；
+ * 合并发送的邮件不知道是谁点的，subscriberId 为空，每次确认记一条。
+ */
+export const feedback = sqliteTable(
+  "feedback",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    tweetId: text("tweet_id").notNull(),
+    /** 哪一期邮件（运行日期） */
+    issueDate: text("issue_date").notNull(),
+    vote: text("vote").$type<"up" | "down">().notNull(),
+    /** 👎 时可选的原因 */
+    reason: text("reason").$type<"topic" | "author" | "shallow" | "ad" | "other">(),
+    subscriberId: integer("subscriber_id").references(() => subscribers.id),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(now),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (t) => [uniqueIndex("feedback_tweet_subscriber").on(t.tweetId, t.subscriberId), index("feedback_issue").on(t.issueDate)],
+);
+
 export type TweetRow = typeof tweets.$inferSelect;
 export type SubscriberRow = typeof subscribers.$inferSelect;
 export type DeliveryRow = typeof deliveries.$inferSelect;
 export type DeliveryAttemptRow = typeof deliveryAttempts.$inferSelect;
+export type FeedbackRow = typeof feedback.$inferSelect;

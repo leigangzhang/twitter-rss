@@ -182,11 +182,29 @@ function Byline({ card }: { card: CardView }) {
               }}
             >
               {meta.join("　")}
+              {card.feedback ? <Feedback links={card.feedback} /> : null}
             </p>
           </td>
         </tr>
       </tbody>
     </table>
+  );
+}
+
+/** 👍 / 👎 反馈：灰色小字跟在 @账号、时间后面，打开网站上的确认页 */
+function Feedback({ links }: { links: { up: string; down: string } }) {
+  const style: CSSProperties = { color: color.muted, textDecoration: "none", whiteSpace: "nowrap" };
+  return (
+    <>
+      {"　"}
+      <a href={links.up} style={style} title="有用">
+        👍
+      </a>
+      {" "}
+      <a href={links.down} style={style} title="不感兴趣">
+        👎
+      </a>
+    </>
   );
 }
 

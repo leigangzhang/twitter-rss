@@ -24,6 +24,8 @@ export interface CardView {
   moreParts: number;
   /** 正文没能拿到全文（时间线截断且未补抓详情），模板提示"全文较长，查看原推" */
   truncated: boolean;
+  /** 👍 / 👎 反馈链接；没开启反馈时为空 */
+  feedback?: { up: string; down: string };
   /** href：点开看的大图 */
   images: Array<{ url: string; href: string; width?: number; height?: number; alt?: string }>;
   video?: { thumbUrl?: string; duration?: string };

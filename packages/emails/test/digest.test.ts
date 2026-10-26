@@ -109,4 +109,18 @@ describe("每日邮件", () => {
     const two = await renderDigest({ ...view, groups: [{ ...view.groups[0]!, items: [base] }] });
     expect(two.html).toContain(base.summary!);
   });
+
+  it("开启反馈时每张卡片带 👍 / 👎 链接，每张只多几百字节", async () => {
+    const view = sampleDigest("zh");
+    const plain = await renderDigest(view);
+    const items = view.groups.flatMap((g) => g.items);
+    const withLinks = {
+      ...view,
+      groups: view.groups.map((g) => ({ ...g, items: g.items.map((c) => ({ ...c, feedback: { up: `https://x.test/f?t=${c.id}&v=up`, down: `https://x.test/f?t=${c.id}&v=down` } })) })),
+    };
+    const html = (await renderDigest(withLinks)).html;
+    expect(html).toContain(`https://x.test/f?t=${items[0]!.id}&amp;v=down`);
+    expect(plain.html).not.toContain("/f?t=");
+    expect((Buffer.byteLength(html) - Buffer.byteLength(plain.html)) / items.length).toBeLessThan(400);
+  });
 });

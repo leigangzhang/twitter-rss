@@ -14,7 +14,8 @@
     "email:test": "tsx src/cli-email-test.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "notify": "tsx src/cli-notify.ts"
+    "notify": "tsx src/cli-notify.ts",
+    "feedback": "tsx src/cli-feedback.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

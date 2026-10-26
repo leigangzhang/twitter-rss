@@ -138,8 +138,9 @@ Agent 版一次完整采集通常要 30–60 分钟，这是有意放慢的节�
 
 - `/admin/subscribers`：订阅者、邮箱、状态、主题、订阅时间、累计收到封数，可导出 CSV
 - `/admin/deliveries`：每一期的推送结果，查看发出的邮件，重试失败的、补发给未收到的、给某人重新发送
+- `/admin/feedback`：读者在邮件里点的 👍 / 👎 和原因（`config/digest.yaml` 的 `mail.feedback` 开启后才有）
 
-命令行：`pnpm subscribers`、`pnpm resend`、`pnpm crawl progress`、`pnpm crawl:status`、`pnpm email:test --to 邮箱`、`pnpm notify "标题" "正文"`（给管理员发提醒）。
+命令行：`pnpm subscribers`、`pnpm resend`、`pnpm feedback`、`pnpm crawl progress`、`pnpm crawl:status`、`pnpm email:test --to 邮箱`、`pnpm notify "标题" "正文"`（给管理员发提醒）。
 
 ## 环境要求
 

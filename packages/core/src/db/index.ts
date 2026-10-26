@@ -32,6 +32,7 @@ export async function migrateDb(db: Db = getDb()): Promise<void> {
   await migrate(db, { migrationsFolder: join(findRepoRoot(), "packages", "core", "drizzle") });
 }
 export * from "./subscribers-report.ts";
+export * from "./feedback.ts";
 
 /** 外部文章摘要缓存：按链接批量读取（流水线和网站共用） */
 export async function loadLinkDigests(db: Db, urls: string[]): Promise<Map<string, LinkDigest>> {
