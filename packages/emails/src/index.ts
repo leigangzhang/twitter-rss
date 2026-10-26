@@ -25,8 +25,8 @@ export interface DigestRenderOptions {
   /** 测试邮件：顶部显示这个邮箱是否支持标签页 */
   probe?: boolean;
   /**
-   * 邮件 HTML 的大小上限（字节）。超过时从条目最多的主题末尾（分数最低）开始，
-   * 把完整卡片改成一句话摘要，直到放得下，避免 Gmail 折叠末尾。
+   * 邮件 HTML 的大小上限（字节），避免 Gmail 折叠末尾。放不下时先分卷（最多 maxParts 封），
+   * 仍放不下就去掉分数最低的条目；邮件里只有完整卡片，不压成摘要。
    */
   maxBytes?: number;
 }
@@ -41,38 +41,61 @@ async function renderOnce(view: DigestView, opts: DigestRenderOptions): Promise<
   return { subject: `精选晨报 · ${when} ${count}${lead}`, html, text };
 }
 
-export async function renderDigest(view: DigestView, opts: DigestRenderOptions = {}): Promise<RenderedEmail & { compacted: number }> {
+const ids = (v: DigestView) => v.groups.flatMap((g) => g.items.map((i) => i.id));
+
+/**
+ * 去掉分数最低的 k 条（同分时去掉主题内靠后的）。每个主题尽量留至少一条，
+ * 只有其他主题都只剩一条时才去掉某个主题的最后一条；整期至少留一条。
+ */
+export function dropLowest(view: DigestView, k: number): { view: DigestView; dropped: string[] } {
+  const entries = view.groups.flatMap((g, gi) => g.items.map((card, i) => ({ card, gi, i })));
+  const want = Math.min(k, entries.length - 1);
+  const order = [...entries].sort((a, b) => (a.card.score ?? 0) - (b.card.score ?? 0) || b.i - a.i);
+  const left = view.groups.map((g) => g.items.length);
+  const drop = new Set<string>();
+  for (const keepOnePerTopic of [true, false]) {
+    for (const e of order) {
+      if (drop.size >= want) break;
+      if (drop.has(e.card.id) || (keepOnePerTopic && left[e.gi]! <= 1)) continue;
+      drop.add(e.card.id);
+      left[e.gi]!--;
+    }
+  }
+  const groups = view.groups.map((g) => ({ ...g, items: g.items.filter((c) => !drop.has(c.id)) })).filter((g) => g.items.length > 0);
+  return { view: { ...view, groups, total: groups.reduce((n, g) => n + g.items.length, 0) }, dropped: [...drop] };
+}
+
+/** 一封放下：超过 maxBytes 时去掉分数最低的条目，直到放得下 */
+async function fitOne(view: DigestView, opts: DigestRenderOptions): Promise<{ email: RenderedEmail; view: DigestView; dropped: string[] }> {
   let current = view;
   let email = await renderOnce(current, opts);
-  let compacted = 0;
-  let savedPerItem = 2000;
-  while (opts.maxBytes && Buffer.byteLength(email.html) > opts.maxBytes) {
-    // 每个主题至少保留一条完整卡片
-    const candidates = current.groups.filter((g) => g.items.length > 1);
-    if (candidates.length === 0) break;
-    const fullest = candidates.reduce((a, b) => (b.items.length > a.items.length ? b : a));
-    // 一次挪动的条数按超出的字节数和"每挪一条省下多少"估算，减少重复渲染；省下的字节数按上一次的实测更新，避免挪过头
-    const over = Buffer.byteLength(email.html) - opts.maxBytes;
-    const step = Math.max(1, Math.min(fullest.items.length - 1, Math.ceil(over / savedPerItem)));
+  const dropped: string[] = [];
+  // 第一次按整封的平均每条大小估算（含页头页尾，偏大，不会去过头），之后按实测的"每去一条省下多少"
+  let savedPerItem = Buffer.byteLength(email.html) / Math.max(1, current.total);
+  while (opts.maxBytes && Buffer.byteLength(email.html) > opts.maxBytes && current.total > 1) {
+    // 一次去掉的条数按超出的字节数和"每去一条省下多少"估算，减少重复渲染
     const before = Buffer.byteLength(email.html);
-    current = {
-      ...current,
-      groups: current.groups.map((g) =>
-        g === fullest ? { ...g, items: g.items.slice(0, -step), compact: [...g.items.slice(-step), ...(g.compact ?? [])] } : g,
-      ),
-    };
-    compacted += step;
+    const step = Math.max(1, Math.min(current.total - 1, Math.ceil((before - opts.maxBytes) / savedPerItem)));
+    const r = dropLowest(current, step);
+    current = r.view;
+    dropped.push(...r.dropped);
     email = await renderOnce(current, opts);
-    const saved = (before - Buffer.byteLength(email.html)) / step;
+    const saved = (before - Buffer.byteLength(email.html)) / Math.max(1, r.dropped.length);
     if (saved > 0) savedPerItem = saved;
   }
-  return { ...email, compacted };
+  return { email, view: current, dropped };
+}
+
+export async function renderDigest(view: DigestView, opts: DigestRenderOptions = {}): Promise<RenderedEmail & { tweetIds: string[]; dropped: string[] }> {
+  const { email, view: kept, dropped } = await fitOne(view, opts);
+  return { ...email, tweetIds: ids(kept), dropped };
 }
 
 export interface DigestPart extends RenderedEmail {
-  /** 这一封里的推文（含一句话摘要） */
+  /** 这一封里的推文 */
   tweetIds: string[];
-  compacted: number;
+  /** 这一期因篇幅去掉的低分推文（每一封里都相同） */
+  dropped: string[];
 }
 
 /** 只保留扁平序号在 [start, end) 之间的条目，主题顺序不变 */
@@ -82,38 +105,22 @@ function sliceView(view: DigestView, start: number, end: number, part?: DigestVi
     .map((g) => {
       const from = offset;
       offset += g.items.length;
-      return { ...g, items: g.items.slice(Math.max(0, start - from), Math.max(0, end - from)), compact: undefined };
+      return { ...g, items: g.items.slice(Math.max(0, start - from), Math.max(0, end - from)) };
     })
     .filter((g) => g.items.length > 0);
   return { ...view, groups, total: groups.reduce((n, g) => n + g.items.length, 0), part };
 }
 
-/**
- * 内容放不进一封时分卷发送：按顺序把条目切成几封，每封都是完整卡片且不超过 maxBytes，
- * 标题注明"（1/3）"。超过 maxParts 封时，最后一封里放不下的部分才改为一句话摘要。
- * 每封的条数用二分查找确定（每封约 6 次渲染）。
- */
-export async function renderDigestParts(view: DigestView, opts: DigestRenderOptions & { maxParts?: number } = {}): Promise<DigestPart[]> {
-  const ids = (v: DigestView) => v.groups.flatMap((g) => [...g.items, ...(g.compact ?? [])].map((i) => i.id));
-  const whole = await renderOnce(view, opts);
-  const maxParts = Math.max(1, opts.maxParts ?? 1);
-  if (!opts.maxBytes || Buffer.byteLength(whole.html) <= opts.maxBytes || maxParts === 1) {
-    const email = await renderDigest(view, opts);
-    return [{ ...email, tweetIds: ids(view) }];
-  }
-
+/** 按顺序把条目切成最多 maxParts 封，每封尽量多放；返回切分和最后还剩多少条放不下 */
+async function split(view: DigestView, maxParts: number, opts: DigestRenderOptions): Promise<{ bounds: Array<[number, number]>; leftover: number }> {
   const n = view.total;
   // 估算时先用占位的封数，最后统一改成实际封数
   const fits = async (start: number, end: number, index: number) =>
     Buffer.byteLength((await renderOnce(sliceView(view, start, end, { index, count: maxParts, overall: n }), opts)).html) <= opts.maxBytes!;
   const bounds: Array<[number, number]> = [];
   let start = 0;
-  while (start < n) {
+  while (start < n && bounds.length < maxParts) {
     const index = bounds.length + 1;
-    if (index === maxParts) {
-      bounds.push([start, n]);
-      break;
-    }
     // 至少放一条；[lo, hi] 里找能放下的最大 end
     let lo = start + 1;
     let hi = n;
@@ -126,12 +133,37 @@ export async function renderDigestParts(view: DigestView, opts: DigestRenderOpti
     bounds.push([start, lo]);
     start = lo;
   }
+  return { bounds, leftover: n - start };
+}
+
+/**
+ * 内容放不进一封时分卷发送：按顺序把条目切成几封，每封都是完整卡片且不超过 maxBytes，标题注明"（1/3）"。
+ * maxParts 封仍放不下时，去掉分数最低的条目（每个主题尽量留一条）再重新切分。每封的条数用二分查找确定。
+ */
+export async function renderDigestParts(view: DigestView, opts: DigestRenderOptions & { maxParts?: number } = {}): Promise<DigestPart[]> {
+  const maxParts = Math.max(1, opts.maxParts ?? 1);
+  const whole = await renderOnce(view, opts);
+  if (!opts.maxBytes || Buffer.byteLength(whole.html) <= opts.maxBytes) return [{ ...whole, tweetIds: ids(view), dropped: [] }];
+  if (maxParts === 1) {
+    const email = await renderDigest(view, opts);
+    return [email];
+  }
+
+  let current = view;
+  const dropped: string[] = [];
+  let plan = await split(current, maxParts, opts);
+  while (plan.leftover > 0 && current.total > 1) {
+    const r = dropLowest(current, plan.leftover);
+    current = r.view;
+    dropped.push(...r.dropped);
+    plan = await split(current, maxParts, opts);
+  }
 
   const parts: DigestPart[] = [];
-  for (const [i, [s, e]] of bounds.entries()) {
-    const partView = sliceView(view, s, e, { index: i + 1, count: bounds.length, overall: n });
-    const email = await renderDigest(partView, opts);
-    parts.push({ ...email, tweetIds: ids(partView) });
+  for (const [i, [s, e]] of plan.bounds.entries()) {
+    const partView = sliceView(current, s, e, { index: i + 1, count: plan.bounds.length, overall: current.total });
+    const email = await renderOnce(partView, opts);
+    parts.push({ ...email, tweetIds: ids(partView), dropped });
   }
   return parts;
 }

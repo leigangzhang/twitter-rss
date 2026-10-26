@@ -121,7 +121,8 @@ export function buildView(
           const p = primaryArticle(row.raw);
           const article = p ? ctx.articles.get(p.link.expandedUrl) : undefined;
           const card = toCardView({ id: row.id, topicId: row.topicId!, kind: row.kind, raw: row.raw, ai: row.ai, article }, viewOpts);
-          return feedback ? { ...card, feedback: feedback(row.id) } : card;
+          const scored = { ...card, score: row.finalScore ?? 0 };
+          return feedback ? { ...scored, feedback: feedback(row.id) } : scored;
         }),
       };
     }),
@@ -232,6 +233,8 @@ export async function sendDigests(
 
   const warnSize = (parts: DigestPart[], who: string) => {
     for (const p of parts) if (Buffer.byteLength(p.html) > GMAIL_CLIP_BYTES) console.warn(`⚠ 发给 ${who} 的邮件超过 102KB，Gmail 会折叠末尾内容`);
+    const dropped = parts[0]?.dropped.length ?? 0;
+    if (dropped) console.log(`  发给 ${who}：分 ${parts.length} 封仍放不下，因篇幅去掉 ${dropped} 条低分内容`);
   };
   const renderOpts = { tabs: mailCfg.tabs, maxBytes: mailCfg.max_kb * 1024, maxParts: mailCfg.max_parts };
   const writePreviews = (parts: DigestPart[], base: string) => {

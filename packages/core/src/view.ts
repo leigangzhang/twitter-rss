@@ -24,6 +24,8 @@ export interface CardView {
   moreParts: number;
   /** 正文没能拿到全文（时间线截断且未补抓详情），模板提示"全文较长，查看原推" */
   truncated: boolean;
+  /** 最终分，邮件放不下时先去掉分数低的；没有时按主题内的顺序（越靠后越先去掉） */
+  score?: number;
   /** 👍 / 👎 反馈链接；没开启反馈时为空 */
   feedback?: { up: string; down: string };
   /** href：点开看的大图 */
@@ -249,8 +251,7 @@ export interface DigestView {
   topicCount: number;
   accountCount: number;
   scannedCount: number;
-  /** compact：篇幅所限只列一句话摘要的条目（按分数排在完整卡片之后） */
-  groups: Array<{ topic: Pick<Topic, "id" | "name" | "color">; items: CardView[]; compact?: CardView[] }>;
+  groups: Array<{ topic: Pick<Topic, "id" | "name" | "color">; items: CardView[] }>;
   links: { manage: string; switchLang: string; unsubscribe: string; rss: string };
   /**
    * true：链接是收件人专属的（单独发送）；false：合并发送的通用链接，

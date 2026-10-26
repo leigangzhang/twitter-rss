@@ -3,17 +3,17 @@ import { renderDigest, renderDigestParts } from "../src/index.ts";
 import { sampleDigest } from "../src/sample.ts";
 
 describe("每日邮件", () => {
-  it("超过大小上限时，把排在后面的条目改为一句话摘要，每个主题至少保留一张完整卡片", async () => {
+  it("超过大小上限时去掉分数最低的条目，每个主题至少保留一条，邮件里只有完整卡片", async () => {
     const view = sampleDigest("zh");
     const full = await renderDigest(view);
-    expect(full.compacted).toBe(0);
+    expect(full.dropped).toEqual([]);
     const limit = Buffer.byteLength(full.html) - 2000;
     const slim = await renderDigest(view, { maxBytes: limit });
-    expect(slim.compacted).toBeGreaterThan(0);
+    expect(slim.dropped.length).toBeGreaterThan(0);
     expect(Buffer.byteLength(slim.html)).toBeLessThanOrEqual(limit);
-    expect(slim.html).toContain("篇幅所限只列摘要");
-    // 标题里的条数不变
-    expect(slim.subject).toBe(full.subject);
+    expect(slim.html).not.toContain("篇幅所限");
+    expect(slim.tweetIds.length + slim.dropped.length).toBe(view.total);
+    for (const g of view.groups) expect(g.items.some((c) => slim.tweetIds.includes(c.id))).toBe(true);
   });
 
   it("放不进一封时分卷发送：每封都是完整卡片、不超过上限，标题注明第几封，条目不重不漏", async () => {
@@ -24,7 +24,7 @@ describe("每日邮件", () => {
     expect(parts.length).toBeGreaterThan(1);
     for (const p of parts) {
       expect(Buffer.byteLength(p.html)).toBeLessThanOrEqual(limit);
-      expect(p.compacted).toBe(0);
+      expect(p.dropped).toEqual([]);
     }
     expect(parts[0]!.subject).toContain(`${view.total} 条（1/${parts.length}）`);
     expect(parts[0]!.html).toContain(`这是第 1 封`);
@@ -35,11 +35,48 @@ describe("每日邮件", () => {
     const one = await renderDigestParts(view, { maxBytes: Buffer.byteLength(full.html) + 1000, maxParts: 3 });
     expect(one).toHaveLength(1);
     expect(one[0]!.subject).toBe(full.subject);
-    // 不分卷（maxParts 1）时退回一句话摘要
+    // 不分卷（maxParts 1）时也是去掉低分条目
     const single = await renderDigestParts(view, { maxBytes: limit, maxParts: 1 });
     expect(single).toHaveLength(1);
-    expect(single[0]!.compacted).toBeGreaterThan(0);
+    expect(single[0]!.dropped.length).toBeGreaterThan(0);
   });
+
+  it("60 条分 3 封仍放不下时，去掉分数最低的，每个主题至少留一条", async () => {
+    const base = sampleDigest("zh");
+    const cards = base.groups.flatMap((g) => g.items);
+    // 3 个主题共 60 条，分数从高到低；第三个主题只有 2 条且分数最低
+    const sizes = [34, 24, 2];
+    let n = 0;
+    const groups = sizes.map((size, gi) => ({
+      topic: { ...base.groups[gi % base.groups.length]!.topic, id: `t${gi}` },
+      items: Array.from({ length: size }, () => {
+        const card = cards[n % cards.length]!;
+        n++;
+        return { ...card, id: `9${String(n).padStart(5, "0")}`, score: 1 - n / 100 };
+      }),
+    }));
+    const view = { ...base, groups, total: 60 };
+    const oneCard = Buffer.byteLength((await renderDigest({ ...view, groups: [{ ...groups[0]!, items: groups[0]!.items.slice(0, 1) }], total: 1 })).html);
+    const tenCards = Buffer.byteLength((await renderDigest({ ...view, groups: [{ ...groups[0]!, items: groups[0]!.items.slice(0, 10) }], total: 10 })).html);
+    // 每封大约放 12 条，3 封放不下 60 条
+    const limit = oneCard + Math.round(((tenCards - oneCard) / 9) * 11);
+    const parts = await renderDigestParts(view, { maxBytes: limit, maxParts: 3 });
+    expect(parts.length).toBeLessThanOrEqual(3);
+    for (const p of parts) {
+      expect(Buffer.byteLength(p.html)).toBeLessThanOrEqual(limit);
+      expect(p.html).not.toContain("篇幅所限");
+    }
+    const kept = parts.flatMap((p) => p.tweetIds);
+    const { dropped } = parts[0]!;
+    expect(dropped.length).toBeGreaterThan(0);
+    expect(kept.length + dropped.length).toBe(60);
+    // 去掉的都比留下的分数低（只剩一条的主题保底留下的那条除外）
+    const score = new Map(groups.flatMap((g) => g.items.map((c) => [c.id, c.score!])));
+    const floors = groups.filter((g) => g.items.filter((c) => kept.includes(c.id)).length === 1).flatMap((g) => g.items.map((c) => c.id));
+    const keptExceptFloor = kept.filter((id) => !floors.includes(id));
+    expect(Math.max(...dropped.map((id) => score.get(id)!))).toBeLessThan(Math.min(...keptExceptFloor.map((id) => score.get(id)!)));
+    for (const g of groups) expect(g.items.some((c) => kept.includes(c.id))).toBe(true);
+  }, 60_000);
 
   it("标签页模式：带切换用的单选按钮和不支持时的主题目录", async () => {
     const { html } = await renderDigest(sampleDigest("zh"), { tabs: true });

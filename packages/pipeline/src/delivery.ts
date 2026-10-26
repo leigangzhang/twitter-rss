@@ -203,7 +203,7 @@ export async function buildIssueEmail(
   }
   if (!view) return { subscriber: sub, error: "这一期没有这位订阅者所选主题的内容" };
   const email = await renderDigest(view, { tabs: config.digest.mail.tabs, maxBytes: config.digest.mail.max_kb * 1024 });
-  return { subscriber: sub, view, email, tweetIds: view.groups.flatMap((g) => g.items.map((i) => i.id)) };
+  return { subscriber: sub, view, email, tweetIds: email.tweetIds };
 }
 
 export interface ResendResult {
@@ -217,10 +217,11 @@ export async function resendTo(db: Db, config: AppConfig, mailer: Mailer, date: 
   // 按这一期最新的内容重新挑选（补采、重新评审之后的内容也会包含进来）
   const built = await buildIssueEmail(db, config, date, subscriberId, "latest");
   if ("error" in built) return { email: built.subscriber?.email ?? `#${subscriberId}`, status: "skipped", message: built.error };
-  const { subscriber: sub, view, tweetIds } = built;
+  const { subscriber: sub, view } = built;
   const mailCfg = config.digest.mail;
-  // 和每日发送一样，放不进一封时分卷
+  // 和每日发送一样，放不进一封时分卷，仍放不下时去掉低分内容；记录实际发出的条目
   const parts = await renderDigestParts(view, { tabs: mailCfg.tabs, maxBytes: mailCfg.max_kb * 1024, maxParts: mailCfg.max_parts });
+  const tweetIds = parts.flatMap((p) => p.tweetIds);
   const [before] = await db.select().from(deliveries).where(and(eq(deliveries.subscriberId, sub.id), eq(deliveries.digestDate, date)));
   const added = before?.status === "sent" ? tweetIds.filter((id) => !before.tweetIds.includes(id)).length : 0;
   const links = siteLinks(sub.token, sub.lang);

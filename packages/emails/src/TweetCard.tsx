@@ -721,29 +721,3 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
     </div>
   );
 }
-
-/** 超出邮件大小预算的条目：一行作者 + AI 一句话摘要，点开看原推 */
-export function CompactItem({ card }: { card: CardView }) {
-  return (
-    <p
-      style={{
-        fontSize: 15,
-        lineHeight: "25px",
-        color: color.body,
-        margin: "0 0 12px",
-        ...wrap,
-      }}
-    >
-      <a
-        href={card.url}
-        style={{ color: color.ink, textDecoration: "none", fontWeight: 700 }}
-      >
-        {card.summary ?? card.parts[0]?.slice(0, 80)}
-      </a>
-      <br />
-      <span style={{ fontSize: 13, color: color.muted }}>
-        {card.author.name}　@{card.author.handle}
-      </span>
-    </p>
-  );
-}

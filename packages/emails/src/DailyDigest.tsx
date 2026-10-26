@@ -20,7 +20,7 @@ import {
   MAIL_WIDTH,
   MOBILE_BREAKPOINT,
 } from "./theme.ts";
-import { CompactItem, TweetCard } from "./TweetCard.tsx";
+import { TweetCard } from "./TweetCard.tsx";
 
 /**
  * 长推文原文折叠（纯 CSS）：页面开头有一个默认选中的单选按钮 .xs，它存在说明邮箱保留了表单元素、支持 :checked，
@@ -289,7 +289,7 @@ export function DailyDigest({
                     >
                       {navText(
                         g.topic.name,
-                        g.items.length + (g.compact?.length ?? 0),
+                        g.items.length,
                       )}
                     </a>
                   ))}
@@ -385,7 +385,7 @@ export function DailyDigest({
                       >
                         {navText(
                           g.topic.name,
-                          g.items.length + (g.compact?.length ?? 0),
+                          g.items.length,
                         )}
                       </label>
                     ))}
@@ -402,7 +402,7 @@ export function DailyDigest({
                       >
                         {navText(
                           g.topic.name,
-                          g.items.length + (g.compact?.length ?? 0),
+                          g.items.length,
                         )}
                       </a>
                     ))}
@@ -507,39 +507,16 @@ function TopicSection({ group: g }: { group: DigestView["groups"][number] }) {
           {g.topic.name}
           <span
             style={{ fontSize: 14, fontWeight: 400, color: color.muted }}
-          >{`　${g.items.length + (g.compact?.length ?? 0)} 条`}</span>
+          >{`　${g.items.length} 条`}</span>
         </p>
       </div>
       {g.items.map((card, i) => (
         <TweetCard
           key={card.id}
           card={card}
-          last={i === g.items.length - 1 && !g.compact?.length}
+          last={i === g.items.length - 1}
         />
       ))}
-      {g.compact?.length ? (
-        <div
-          className="xc"
-          style={{
-            padding: "20px 32px 8px",
-            borderTop: `1px solid ${color.line}`,
-          }}
-        >
-          <p
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              color: color.muted,
-              margin: "0 0 12px",
-            }}
-          >
-            还有 {g.compact.length} 条，篇幅所限只列摘要
-          </p>
-          {g.compact.map((card) => (
-            <CompactItem key={card.id} card={card} />
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
