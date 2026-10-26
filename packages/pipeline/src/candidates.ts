@@ -8,12 +8,13 @@ const BASELINE_DAYS = 30;
 /**
  * 给时间范围内的新推文计算规则分（相对作者近 30 天互动中位数），
  * 然后每个主题取规则分最高的 N 条，作为送给 AI 的候选。
+ * 上次评审失败的（比如密钥失效、接口超时）也重新放进来，否则会一直停在 failed 不再评审。
  */
 export async function pickCandidates(db: Db, config: AppConfig, range: TimeRange): Promise<TweetRow[]> {
   const fresh = await db
     .select()
     .from(tweets)
-    .where(and(eq(tweets.status, "new"), inBatch(range), inArray(tweets.handle, config.accounts)));
+    .where(and(inArray(tweets.status, ["new", "failed"]), inBatch(range), inArray(tweets.handle, config.accounts)));
   if (fresh.length === 0) return [];
 
   const handles = [...new Set(fresh.map((t) => t.handle))];
