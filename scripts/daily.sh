@@ -3,6 +3,7 @@
 # 由 Agent 的每日任务在采集结束后调用（见 agents/daily-task.md），也可以手动运行。
 #   scripts/daily.sh            正式运行
 #   scripts/daily.sh --dry-run  试跑，不发邮件
+#   XRSS_ALLOW_PARTIAL=1 scripts/daily.sh   采集清单没采完也照常处理（采集因额度用完暂停时由 daily-auto.sh 使用）
 #
 # 退出码：0 正常；2 采集端遇到限流 / 登录失效等；4 今天的采集清单还没采完（不发送，继续 pnpm crawl next）
 set -uo pipefail
@@ -24,9 +25,13 @@ main() {
 
   # 采集清单没采完时不发送：没采的账号明天也会补收，但今天应该先把清单采完
   if ! pnpm -s crawl progress; then
-    echo "今天的采集还没完成，不发送。请继续运行 pnpm crawl next，直到出现 FINISHED 再运行本脚本。"
-    echo "===== $(date '+%F %T') 结束（退出码 4） ====="
-    return 4
+    if [ "${XRSS_ALLOW_PARTIAL:-}" = "1" ]; then
+      echo "今天的采集没有采完（额度用完暂停），用已经采到的内容照常处理"
+    else
+      echo "今天的采集还没完成，不发送。请继续运行 pnpm crawl next，直到出现 FINISHED 再运行本脚本。"
+      echo "===== $(date '+%F %T') 结束（退出码 4） ====="
+      return 4
+    fi
   fi
 
   # 采集端保存的原始响应统一再解析一次（已解析过也没关系），确保详情页补抓的全文被合并

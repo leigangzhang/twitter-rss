@@ -1,11 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { findRepoRoot, loadConfig, loadDotEnv, localDate, runRange, TRUNCATION_THRESHOLD, xWeightedLength } from "@xrss/core";
 import type { Page } from "playwright-core";
 import { connectChrome, ensureChrome } from "./browser/chrome.ts";
-import { captureAccount, captureDetail, type StepOutcome } from "./browser/x-page.ts";
+import { budgetWait, captureAccount, captureDetail, formatClock, type RateLimit, rateLimits, type StepOutcome } from "./browser/x-page.ts";
 import { parseXGraphQL } from "./parsers/x-graphql.ts";
 import { inboxDir } from "./paths.ts";
 import type { CrawlPlan } from "./plan.ts";
@@ -41,7 +41,11 @@ loadDotEnv();
  *   pnpm crawl:auto --trial 5      试采：随机挑 5 个账号采一遍，结果放在 data/trial/，不影响正式进度和冷却状态
  *   pnpm crawl:auto --trial 3 --accounts sama,karpathy,dotey
  *
- * 退出码：0 完成；2 因限流、验证码、登录失效等停止；3 今天不采集；5 本机网络不通（暂停，恢复后重新运行会接着采）；1 其他错误
+ * 按 X 响应头里的额度（x-rate-limit-*）控制节奏：下一步需要的额度不够时，先等到重置；要等超过 20 分钟就暂停（退出码 6），
+ * 不等到 429 才停。每一步的接口调用和额度记在 <收件箱>/calls.jsonl，额度存在 ratelimit.json，重新运行时接着用。
+ *
+ * 退出码：0 完成；2 因限流、验证码、登录失效等停止；3 今天不采集；5 本机网络不通（暂停，恢复后重新运行会接着采）；
+ * 6 额度用完暂停（不算异常、不冷却，已采到的内容照常处理）；1 其他错误
  */
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -136,6 +140,40 @@ if (progress.stopped) {
 const rawDir = join(inboxDir(date), "raw");
 mkdirSync(rawDir, { recursive: true });
 
+/** 额度要等这么久以上才恢复时，不干等，暂停采集 */
+const MAX_BUDGET_WAIT_MS = 20 * 60_000;
+/** 额度重置后再多等一会儿（秒），不在重置那一刻准点请求 */
+const AFTER_RESET_SEC: [number, number] = [20, 60];
+const rateLimitFile = join(inboxDir(date), "ratelimit.json");
+const callsFile = join(inboxDir(date), "calls.jsonl");
+
+// 同一个额度窗口里重新运行时，接着用上次记下的额度
+if (existsSync(rateLimitFile)) {
+  for (const rl of JSON.parse(readFileSync(rateLimitFile, "utf8")) as RateLimit[]) {
+    if (rl.resetAt > Date.now()) rateLimits.set(rl.op, rl);
+  }
+}
+
+function recordCalls(step: Step, outcome: StepOutcome): void {
+  writeFileSync(rateLimitFile, `${JSON.stringify([...rateLimits.values()], null, 2)}\n`);
+  const calls = "calls" in outcome ? (outcome.calls ?? []) : [];
+  appendFileSync(callsFile, `${JSON.stringify({ at: new Date().toISOString(), handle: step.handle, kind: step.kind, outcome: outcome.kind, calls })}\n`);
+}
+
+/** 这一步大概要用多少次请求：主页第一屏 + 每次滚动，再留一点余量 */
+function need(step: Step): Record<string, number> {
+  if (step.kind !== "account") return { TweetDetail: 2 };
+  const timeline = (step.scrollPausesMs?.length ?? 0) + 2;
+  return { UserTweets: timeline, UserOriginalsTimeline: timeline, UserByScreenName: 2 };
+}
+
+/** ✓ 行后面附上时间线接口还剩多少额度 */
+function quota(outcome: StepOutcome): string {
+  const calls = "calls" in outcome ? (outcome.calls ?? []) : [];
+  const last = calls.filter((c) => (c.op === "UserTweets" || c.op === "UserOriginalsTimeline" || c.op === "TweetDetail") && c.limit !== undefined).at(-1);
+  return last ? `（${last.op} 额度 ${last.remaining}/${last.limit}）` : "";
+}
+
 await ensureChrome();
 const browser = await connectChrome();
 const context = browser.contexts()[0] ?? (await browser.newContext());
@@ -159,7 +197,8 @@ function apply(step: Step, outcome: StepOutcome): number | null {
     const check = verifyStep(date, step, {});
     if (check.ok) {
       completeStep(progress, step, check.message);
-      log(`✓ @${step.handle}：${check.message}`);
+      if (outcome.note) log(`@${step.handle}：${outcome.note}`);
+      log(`✓ @${step.handle}：${check.message}${quota(outcome)}`);
       return null;
     }
     // 存下来的响应解析不出来，按页面没加载出来处理
@@ -201,6 +240,19 @@ try {
       if (waitMs > 30_000) log(`等待 ${Math.round(waitMs / 1000)} 秒后打开 @${step.handle}`);
       await sleep(waitMs);
     }
+    const short = budgetWait(rateLimits, need(step), Date.now());
+    if (short) {
+      const left = `${short.op} 额度剩 ${short.rl.remaining}/${short.rl.limit}`;
+      if (short.ms > MAX_BUDGET_WAIT_MS) {
+        pauseStep(progress, step);
+        saveProgress(progress);
+        log(`${left}，额度要到 ${formatClock(short.rl.resetAt, tz)} 才恢复，暂停采集，已采到的内容照常处理`);
+        exitCode = 6;
+        break;
+      }
+      log(`${left}，等 ${Math.ceil(short.ms / 60_000)} 分钟到 ${formatClock(short.rl.resetAt, tz)} 重置后继续`);
+      await sleep(short.ms + rng.int(AFTER_RESET_SEC) * 1000);
+    }
     step.status = "in_progress";
     saveProgress(progress);
     const c = counts(progress);
@@ -210,6 +262,7 @@ try {
         : `打开详情页 ${c.detailsDone + 1}/${c.details}：@${step.handle}`,
     );
     const outcome = step.kind === "account" ? await captureAccount(page, step, rawDir, rng) : await captureDetail(page, step, rawDir);
+    recordCalls(step, outcome);
     const code = apply(step, outcome);
     saveProgress(progress);
     if (code !== null) {

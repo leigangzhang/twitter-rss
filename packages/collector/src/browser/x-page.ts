@@ -11,16 +11,70 @@ import type { BlockStatus, Step } from "../runner.ts";
  * 只浏览，不点击任何按钮；遇到登录页、验证页、限流就返回对应状态，由调用方停止采集。
  */
 
+/** 一次 GraphQL 请求的记录，写进 calls.jsonl 作为限流排查的依据 */
+export interface CallRecord {
+  op: string;
+  status: number;
+  limit?: number;
+  remaining?: number;
+  /** 额度重置时间（ISO） */
+  reset?: string;
+}
+
 export type StepOutcome =
-  | { kind: "ok"; files: string[] }
-  | { kind: "not_found"; reason: string }
-  | { kind: "blocked"; status: BlockStatus; error: string }
+  | { kind: "ok"; files: string[]; calls: CallRecord[]; note?: string }
+  | { kind: "not_found"; reason: string; calls?: CallRecord[] }
+  | { kind: "blocked"; status: BlockStatus; error: string; calls?: CallRecord[] }
   | { kind: "offline"; error: string };
+
+/** X 在每个 GraphQL 响应头里给出的额度：x-rate-limit-limit / -remaining / -reset */
+export interface RateLimit {
+  op: string;
+  limit: number;
+  remaining: number;
+  /** 重置时间，毫秒时间戳 */
+  resetAt: number;
+  status: number;
+}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const GRAPHQL = /\/i\/api\/graphql\/[^/]+\/([A-Za-z]+)/;
 const TIMELINE_OPS = new Set(["UserTweets", "UserOriginalsTimeline"]);
+/** 采集真正需要的接口：只有它们返回 429 才算限流。主页上推荐关注、侧边栏等其他请求的 429 只记录，不停止 */
+export const ESSENTIAL_OPS = new Set(["UserTweets", "UserOriginalsTimeline", "UserByScreenName", "TweetDetail"]);
+
+/** 各接口最近一次看到的额度，跨账号共用（同一个小号的额度），由 cli-auto 读写 ratelimit.json 持久化 */
+export const rateLimits = new Map<string, RateLimit>();
+
+/** 从响应头读出额度；没有这几个头时返回 null */
+export function readRateLimit(op: string, status: number, headers: Record<string, string>): RateLimit | null {
+  const raw = ["x-rate-limit-limit", "x-rate-limit-remaining", "x-rate-limit-reset"].map((k) => headers[k]?.trim());
+  if (raw.some((v) => !v)) return null;
+  const [limit, remaining, reset] = raw.map(Number) as [number, number, number];
+  if (![limit, remaining, reset].every(Number.isFinite)) return null;
+  return { op, limit, remaining, resetAt: reset * 1000, status };
+}
+
+/** 额度重置时间，按北京时间显示 hh:mm */
+export function formatClock(ms: number, timeZone = "Asia/Shanghai"): string {
+  return new Intl.DateTimeFormat("zh-CN", { timeZone, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(ms));
+}
+
+/**
+ * 下一步需要 need[op] 次请求，已知额度不够且还没到重置时间时，返回要等多久（取等得最久的那个接口）。
+ * 额度未知（还没见过这个接口的响应头）时不等。
+ */
+export function budgetWait(limits: Map<string, RateLimit>, need: Record<string, number>, now: number): { ms: number; op: string; rl: RateLimit } | null {
+  let worst: { ms: number; op: string; rl: RateLimit } | null = null;
+  for (const [op, n] of Object.entries(need)) {
+    const rl = limits.get(op);
+    if (!rl || rl.remaining >= n || rl.resetAt <= now) continue;
+    const ms = rl.resetAt - now;
+    if (!worst || ms > worst.ms) worst = { ms, op, rl };
+  }
+  return worst;
+}
 
 /** 页面加载出来后这么久还没有时间线响应，就算没加载出来 */
 const TIMELINE_TIMEOUT_MS = 30_000;
@@ -74,12 +128,17 @@ export function reachedEnd(responses: unknown[], step: Pick<Step, "handle" | "si
 
 /** 监听页面发出的 GraphQL 请求，返回已收到的响应（按到达顺序） */
 function listen(page: Page) {
-  const got: Array<{ op: string; status: number; body: unknown }> = [];
+  const got: Array<{ op: string; status: number; body: unknown; rl: RateLimit | null }> = [];
+  const calls: CallRecord[] = [];
   const pending = new Set<Promise<void>>();
   const onResponse = (res: Response) => {
     const m = GRAPHQL.exec(res.url());
     if (!m) return;
     const op = m[1]!;
+    const status = res.status();
+    const rl = readRateLimit(op, status, res.headers());
+    if (rl) rateLimits.set(op, rl);
+    calls.push(rl ? { op, status, limit: rl.limit, remaining: rl.remaining, reset: new Date(rl.resetAt).toISOString() } : { op, status });
     const p = res
       .text()
       .then((text) => {
@@ -89,7 +148,7 @@ function listen(page: Page) {
         } catch {
           // 非 JSON（比如限流时的 HTML）只记状态码
         }
-        got.push({ op, status: res.status(), body });
+        got.push({ op, status, body, rl });
       })
       .catch(() => {})
       .finally(() => pending.delete(p));
@@ -98,6 +157,7 @@ function listen(page: Page) {
   page.on("response", onResponse);
   return {
     got,
+    calls,
     settle: () => Promise.all([...pending]),
     stop: () => page.off("response", onResponse),
   };
@@ -123,7 +183,17 @@ async function open(page: Page, url: string): Promise<StepOutcome | null> {
   }
 }
 
-async function blockedByPage(page: Page): Promise<StepOutcome | null> {
+/** 必要接口返回 429 时给出限流结果，错误里写明是哪个接口、额度和重置时间 */
+function essentialLimited(net: ReturnType<typeof listen>, when = ""): StepOutcome | null {
+  const hit = net.got.find((r) => r.status === 429 && ESSENTIAL_OPS.has(r.op));
+  if (!hit) return null;
+  const quota = hit.rl ? `，额度 ${hit.rl.remaining}/${hit.rl.limit}，${formatClock(hit.rl.resetAt)} 重置` : "";
+  return { kind: "blocked", status: "rate_limited", error: `${when}${hit.op} 返回 429（请求过多）${quota}`, calls: net.calls };
+}
+
+const limited429 = (net: ReturnType<typeof listen>) => net.got.some((r) => r.status === 429 && ESSENTIAL_OPS.has(r.op));
+
+async function blockedByPage(page: Page): Promise<Extract<StepOutcome, { kind: "blocked" }> | null> {
   const text = await page
     .locator("body")
     .innerText({ timeout: 3000 })
@@ -146,31 +216,40 @@ export async function captureAccount(page: Page, step: Step, rawDir: string, rng
       return p?.body ? profileUnavailable(p.body) : undefined;
     };
     const redirected = () => Boolean(classifyPage(page.url(), ""));
-    await waitFor(() => timelines().length > 0 || Boolean(missing()) || net.got.some((r) => r.status === 429) || redirected(), TIMELINE_TIMEOUT_MS);
+    await waitFor(() => timelines().length > 0 || Boolean(missing()) || limited429(net) || redirected(), TIMELINE_TIMEOUT_MS);
     await net.settle();
 
     const reason = missing();
     if (reason) {
       const p = profile()!;
       writeFileSync(join(rawDir, `${step.handle}-profile.json`), JSON.stringify(p.body));
-      return { kind: "not_found", reason };
+      return { kind: "not_found", reason, calls: net.calls };
     }
-    if (net.got.some((r) => r.status === 429)) return { kind: "blocked", status: "rate_limited", error: "X 接口返回 429（请求过多）" };
+    const limited = essentialLimited(net);
+    if (limited) return limited;
     const blocked = await blockedByPage(page);
-    if (blocked) return blocked;
-    if (timelines().length === 0) return { kind: "blocked", status: "error", error: "时间线在页面加载后 30 秒内没有加载出来" };
+    if (blocked) return { ...blocked, calls: net.calls };
+    if (timelines().length === 0) return { kind: "blocked", status: "error", error: "时间线在页面加载后 30 秒内没有加载出来", calls: net.calls };
 
     // 按清单给的停顿往下滚，看到早于 since 的推文或上次看到的那条就停；连续两次没有新内容说明到底了
     let idle = 0;
+    let note: string | undefined;
     for (const pause of step.scrollPausesMs ?? []) {
       if (reachedEnd(timelines().map((r) => r.body), step)) break;
+      // 时间线额度只剩 1 次时不再滚动，留给下一个账号的第一屏；已拿到的内容照常保存
+      const rl = rateLimits.get(timelines()[0]!.op);
+      if (rl && rl.remaining <= 1 && rl.resetAt > Date.now()) {
+        note = `${rl.op} 额度剩 ${rl.remaining}/${rl.limit}，不再往下滚`;
+        break;
+      }
       await sleep(pause);
       const before = timelines().length;
       await page.mouse.move(rng.int([300, 700]), rng.int([300, 600]));
       await page.mouse.wheel(0, rng.int([700, 1100]));
       const grew = await waitFor(() => timelines().length > before, SCROLL_RESPONSE_MS);
       await net.settle();
-      if (net.got.some((r) => r.status === 429)) return { kind: "blocked", status: "rate_limited", error: "滚动时 X 接口返回 429（请求过多）" };
+      const limitedOnScroll = essentialLimited(net, "滚动时 ");
+      if (limitedOnScroll) return limitedOnScroll;
       idle = grew ? 0 : idle + 1;
       if (idle >= 2) break;
     }
@@ -187,7 +266,7 @@ export async function captureAccount(page: Page, step: Step, rawDir: string, rng
         writeFileSync(join(rawDir, `${step.handle}-${i + 1}.json`), JSON.stringify(r.body));
         files.push(`${step.handle}-${i + 1}.json`);
       });
-    return { kind: "ok", files };
+    return note ? { kind: "ok", files, calls: net.calls, note } : { kind: "ok", files, calls: net.calls };
   } finally {
     net.stop();
   }
@@ -200,16 +279,17 @@ export async function captureDetail(page: Page, step: Step, rawDir: string): Pro
     const failed = await open(page, step.url);
     if (failed) return failed;
     const detail = () => net.got.find((r) => r.op === "TweetDetail" && r.body);
-    await waitFor(() => Boolean(detail()) || net.got.some((r) => r.status === 429) || Boolean(classifyPage(page.url(), "")), TIMELINE_TIMEOUT_MS);
+    await waitFor(() => Boolean(detail()) || limited429(net) || Boolean(classifyPage(page.url(), "")), TIMELINE_TIMEOUT_MS);
     await net.settle();
-    if (net.got.some((r) => r.status === 429)) return { kind: "blocked", status: "rate_limited", error: "X 接口返回 429（请求过多）" };
+    const limited = essentialLimited(net);
+    if (limited) return limited;
     const blocked = await blockedByPage(page);
-    if (blocked) return blocked;
+    if (blocked) return { ...blocked, calls: net.calls };
     const d = detail();
-    if (!d) return { kind: "blocked", status: "error", error: "详情页 30 秒内没有加载出来" };
+    if (!d) return { kind: "blocked", status: "error", error: "详情页 30 秒内没有加载出来", calls: net.calls };
     const name = `${step.handle}-detail-${step.key.replace(/^detail-/, "")}.json`;
     writeFileSync(join(rawDir, name), JSON.stringify(d.body));
-    return { kind: "ok", files: [name] };
+    return { kind: "ok", files: [name], calls: net.calls };
   } finally {
     net.stop();
   }

@@ -6,6 +6,7 @@
 #   这时仍会运行 daily.sh，用已经采到的内容照常发送
 # - 采集中途断网：等网络恢复后从断点接着采
 # - 采集遇到限流、验证码、登录失效：停止采集，已采到的内容照常发送，并给管理员发提醒（.env 的 ADMIN_EMAIL）
+# - X 给的额度用完、要等很久才恢复（crawl:auto 退出码 6）：暂停采集，已采到的内容照常发送，并给管理员发提醒
 # 日志：data/logs/auto-<日期>.log
 set -uo pipefail
 
@@ -36,11 +37,15 @@ wait_network() {
   done
 }
 
+# 最近一次 crawl:auto 的退出码
+CRAWL_CODE=0
+
 crawl() {
   local code
   while :; do
     pnpm -s crawl:auto
     code=$?
+    CRAWL_CODE=$code
     if [ "$code" -eq 5 ]; then
       say "采集中途断网，等网络恢复后接着采"
       wait_network || return 0
@@ -61,6 +66,15 @@ main() {
     else
       say "今天不采集（pnpm plan 退出码 $plan），直接处理已有内容"
     fi
+  fi
+
+  if [ "$CRAWL_CODE" -eq 6 ]; then
+    say "采集因额度用完暂停，用已经采到的内容照常处理"
+    pnpm -s notify "$TODAY 采集因额度用完暂停" "X 返回的接口额度不够，采集已暂停（不算异常、不冷却），今天用已经采到的内容照常发送。哪个接口额度不够见 data/inbox/$TODAY/calls.jsonl；额度恢复后可以手动运行 scripts/daily-auto.sh 补采。"
+    XRSS_ALLOW_PARTIAL=1 scripts/daily.sh
+    local partial=$?
+    say "===== 每日任务结束（退出码 $partial） ====="
+    return "$partial"
   fi
 
   scripts/daily.sh
