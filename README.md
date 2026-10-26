@@ -60,6 +60,11 @@ scripts/agent-run.sh claude      # 或 codex
 
 一次完整采集通常要 30–60 分钟，这是有意放慢的节奏。日志在 `data/logs/`，安装细节和常见问题见 [agents/README.md](agents/README.md)。
 
+### 不用 Agent：脚本版
+
+`pnpm crawl:auto` 用脚本连接一个采集专用的 Chrome（独立资料，只登录小号）完成采集，规则和清单与 Agent 版相同，并能保存完整的网络响应（长推文全文）。
+`scripts/daily-auto.sh` 把网络自检（WireGuard）、采集、精选和发送串起来，由 launchd 每天定时运行。详见 [agents/script-mode.md](agents/script-mode.md)。
+
 ## 修改设置
 
 所有设置都是 `config/` 下的纯文本文件，改完下次运行生效：

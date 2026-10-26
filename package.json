@@ -21,6 +21,7 @@
     "accounts": "pnpm --filter @xrss/collector accounts",
     "subscribers": "pnpm -s --filter @xrss/pipeline subscribers",
     "resend": "pnpm -s --filter @xrss/pipeline resend",
+    "notify": "pnpm -s --filter @xrss/pipeline notify",
     "pipeline": "pnpm --filter @xrss/pipeline run daily",
     "pipeline:dry": "pnpm --filter @xrss/pipeline run daily --dry-run",
     "email:preview": "pnpm --filter @xrss/emails preview",

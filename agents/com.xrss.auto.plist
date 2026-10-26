@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS 每天 06:00 运行脚本版每日任务（scripts/daily-auto.sh，不需要 AI Agent）。
+  使用前把两处 /Users/you/Workspace/twitter-rss 换成你的项目路径，然后：
+    cp agents/com.xrss.auto.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.xrss.auto.plist
+  手动触发一次：launchctl start com.xrss.auto
+  电脑在 06:00 处于睡眠时，launchd 会在唤醒后补跑；想让它准时运行，可以设置每天 05:55 自动唤醒：
+    sudo pmset repeat wakeorpoweron MTWRFSU 05:55:00
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.xrss.auto</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/you/Workspace/twitter-rss/scripts/daily-auto.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/you/Workspace/twitter-rss</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>6</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/tmp/xrss-auto.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/xrss-auto.log</string>
+</dict>
+</plist>

@@ -5,6 +5,8 @@
 
 交给 Agent 的提示词只有一份：[`daily-task.md`](daily-task.md)。下面是各 Agent 的接入方式。
 
+> 不想依赖 Agent：用脚本连接采集专用的 Chrome 完成采集，由 launchd 定时运行，见 [script-mode.md](script-mode.md)。
+
 ## 1. 准备浏览器（所有 Agent 通用）
 
 推荐 [Tencent Browser Skill](https://github.com/Tencent/BrowserSkill)：它操作的是你本机已经登录 X 的 Chrome，提供 `bsk` 命令，任何能运行 shell 的 Agent 都能用。

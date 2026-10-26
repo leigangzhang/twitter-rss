@@ -13,7 +13,8 @@
     "resend": "tsx src/cli-resend.ts",
     "email:test": "tsx src/cli-email-test.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "notify": "tsx src/cli-notify.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

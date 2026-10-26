@@ -13,6 +13,7 @@ data/inbox/*
 data/*.db
 data/*.db-*
 data/out/
+data/trial/
 data/logs/
 *.tsbuildinfo
 next-env.d.ts
