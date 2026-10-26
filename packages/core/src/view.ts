@@ -26,7 +26,7 @@ export interface CardView {
   truncated: boolean;
   /** 最终分，邮件放不下时先去掉分数低的；没有时按主题内的顺序（越靠后越先去掉） */
   score?: number;
-  /** 👍 / 👎 反馈链接；没开启反馈时为空 */
+  /** 赞 / 踩链接：只有后台预览会设置（见 pipeline 的 admin-preview.ts），发出的邮件里为空 */
   feedback?: { up: string; down: string };
   /** href：点开看的大图 */
   images: Array<{ url: string; href: string; width?: number; height?: number; alt?: string }>;

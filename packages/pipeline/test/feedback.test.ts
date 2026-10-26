@@ -2,21 +2,14 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { collectRange, loadConfig } from "@xrss/core";
-import { adminFeedbackCounts, adminVotes, createDb, deliveries, feedback, feedbackLinks, feedbackSignature, listFeedback, migrateDb, parseFeedbackParams, recordFeedback, setAdminFeedback, subscribers, verifyFeedback } from "@xrss/core/db";
+import { adminFeedbackCounts, adminVotes, createDb, deliveries, feedback, listFeedback, migrateDb, setAdminFeedback, subscribers } from "@xrss/core/db";
 import { feedbackTarget, injectVoteScript, previewBanner } from "../src/admin-preview.ts";
 import { summarizeFeedback } from "../src/feedback-summary.ts";
-import { afterEach, describe, expect, it } from "vitest";
-import { feedbackLinker } from "../src/digest.ts";
+import { describe, expect, it } from "vitest";
 import { ingest } from "../src/ingest.ts";
 
 const repoConfig = loadConfig(join(import.meta.dirname, "..", "..", "..", "config"));
 const config = { ...repoConfig, accounts: ["sama"], accountTopics: new Map([["sama", ["labs"]]]) };
-const withFeedback = { ...config, digest: { ...config.digest, mail: { ...config.digest.mail, feedback: true } } };
-
-const paramsOf = (url: string) => {
-  const q = new URL(url).searchParams;
-  return parseFeedbackParams((k) => q.get(k));
-};
 
 async function setup() {
   const dir = mkdtempSync(join(tmpdir(), "xrss-inbox-"));
@@ -42,66 +35,12 @@ async function setup() {
   return { db, sub: sub! };
 }
 
-describe("反馈链接", () => {
-  afterEach(() => {
-    delete process.env.FEEDBACK_SECRET;
-  });
-
-  it("单独发送带 token，合并发送带签名；参数格式不对时拒绝", () => {
-    const own = feedbackLinks("https://xrss.example/", { token: "tok" }, "501", "2026-10-19");
-    expect(own.up).toBe("https://xrss.example/f?t=501&d=2026-10-19&s=tok&v=up");
-    expect(paramsOf(own.down)).toEqual({ tweetId: "501", issueDate: "2026-10-19", vote: "down", token: "tok", signature: undefined });
-
-    const shared = feedbackLinks("https://xrss.example", { secret: "s3cret" }, "501", "2026-10-19");
-    expect(paramsOf(shared.up)?.signature).toBe(feedbackSignature("s3cret", "501", "2026-10-19"));
-
-    expect(paramsOf("https://x/f?t=abc&d=2026-10-19&s=tok&v=up")).toBeNull();
-    expect(paramsOf("https://x/f?t=501&d=2026-10-19&v=up")).toBeNull();
-    expect(paramsOf("https://x/f?t=501&d=2026-10-19&s=tok&v=meh")).toBeNull();
-  });
-
-  it("没开启 mail.feedback 时不放链接；合并发送没有 FEEDBACK_SECRET 时也不放", () => {
-    expect(feedbackLinker(config, "2026-10-19", { token: "tok" })).toBeUndefined();
-    expect(feedbackLinker(config, "2026-10-19", { token: "tok" }, true)?.("501").up).toContain("s=tok");
-    expect(feedbackLinker(withFeedback, "2026-10-19", "shared")).toBeUndefined();
-    process.env.FEEDBACK_SECRET = "s3cret";
-    expect(feedbackLinker(withFeedback, "2026-10-19", "shared")?.("501").up).toContain("g=");
-  });
-
-  it("校验：token 要对应订阅者、签名要对、推文要存在", async () => {
-    const { db, sub } = await setup();
-    const req = { tweetId: "501", issueDate: "2026-10-19", vote: "up" as const };
-    expect(await verifyFeedback(db, { ...req, token: sub.token })).toEqual({ subscriberId: sub.id });
-    expect(await verifyFeedback(db, { ...req, token: "nobody" })).toBeNull();
-    expect(await verifyFeedback(db, { ...req, tweetId: "999", token: sub.token })).toBeNull();
-    const signature = feedbackSignature("s3cret", "501", "2026-10-19");
-    expect(await verifyFeedback(db, { ...req, signature }, "s3cret")).toEqual({ subscriberId: null });
-    expect(await verifyFeedback(db, { ...req, signature }, "other")).toBeNull();
-    expect(await verifyFeedback(db, { ...req, signature }, undefined)).toBeNull();
-  });
-
-  it("同一订阅者重复反馈覆盖上一次，👍 不留原因；匿名反馈每次新增", async () => {
+describe("后台反馈", () => {
+  it("后台评价：每条只留一条，再点同一个取消；换评价清掉原因；早先读者的评价不受影响", async () => {
     const { db, sub } = await setup();
     const base = { tweetId: "501", issueDate: "2026-10-19" };
-    await recordFeedback(db, { ...base, vote: "down", reason: "ad", subscriberId: sub.id });
-    await recordFeedback(db, { ...base, vote: "down", reason: "shallow", subscriberId: sub.id });
-    let rows = await db.select().from(feedback);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ vote: "down", reason: "shallow", subscriberId: sub.id });
-
-    await recordFeedback(db, { ...base, vote: "up", reason: "ad", subscriberId: sub.id });
-    rows = await db.select().from(feedback);
-    expect(rows[0]).toMatchObject({ vote: "up", reason: null });
-
-    await recordFeedback(db, { ...base, vote: "up", reason: null, subscriberId: null });
-    await recordFeedback(db, { ...base, vote: "down", reason: null, subscriberId: null });
-    expect(await db.select().from(feedback)).toHaveLength(3);
-  });
-
-  it("后台评价：每条只留一条，再点同一个取消；换评价清掉原因；读者的评价不受影响", async () => {
-    const { db, sub } = await setup();
-    const base = { tweetId: "501", issueDate: "2026-10-19" };
-    await recordFeedback(db, { ...base, vote: "up", reason: null, subscriberId: sub.id });
+    // 早先邮件反馈留下的读者评价
+    await db.insert(feedback).values({ ...base, vote: "up", subscriberId: sub.id, source: "reader" });
 
     await setAdminFeedback(db, { ...base, vote: "down" });
     await setAdminFeedback(db, { ...base, vote: "down", reason: "shallow" });

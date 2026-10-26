@@ -13,7 +13,7 @@ import {
 import { primaryArticle } from "@xrss/core";
 import { renderDigest, renderDigestParts, type RenderedEmail } from "@xrss/emails";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { buildView, feedbackLinker, loadDigestContext, type SendStats, sendDigests, siteLinks } from "./digest.ts";
+import { buildView, loadDigestContext, type SendStats, sendDigests, siteLinks } from "./digest.ts";
 import type { Mailer } from "./mailer.ts";
 
 /**
@@ -199,7 +199,7 @@ export async function buildIssueEmail(
     const topics = config.topics.map((t) => t.id).filter((id) => rows.some((r) => r.topicId === id));
     view = buildView({ ...ctx, scored: rows.filter((r) => r.topicId), articles }, topics, sub.lang, links, true);
   } else {
-    view = buildView(ctx, normalizeTopicIds(config, sub.topics), sub.lang, links, true, feedbackLinker(config, date, { token: sub.token }));
+    view = buildView(ctx, normalizeTopicIds(config, sub.topics), sub.lang, links, true);
   }
   if (!view) return { subscriber: sub, error: "这一期没有这位订阅者所选主题的内容" };
   const email = await renderDigest(view, { tabs: config.digest.mail.tabs, maxBytes: config.digest.mail.max_kb * 1024 });

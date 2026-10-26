@@ -147,7 +147,7 @@ describe("每日邮件", () => {
     expect(two.html).toContain(base.summary!);
   });
 
-  it("开启反馈时每张卡片底部最左边带赞 / 踩链接，每张只多几百字节", async () => {
+  it("带赞 / 踩链接（后台预览用）时在卡片底部最左边，每张只多几百字节", async () => {
     const view = sampleDigest("zh");
     const plain = await renderDigest(view);
     const items = view.groups.flatMap((g) => g.items);

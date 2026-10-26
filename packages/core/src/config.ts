@@ -101,8 +101,6 @@ const DigestFile = z.object({
       max_kb: z.number().min(20).max(500).default(95),
       /** 内容超过 max_kb 时最多分几封发送；分满了仍放不下时去掉分数最低的条目（每个主题至少留一条）。1 = 不分卷 */
       max_parts: z.number().int().min(1).max(5).default(3),
-      /** 每条推文下放 👍 / 👎 反馈链接（需要网站能从外网打开，见 SITE_URL）；合并发送的邮件还需要 .env 的 FEEDBACK_SECRET */
-      feedback: z.boolean().default(false),
     })
     .prefault({}),
   curation: z

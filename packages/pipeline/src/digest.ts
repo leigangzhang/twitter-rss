@@ -17,7 +17,7 @@ import {
   type TimeRange,
   toCardView,
 } from "@xrss/core";
-import { type Db, deliveries, deliveryAttempts, feedbackLinks, type FeedbackSigner, loadLinkDigests, subscribers, tweets, type SubscriberRow, type TweetRow } from "@xrss/core/db";
+import { type Db, deliveries, deliveryAttempts, loadLinkDigests, subscribers, tweets, type SubscriberRow, type TweetRow } from "@xrss/core/db";
 import { type DigestPart, GMAIL_CLIP_BYTES, renderDigestParts } from "@xrss/emails";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import type { Mailer } from "./mailer.ts";
@@ -45,21 +45,6 @@ export function sharedLinks(lang: Lang) {
     unsubscribe: `${site}/manage?action=unsubscribe`,
     rss: `${site}/#rss`,
   };
-}
-
-/** 每条推文的 👍 / 👎 链接 */
-export type FeedbackLinker = (tweetId: string) => { up: string; down: string };
-
-/**
- * 这一期邮件的反馈链接：mail.feedback 没开启时为空（force 用于测试邮件）；
- * 合并发送（没有 token）还需要 FEEDBACK_SECRET，没设置时也为空。
- */
-export function feedbackLinker(config: AppConfig, date: string, who: { token: string } | "shared", force = false): FeedbackLinker | undefined {
-  if (!config.digest.mail.feedback && !force) return undefined;
-  const secret = process.env.FEEDBACK_SECRET?.trim();
-  const signer: FeedbackSigner | undefined = who === "shared" ? (secret ? { secret } : undefined) : { token: who.token };
-  if (!signer) return undefined;
-  return (tweetId) => feedbackLinks(siteBase(), signer, tweetId, date);
 }
 
 /** 主题组合和语言相同的订阅者收到的内容完全一样 */
@@ -91,7 +76,6 @@ export function buildView(
   lang: Lang,
   links: DigestView["links"],
   personalLinks = true,
-  feedback?: FeedbackLinker,
 ): DigestView | null {
   const { config } = ctx;
   const topicOrder = config.topics.map((t) => t.id).filter((id) => topicIds.includes(id));
@@ -121,8 +105,7 @@ export function buildView(
           const p = primaryArticle(row.raw);
           const article = p ? ctx.articles.get(p.link.expandedUrl) : undefined;
           const card = toCardView({ id: row.id, topicId: row.topicId!, kind: row.kind, raw: row.raw, ai: row.ai, article }, viewOpts);
-          const scored = { ...card, score: row.finalScore ?? 0 };
-          return feedback ? { ...scored, feedback: feedback(row.id) } : scored;
+          return { ...card, score: row.finalScore ?? 0 };
         }),
       };
     }),
@@ -275,7 +258,7 @@ export async function sendDigests(
       // 合并发送：只渲染一次，用通用链接，收件人放在密送里分批发出
       stats.sharedGroups++;
       const links = sharedLinks(lang);
-      const view = buildView(ctx, topics, lang, links, false, feedbackLinker(ctx.config, ctx.date, "shared"));
+      const view = buildView(ctx, topics, lang, links, false);
       if (!view) {
         stats.skippedEmpty += members.length;
         continue;
@@ -303,7 +286,7 @@ export async function sendDigests(
     // 单独发送：带专属的管理、切换语言和一键退订链接
     for (const sub of members) {
       const links = siteLinks(sub.token, sub.lang);
-      const view = buildView(ctx, sub.topics, sub.lang, links, true, feedbackLinker(ctx.config, ctx.date, { token: sub.token }));
+      const view = buildView(ctx, sub.topics, sub.lang, links, true);
       if (!view) {
         stats.skippedEmpty++;
         continue;
