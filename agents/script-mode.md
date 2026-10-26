@@ -56,7 +56,7 @@ scripts/daily-auto.sh        # 先手动跑一次完整流程
 ```bash
 cp agents/com.xrss.auto.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/com.xrss.auto.plist
-sudo pmset repeat wakeorpoweron MTWRFSU 05:55:00     # 每天 05:55 唤醒 Mac，06:00 准时运行
+sudo pmset repeat wakeorpoweron MTWRFSU 07:55:00     # 每天 07:55 唤醒 Mac，08:00 准时运行
 ```
 
 同时停用 DeepSeek Harness 里的定时任务，避免两边同时采集。
