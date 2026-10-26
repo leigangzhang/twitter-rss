@@ -1,11 +1,12 @@
-# 用 Agent 每天自动运行
+# 用 Agent 每天自动运行（备用）
+
+> 默认的每日任务是脚本版：launchd 每天 08:00 运行 `scripts/daily-auto.sh`，由 `pnpm crawl:auto` 连接采集专用的 Chrome 采集，不需要 Agent，见 [script-mode.md](script-mode.md)。
+> 下面的 Agent 版保留作备用。两者共用同一份清单和进度，同一天不要同时运行；启用脚本版时停用这里的定时任务。
 
 每天的流程是：生成采集清单 → Agent 操作浏览器逐个采集 → AI 精选并发邮件。
 只有"操作浏览器"这一步需要 Agent，其余都是项目里的脚本，所以任何**能运行 shell 命令、又能操作浏览器**的 Agent 都可以接入。
 
 交给 Agent 的提示词只有一份：[`daily-task.md`](daily-task.md)。下面是各 Agent 的接入方式。
-
-> 不想依赖 Agent：用脚本连接采集专用的 Chrome 完成采集，由 launchd 定时运行，见 [script-mode.md](script-mode.md)。
 
 ## 1. 准备浏览器（所有 Agent 通用）
 
@@ -17,7 +18,7 @@ bsk install-skill        # 选择你用的 Agent（bsk install-skill --list 查�
 bsk doctor               # 确认浏览器扩展已连接
 ```
 
-然后在 Chrome 里登录**采集专用的 X 小号**。也可以用 Agent 自带的浏览器工具（如 Claude in Chrome），只要能打开页面、读取页面内容即可。
+然后在 Chrome 里登录**采集专用的 X 账号**。也可以用 Agent 自带的浏览器工具（如 Claude in Chrome），只要能打开页面、读取页面内容即可。
 
 ## 2. 选一个 Agent
 

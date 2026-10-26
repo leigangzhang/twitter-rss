@@ -5,12 +5,12 @@
 信息太多，值得读的太少。与其刷几百条推文，不如关注真正在做事的人：发布模型的实验室、写代码的研究者、做产品的开发者，
 只看他们昨天分享的新东西、真实经验和有见地的判断。
 
-精选晨报每天替你看一遍：由你的 AI Agent（Claude Code、Codex、DeepSeek Harness 等）在浏览器里采集博主前一天的推文，
+精选晨报每天替你看一遍：由脚本连接一个采集专用的 Chrome 采集博主前一天的推文（也可以交给 Claude Code、Codex、DeepSeek Harness 等 AI Agent 在浏览器里采集），
 大模型按你写下的标准逐条精选、翻译、摘要，按主题整理成一封邮件发给订阅者，同时提供 RSS。
 
 ## 你会收到什么
 
-每天早上一封按主题分区的邮件，默认最多 30 条，按评分排序：
+每天早上一封按主题分区的邮件，默认最多 60 条，按评分排序；一封放不下时分成几封发送（标题注明 1/2、2/2）：
 
 - **完整的推文**：长文全文、作者的连续推文（Thread）合并、引用推文、图片，不用跳转 X 也能读完
 - **中文翻译**：可选中文或原文阅读
@@ -21,7 +21,7 @@
 
 ## 快速开始
 
-需要 Node.js 22+、pnpm，以及 macOS 或 Linux 上已登录 X 的 Chrome（建议用专用账号）。
+需要 Node.js 22+、pnpm、Chrome，以及一个用来采集的 X 账号（建议用专用账号）。
 
 ```bash
 git clone <仓库地址> twitter-rss && cd twitter-rss
@@ -32,18 +32,27 @@ pnpm email:preview       # 用示例数据渲染邮件 → data/out/preview-zh.h
 pnpm dev                 # 订阅页 http://localhost:3000
 ```
 
-然后在项目目录里让你的 Agent 跑一次每日任务，例如：
+然后准备采集用的 Chrome，试采几个账号，再完整跑一次每日任务：
 
 ```bash
-scripts/agent-run.sh claude      # 或 codex
+pnpm crawl:chrome             # 用独立资料（~/.xrss-chrome）打开采集专用的 Chrome，在里面登录采集用的 X 账号
+pnpm crawl:auto --trial 5     # 试采 5 个账号，结果放在 data/trial/，不影响正式进度
+scripts/daily-auto.sh         # 网络自检 → 采集清单 → 采集 → 精选 → 发信
 ```
 
-第一次运行前要装好 Tencent Browser Skill（`bsk`），见 [agents/README.md](agents/README.md)。没配 SMTP 时邮件不会真的发出，确认链接会打印在终端。
+没配 SMTP 时邮件不会真的发出，确认链接会打印在终端。
 
-## 让 Agent 每天自动跑
+## 每天自动运行
 
-采集需要一个能运行命令、能操作浏览器的 Agent。每日任务写在 [`agents/daily-task.md`](agents/daily-task.md)，各种 Agent 用的都是同一份：
+默认用脚本版：`scripts/daily-auto.sh` 由 launchd 每天 08:00 启动（[`agents/com.xrss.auto.plist`](agents/com.xrss.auto.plist)），
+依次做网络自检（WireGuard）、`pnpm plan` 生成采集清单、`pnpm crawl:auto` 采集、`scripts/daily.sh` 精选并发信，出问题时给 `ADMIN_EMAIL` 发提醒。
+安装和各种情况的处理见 [agents/script-mode.md](agents/script-mode.md)。
+
+### 备用：让 Agent 采集
+
+也可以把"操作浏览器"交给能运行命令、能操作浏览器的 Agent。每日任务写在 [`agents/daily-task.md`](agents/daily-task.md)，各种 Agent 用的都是同一份：
 生成采集清单 → 逐步采集（脚本决定账号、顺序和等待时间，Agent 只照做）→ 解析入库 → AI 精选 → 发信。
+两种方式共用同一份清单和进度，同一天不要同时运行。第一次运行前要装好 Tencent Browser Skill（`bsk`），见 [agents/README.md](agents/README.md)。
 
 | Agent | 怎么接入 |
 |---|---|
@@ -58,12 +67,7 @@ scripts/agent-run.sh claude      # 或 codex
 30 6 * * * cd /path/to/twitter-rss && scripts/agent-run.sh claude
 ```
 
-一次完整采集通常要 30–60 分钟，这是有意放慢的节奏。日志在 `data/logs/`，安装细节和常见问题见 [agents/README.md](agents/README.md)。
-
-### 不用 Agent：脚本版
-
-`pnpm crawl:auto` 用脚本连接一个采集专用的 Chrome（独立资料，只登录小号）完成采集，规则和清单与 Agent 版相同，并能保存完整的网络响应（长推文全文）。
-`scripts/daily-auto.sh` 把网络自检（WireGuard）、采集、精选和发送串起来，由 launchd 每天定时运行。详见 [agents/script-mode.md](agents/script-mode.md)。
+Agent 版一次完整采集通常要 30–60 分钟，这是有意放慢的节奏。日志在 `data/logs/`，安装细节和常见问题见 [agents/README.md](agents/README.md)。
 
 ## 修改设置
 
@@ -72,12 +76,13 @@ scripts/agent-run.sh claude      # 或 codex
 | 文件 | 管什么 |
 |---|---|
 | `config/topics.yaml` | 主题和博主（只采集这里列出的账号），主题名、颜色、说明 |
-| `config/digest.yaml` | 每封邮件的条数、最低分、视频降权、邮件大小上限、标签页、合并发送 |
+| `config/digest.yaml` | 每封邮件的条数、每个主题每天送评审的条数、最低分、视频降权、邮件大小上限和分卷、标签页、合并发送 |
 | `config/crawl.yaml` | 采集节流：每天账号数（默认 50）、节奏、活跃时段、异常后的冷却期 |
 | `config/curation.md` | 精选标准，原样放进给大模型的提示词 |
-| `.env` | 大模型接口、SMTP、数据库地址、网站地址、管理后台密码 |
+| `.env` | 大模型接口、SMTP、数据库地址、网站地址、管理后台密码、管理员提醒邮箱（`ADMIN_EMAIL`）、WireGuard 隧道名（`WG_TUNNEL`） |
 
 大模型默认用 DeepSeek（`deepseek-flash`）。同时支持 Anthropic 和 OpenAI 两种接口格式：在 `.env` 里设置 `LLM_API`（`anthropic` / `openai`）、`LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY`，就能换成 Claude、GPT、Kimi、通义千问、智谱 GLM 或本地 Ollama 等，每次运行的日志会写出实际使用的模型和端点。
+`.env` 里的 `LLM_API_KEY` 优先于系统环境变量，系统里残留的旧密钥（包括 `ANTHROPIC_AUTH_TOKEN`）不会覆盖它。
 
 ## 调整精选口味
 
@@ -116,10 +121,10 @@ scripts/agent-run.sh claude      # 或 codex
 ## 工作原理
 
 1. **生成清单**：`pnpm plan` 按账号质量（近 14 天的通过率）和上次采集时间挑出今天要采的账号
-2. **逐步采集**：Agent 循环运行 `pnpm crawl next` 领取下一步，在浏览器里打开主页、读取推文，做完用 `pnpm crawl done` 报告；脚本检查结果、控制间隔，中断后从断点继续
+2. **逐步采集**：`pnpm crawl:auto`（或 Agent 循环运行 `pnpm crawl next` / `pnpm crawl done`）按清单逐个打开主页、保存 X 的网络响应；脚本检查结果、控制间隔，按 X 返回的接口额度控制节奏，中断后从断点继续
 3. **入库**：解析、去重、合并 Thread 和长文全文
 4. **规则粗筛**：去掉回复、纯转发、过短内容；按互动相对作者自己中位数打规则分
-5. **AI 初审**：逐条判断类型和质量分，同时翻译、写摘要（图片和视频不做识别）
+5. **AI 初审**：每个主题每天最多送 `candidates_per_topic` 条，逐条判断类型和质量分，同时翻译、写摘要（图片和视频不做识别）；评审失败的下次运行时重试
 6. **编辑终审**：整批去掉重复事件、相同观点和最近几天发过的内容
 7. **发信**：按每位订阅者的主题和语言挑选，相同组合合并成一封（密送）发送，并更新 RSS
 
@@ -130,21 +135,21 @@ scripts/agent-run.sh claude      # 或 codex
 - `/admin/subscribers`：订阅者、邮箱、状态、主题、订阅时间、累计收到封数，可导出 CSV
 - `/admin/deliveries`：每一期的推送结果，查看发出的邮件，重试失败的、补发给未收到的、给某人重新发送
 
-命令行：`pnpm subscribers`、`pnpm resend`、`pnpm crawl progress`、`pnpm email:test --to 邮箱`。
+命令行：`pnpm subscribers`、`pnpm resend`、`pnpm crawl progress`、`pnpm crawl:status`、`pnpm email:test --to 邮箱`、`pnpm notify "标题" "正文"`（给管理员发提醒）。
 
 ## 环境要求
 
 - Node.js 22+、pnpm
-- 一个能运行命令的 AI Agent：Claude Code、Codex、DeepSeek Harness 等
-- [Tencent Browser Skill](https://github.com/Tencent/BrowserSkill) 和已登录 X 的 Chrome（建议专用账号）
+- Chrome 和一个采集用的 X 账号（建议专用账号）；脚本版用独立的 Chrome 资料，macOS 上由 launchd 定时
+- 备用的 Agent 版另需一个能运行命令的 AI Agent（Claude Code、Codex、DeepSeek Harness 等）和 [Tencent Browser Skill](https://github.com/Tencent/BrowserSkill)
 - 大模型 API Key：默认 DeepSeek，可换成任何兼容 Anthropic 或 OpenAI 接口、支持工具调用的服务
 - 发信邮箱：默认 QQ 邮箱 SMTP（需要授权码）
 - 上线时：Turso 数据库 + 可部署 Next.js 的平台（如 Vercel）
 
 ## 隐私与安全
 
-- **只读浏览**：Agent 只打开清单里的主页和推文，不点赞、不转发、不关注、不回复、不发帖
-- **慢、少、遇到问题就停**：每天限量、按人的节奏浏览；遇到限流、验证码、登录失效立即停止并进入冷却期，不重试、不绕过
+- **只读浏览**：采集端（脚本或 Agent）只打开清单里的主页和推文，不点赞、不转发、不关注、不回复、不发帖
+- **慢、少、遇到问题就停**：每天限量、按人的节奏浏览，按 X 返回的接口额度控制节奏；采集用的接口遇到限流、验证码、登录失效立即停止并进入冷却期，不重试、不绕过
 - **不对抗检测**：不改浏览器指纹、不换 IP 或代理、不轮换多个账号、不处理验证码
 - **数据留在你这里**：推文和订阅者存在你自己的数据库；送给大模型的只有公开推文内容，订阅者邮箱不会发给大模型
 - 请遵守 X 的服务条款，只用于个人或小范围阅读
