@@ -23,7 +23,8 @@
         "rate_limited",
         "login_required",
         "captcha",
-        "error"
+        "error",
+        "not_found"
       ]
     },
     "error": {

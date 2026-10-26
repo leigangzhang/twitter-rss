@@ -3,7 +3,25 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { CrawlPlan } from "../src/plan.ts";
-import { addDetailSteps, completeStep, counts, currentStep, initProgress, isFinished, mergeDetailText, pauseStep, resumeProgress, saveProgress, stopProgress, verifyStep } from "../src/runner.ts";
+import {
+  addDetailSteps,
+  completeStep,
+  counts,
+  currentStep,
+  detectMissingAccount,
+  initProgress,
+  isFinished,
+  mergeDetailText,
+  pauseStep,
+  resumeProgress,
+  retryLater,
+  saveProgress,
+  skipMissingAccount,
+  stopProgress,
+  verifyStep,
+} from "../src/runner.ts";
+import { readInbox } from "../src/inbox.ts";
+import { createRandom } from "../src/random.ts";
 
 const fixture = readFileSync(join(import.meta.dirname, "fixtures", "user-tweets.json"), "utf8");
 const date = "2026-10-19";
@@ -184,5 +202,64 @@ describe("本机断网：暂停与恢复", () => {
     expect(p.steps[0]!.status).toBe("pending");
     expect(currentStep(p)?.handle).toBe("mirachen_ml");
     expect(() => readFileSync(join(dir, date, "mirachen_ml.json"))).toThrow();
+  });
+});
+
+describe("单个账号出错不再停掉整轮采集", () => {
+  const plan3 = (): CrawlPlan => ({ ...plan(), accounts: [account("a1", 0), account("a2", 10), account("a3", 10)] });
+
+  it("第一次 error：放到队尾稍后重试，先采下一个", () => {
+    const now = new Date("2026-10-18T22:40:00Z");
+    const p = initProgress(plan3());
+    p.steps[0]!.status = "in_progress";
+    expect(retryLater(p, p.steps[0]!, "时间线没加载出来", now, createRandom(1))).toBe(true);
+    expect(p.stopped).toBeNull();
+    expect(p.steps.map((s) => s.key)).toEqual(["a2", "a3", "a1"]);
+    expect(currentStep(p)!.key).toBe("a2");
+    expect(p.nextAt).toBe(new Date(now.getTime() + 10_000).toISOString());
+    const retried = p.steps[2]!;
+    expect(retried.status).toBe("pending");
+    expect(retried.attempts).toBe(1);
+    expect(retried.waitSec).toBeGreaterThanOrEqual(180);
+    expect(retried.waitSec).toBeLessThanOrEqual(300);
+  });
+
+  it("同一账号第二次 error、或连续两个账号 error 时不再重试", () => {
+    const p = initProgress(plan3());
+    expect(retryLater(p, p.steps[0]!, "x")).toBe(true);
+    // 紧接着下一个账号也失败：更像是整体出了问题
+    expect(retryLater(p, currentStep(p)!, "x")).toBe(false);
+
+    const q = initProgress(plan3());
+    retryLater(q, q.steps[0]!, "x");
+    completeStep(q, q.steps[0]!, "ok"); // a2 正常，清零
+    completeStep(q, q.steps[1]!, "ok"); // a3 正常
+    expect(currentStep(q)!.key).toBe("a1");
+    expect(retryLater(q, currentStep(q)!, "x")).toBe(false);
+  });
+
+  it("账号不存在：写 not_found 文件、跳过继续，不算异常", () => {
+    const p = initProgress(plan3());
+    skipMissingAccount(p, p.steps[0]!, "账号不存在");
+    expect(p.stopped).toBeNull();
+    expect(p.steps[0]!.status).toBe("done");
+    expect(currentStep(p)!.key).toBe("a2");
+    const inbox = readInbox(date, join(dir, date));
+    expect(inbox.missing).toEqual(["a1"]);
+    expect(inbox.blocked).toEqual([]);
+  });
+
+  it("只保存了账号资料、且资料说明账号不存在或被冻结时识别出来", () => {
+    const p = initProgress(plan3());
+    const raw = join(dir, date, "raw");
+    writeFileSync(join(raw, "a1-profile.json"), JSON.stringify({ data: {} }));
+    expect(detectMissingAccount(date, p.steps[0]!)).toBe("账号不存在");
+    writeFileSync(join(raw, "a2-profile.json"), JSON.stringify({ data: { user: { result: { __typename: "UserUnavailable", reason: "Suspended" } } } }));
+    expect(detectMissingAccount(date, p.steps[1]!)).toBe("账号不可用（Suspended）");
+    // 正常的账号资料，或者已经有时间线响应时不算
+    writeFileSync(join(raw, "a3-profile.json"), JSON.stringify({ data: { user: { result: { __typename: "User", core: { screen_name: "a3" } } } } }));
+    expect(detectMissingAccount(date, p.steps[2]!)).toBeUndefined();
+    writeFileSync(join(raw, "a1-1.json"), fixture);
+    expect(detectMissingAccount(date, p.steps[0]!)).toBeUndefined();
   });
 });

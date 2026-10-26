@@ -45,7 +45,7 @@ account_quality:
 cooldown:
   rate_limited_hours: 24        # 限流 / 内容加载不出
   captcha_hours: 48             # 出现人机验证
-  error_hours: 6                # 其他异常
+  error_hours: 6                # 其他异常（同一账号重试一次仍失败、或连续两个账号失败时才停止；不随连续次数加倍）
   login_required: manual        # 登录失效：需要人工重新登录后运行 pnpm crawl:reset
-  backoff_multiplier: 2         # 连续出现异常时，冷却期按倍数增加
+  backoff_multiplier: 2         # 连续出现限流 / 验证码时，冷却期按倍数增加
   max_hours: 168                # 冷却期上限（7 天）

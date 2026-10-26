@@ -30,6 +30,8 @@
    |---|---|
    | `OK` | 这一步完成，回到第 1 步。 |
    | `NOT_DONE` | 这一步没做完（通常是网络响应没保存或保存不完整）。按提示补做，再运行一次 `done`。 |
+   | `RETRY` | 报了 `--status error`，脚本把这个账号放到了最后，稍后会再给出一次。**不要结束循环**，回到第 1 步。 |
+   | `STOP` | 已记录异常并停止采集，结束循环。 |
 
    `pnpm -s crawl progress` 可以随时查看进度。
 
@@ -82,11 +84,12 @@ Browser Skill 的网络捕获对响应正文有 256 KiB 的上限，X 的时间�
 | "Rate limit exceeded"、"出了点问题，请稍后再试"、内容加载不出 | `pnpm -s crawl done <key> --status rate_limited --error "页面提示"` |
 | 跳转到登录页、提示重新登录、账号被锁定 | `pnpm -s crawl done <key> --status login_required --error "页面提示"` |
 | 出现人机验证 / 验证码 / "确认你是人类" | `pnpm -s crawl done <key> --status captcha --error "页面提示"` |
-| 其他异常 | `pnpm -s crawl done <key> --status error --error "现象"` |
+| 页面显示"此账号不存在"、账号已被冻结或停用 | `pnpm -s crawl done <key> --status not_found --error "页面提示"`（只跳过这个账号，输出 OK 后继续） |
+| 其他异常（如时间线一直没加载出来） | `pnpm -s crawl done <key> --status error --error "现象"`（第一次输出 RETRY，继续循环；同一账号再失败或连续两个账号失败才会 STOP） |
 | 浏览器自己的错误页（不是 X 的页面）："无法访问此网站""未连接到互联网"、`ERR_INTERNET_DISCONNECTED`、`ERR_CONNECTION_*`、`ERR_PROXY_*` 等 | `pnpm -s crawl done <key> --status offline`（本机断网或代理没开，不计入异常、不冷却） |
 
 `--status offline` 会输出 PAUSE：今天的采集暂停在这一步，**不要运行 scripts/daily.sh**，结束任务并报告网络不通；网络恢复后重新运行每日任务会从这一步继续。
-其他状态会记录异常并进入冷却期（限流 24 小时、验证码 48 小时，连续出现时加倍；登录失效需要人工处理），冷却期内不会再安排采集。
+`not_found` 只跳过这个账号，不算异常。`error` 第一次会放到最后重试（输出 RETRY），其余情况记录异常并停止，进入冷却期（限流 24 小时、验证码 48 小时，连续出现时加倍；其他异常 6 小时；登录失效需要人工处理），冷却期内不会再安排采集。
 
 ## 绝对不要做的事
 

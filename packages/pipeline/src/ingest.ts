@@ -19,6 +19,8 @@ export interface IngestStats {
   unknownAccounts: string[];
   invalidFiles: Array<{ file: string; error: string }>;
   blocked: Array<{ handle: string; status: string; error?: string }>;
+  /** 账号不存在、改名或被冻结 */
+  missing: string[];
 }
 
 const maxId = (a: string | null | undefined, b: string | null | undefined) => {
@@ -53,6 +55,7 @@ export async function ingest(db: Db, config: AppConfig, date: string, range: Tim
     unknownAccounts: [],
     invalidFiles: inbox.invalid,
     blocked: inbox.blocked,
+    missing: inbox.missing,
   };
   const tracked = new Set(config.accounts);
 

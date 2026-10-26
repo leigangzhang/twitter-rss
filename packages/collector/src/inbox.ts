@@ -13,11 +13,13 @@ export interface InboxReadResult {
   invalid: Array<{ file: string; error: string }>;
   /** 采集端报告了限流、登录失效等问题的账号 */
   blocked: Array<{ handle: string; status: InboxFile["status"]; error?: string }>;
+  /** 账号不存在、改名或被冻结（not_found），需要修改 topics.yaml */
+  missing: string[];
 }
 
 /** 读取某天采集端输出的所有账号文件（data/inbox/<date>/<handle>.json） */
 export function readInbox(date: string, dir = inboxDir(date)): InboxReadResult {
-  const result: InboxReadResult = { files: [], invalid: [], blocked: [] };
+  const result: InboxReadResult = { files: [], invalid: [], blocked: [], missing: [] };
   if (!existsSync(dir)) return result;
 
   for (const name of readdirSync(dir).sort()) {
@@ -36,7 +38,8 @@ export function readInbox(date: string, dir = inboxDir(date)): InboxReadResult {
       continue;
     }
     result.files.push(parsed.data);
-    if (parsed.data.status !== "ok") {
+    if (parsed.data.status === "not_found") result.missing.push(parsed.data.handle);
+    else if (parsed.data.status !== "ok") {
       result.blocked.push({ handle: parsed.data.handle, status: parsed.data.status, error: parsed.data.error });
     }
   }

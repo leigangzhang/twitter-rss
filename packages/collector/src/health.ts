@@ -82,11 +82,13 @@ export interface RunSummary {
 /**
  * 记录一次采集结果。同一天多次记录（parse 会在补抓前后各运行一次）以最后一次为准，
  * 同一天同一账号的同一种异常只算一次。
- * 出现异常时设置冷却期：基础时长 × 倍数^(连续次数-1)，不超过上限；登录失效改为人工暂停。
+ * 出现异常时设置冷却期：限流、验证码按 基础时长 × 倍数^(连续次数-1) 递增，不超过上限；
+ * 其他异常（error，多半是页面没加载出来）固定用基础时长，不递增，避免一次偶发失败连带跳过第二天；登录失效改为人工暂停。
  */
 export function recordRun(state: CrawlState, run: RunSummary, crawl: CrawlConfig, now = new Date()): CrawlState {
   const next = structuredClone(state);
-  const blocked = run.files.filter((f) => f.status !== "ok");
+  // 账号不存在（not_found）只影响这一个账号，不算异常、不冷却
+  const blocked = run.files.filter((f) => f.status !== "ok" && f.status !== "not_found");
 
   next.runs = [
     ...next.runs.filter((r) => r.date !== run.date),
@@ -115,7 +117,8 @@ export function recordRun(state: CrawlState, run: RunSummary, crawl: CrawlConfig
       next.incidents.push({ at: now.toISOString(), date: run.date, handle: b.handle, status: b.status, error: b.error, cooldownHours: "manual" });
       continue;
     }
-    const hours = Math.min(base * crawl.cooldown.backoff_multiplier ** (next.consecutiveIncidents - 1), crawl.cooldown.max_hours);
+    const escalate = b.status === "rate_limited" || b.status === "captcha";
+    const hours = Math.min(escalate ? base * crawl.cooldown.backoff_multiplier ** (next.consecutiveIncidents - 1) : base, crawl.cooldown.max_hours);
     longest = Math.max(longest, hours);
     next.incidents.push({ at: now.toISOString(), date: run.date, handle: b.handle, status: b.status, error: b.error, cooldownHours: hours });
   }

@@ -50,6 +50,7 @@ console.log(`  入库：${ing.files} 个账号文件，${ing.received} 条推文
 for (const f of ing.invalidFiles) console.warn(`  ⚠ 文件格式不符 ${f.file}：\n${f.error}`);
 for (const h of ing.unknownAccounts) console.warn(`  ⚠ ${h} 不在 topics.yaml 中，已忽略`);
 for (const b of ing.blocked) console.warn(`  ⚠ 采集异常 @${b.handle}：${b.status}${b.error ? `（${b.error}）` : ""}`);
+for (const h of ing.missing) console.warn(`  ⚠ @${h} 不存在、已改名或被冻结，已跳过。请在 config/topics.yaml 里改正或删除`);
 if (ing.truncated > 0) console.warn(`  ⚠ ${ing.truncated} 条长推文仍是截断版（未补抓详情页），邮件中会提示"全文较长"`);
 
 if (values.rereview) {

@@ -1,9 +1,10 @@
 import { existsSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanTweetText, InboxFile } from "@xrss/core";
-import { parseXGraphQL } from "./parsers/x-graphql.ts";
+import { parseXGraphQL, profileUnavailable } from "./parsers/x-graphql.ts";
 import { inboxDir } from "./paths.ts";
 import type { CrawlPlan } from "./plan.ts";
+import { createRandom } from "./random.ts";
 
 /**
  * 逐步采集：由脚本决定"下一步做什么、等多久、做完没有"，采集端（AI + Browser Skill）只负责照做一步、报告结果。
@@ -31,6 +32,9 @@ export interface Step {
   /** 完成情况说明，如"解析出 12 条推文" */
   result?: string;
   doneAt?: string;
+  /** 报过几次 error（第一次放到队尾稍后重试） */
+  attempts?: number;
+  lastError?: string;
 }
 
 export interface Progress {
@@ -40,6 +44,8 @@ export interface Progress {
   nextAt: string;
   /** 遇到限流、验证码、登录失效时停止，不再给出任何步骤 */
   stopped: { status: BlockStatus; handle: string; error?: string } | null;
+  /** 连续报 error 的步骤数，一步正常完成后清零 */
+  consecutiveErrors?: number;
   steps: Step[];
   updatedAt: string;
 }
@@ -216,8 +222,63 @@ export function completeStep(progress: Progress, step: Step, result: string, now
   step.status = "done";
   step.result = result;
   step.doneAt = now.toISOString();
+  progress.consecutiveErrors = 0;
   const next = progress.steps.find((s) => s.status === "pending");
   progress.nextAt = new Date(now.getTime() + (next?.waitSec ?? 0) * 1000).toISOString();
+}
+
+/** 重试前在队尾等待的秒数：给页面或 X 一点恢复时间 */
+export const RETRY_WAIT_SEC: readonly [number, number] = [180, 300];
+
+/**
+ * 报 error（多半是页面一时没加载出来）时先不停止：这一步放到队尾，等几分钟再试一次。
+ * 同一步第二次失败、或上一步刚失败过（连续两步失败，更像是账号或网络整体出了问题）时返回 false，由调用方停止采集。
+ */
+export function retryLater(progress: Progress, step: Step, error: string | undefined, now = new Date(), rng = createRandom()): boolean {
+  if ((step.attempts ?? 0) >= 1 || (progress.consecutiveErrors ?? 0) >= 1) return false;
+  step.attempts = 1;
+  step.lastError = error;
+  step.status = "pending";
+  step.waitSec = rng.int(RETRY_WAIT_SEC);
+  progress.steps = [...progress.steps.filter((s) => s !== step), step];
+  progress.consecutiveErrors = 1;
+  const next = progress.steps.find((s) => s.status === "pending")!;
+  progress.nextAt = new Date(now.getTime() + next.waitSec * 1000).toISOString();
+  return true;
+}
+
+/**
+ * 账号不存在、改名或被冻结：写入 not_found 账号文件，跳过这个账号继续采集，不停止、不冷却。
+ * 流水线会在日志里提醒去改 topics.yaml。
+ */
+export function skipMissingAccount(progress: Progress, step: Step, reason: string | undefined, now = new Date()): void {
+  const file = join(inboxDir(progress.date), `${step.handle}.json`);
+  const body: InboxFile = {
+    source: "tencent-browser-skill",
+    collectedAt: now.toISOString(),
+    handle: step.handle.toLowerCase(),
+    status: "not_found",
+    error: reason,
+    tweets: [],
+  };
+  writeFileSync(file, `${JSON.stringify(body, null, 2)}\n`);
+  completeStep(progress, step, `账号不存在或不可用，已跳过${reason ? `（${reason}）` : ""}，请修改 config/topics.yaml`, now);
+}
+
+/** 只保存了账号资料响应（raw/<handle>-profile.json），且它说明账号不存在或被冻结时，返回原因 */
+export function detectMissingAccount(date: string, step: Step): string | undefined {
+  if (step.kind !== "account") return undefined;
+  const dir = rawDir(date);
+  if (!existsSync(dir)) return undefined;
+  const own = readdirSync(dir).filter((f) => f.toLowerCase().startsWith(`${step.handle.toLowerCase()}-`) && !f.toLowerCase().includes("-detail-"));
+  const name = own.find((f) => f.toLowerCase() === `${step.handle.toLowerCase()}-profile.json`);
+  // 有时间线响应说明账号正常
+  if (!name || own.length > 1) return undefined;
+  try {
+    return profileUnavailable(JSON.parse(readFileSync(join(dir, name), "utf8")));
+  } catch {
+    return undefined;
+  }
 }
 
 /** 写入异常状态文件并停止整个采集 */

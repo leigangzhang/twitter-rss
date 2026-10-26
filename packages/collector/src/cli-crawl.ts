@@ -9,6 +9,7 @@ import {
   completeStep,
   counts,
   currentStep,
+  detectMissingAccount,
   initProgress,
   isFinished,
   loadPlan,
@@ -16,7 +17,9 @@ import {
   type Progress,
   pauseStep,
   resumeProgress,
+  retryLater,
   saveProgress,
+  skipMissingAccount,
   type Step,
   stopProgress,
   verifyStep,
@@ -33,6 +36,8 @@ loadDotEnv();
  *   pnpm crawl:reset      人工确认 X 账号正常（如已重新登录）后，解除暂停和冷却
  *   pnpm crawl:resume     本机断网、代理没开等原因被误判为异常时：解除冷却，从出错的那一步接着采今天的清单
  *   本机网络不通时：pnpm crawl done <key> --status offline（不计入异常、不冷却，网络恢复后从这一步继续）
+ *   账号不存在 / 被冻结：pnpm crawl done <key> --status not_found（跳过这个账号继续采，不冷却）
+ *   页面没加载出来等其他异常：pnpm crawl done <key> --status error，第一次放到队尾稍后重试（输出 RETRY），再失败才停止
  */
 const command = process.argv[2];
 const config = loadConfig();
@@ -64,7 +69,7 @@ function printStep(p: Progress, step: Step): void {
     const index = p.steps.filter((s) => s.kind === "account").indexOf(step) + 1;
     const pauses = (step.scrollPausesMs ?? []).map((ms) => (ms / 1000).toFixed(1));
     console.log(`STEP account ${step.key}
-=== 第 ${index}/${c.accounts} 个账号：@${step.handle} ===
+=== 第 ${index}/${c.accounts} 个账号：@${step.handle}${step.attempts ? `（第二次尝试，上次没采到：${step.lastError ?? "error"}）` : ""} ===
 1. 在同一个标签页打开 ${step.url}，等时间线加载完。
 2. 把网络响应原样保存（完整的响应正文，不要改写）：
    - 地址含 UserOriginalsTimeline 或 UserTweets 的 → ${raw}/${step.handle}-1.json，滚动后新出现的依次存 -2.json、-3.json …
@@ -72,6 +77,7 @@ function printStep(p: Progress, step: Step): void {
 3. 向下滚动最多 ${pauses.length} 次，每次滚动前等待：${pauses.join("、")} 秒。
    看到早于 ${bjTime(step.since!)}（北京时间）的推文${step.lastSeenId ? `，或 ID 为 ${step.lastSeenId} 的推文` : ""}就停止滚动（置顶推文除外）。
 4. 完成后运行：pnpm crawl done ${step.key}
+页面显示"此账号不存在"、账号已被冻结或停用：运行 pnpm crawl done ${step.key} --status not_found --error "页面提示"（只跳过这个账号）
 遇到限流、验证码、登录失效等异常：不要重试，运行 pnpm crawl done ${step.key} --status rate_limited|captcha|login_required|error --error "页面上看到的提示"`);
   } else {
     const index = p.steps.filter((s) => s.kind === "detail").indexOf(step) + 1;
@@ -175,17 +181,47 @@ if (command === "done") {
     );
     process.exit(5);
   }
+  if (values.status === "not_found") {
+    if (step.kind !== "account") {
+      console.log("ERROR --status not_found 只用于账号主页；详情页打不开请用 --status error");
+      process.exit(1);
+    }
+    skipMissingAccount(progress, step, values.error);
+    saveProgress(progress);
+    console.log(`OK @${step.handle} 不存在或不可用，已跳过（不停止、不冷却）。${progressLine(progress)}。下一步运行 pnpm crawl next`);
+    process.exit(0);
+  }
   if (values.status && values.status !== "ok") {
     const allowed: BlockStatus[] = ["rate_limited", "login_required", "captcha", "error"];
     if (!allowed.includes(values.status as BlockStatus)) {
-      console.log(`ERROR --status 只能是 ${allowed.join(" / ")} / offline`);
+      console.log(`ERROR --status 只能是 ${allowed.join(" / ")} / not_found / offline`);
       process.exit(1);
+    }
+    // 账号资料响应已经说明账号不存在时，按 not_found 处理，不算异常
+    const missing = values.status === "error" ? detectMissingAccount(date, step) : undefined;
+    if (missing) {
+      skipMissingAccount(progress, step, missing);
+      saveProgress(progress);
+      console.log(`OK @${step.handle}：${missing}，已跳过（不停止、不冷却）。${progressLine(progress)}。下一步运行 pnpm crawl next`);
+      process.exit(0);
+    }
+    if (values.status === "error" && retryLater(progress, step, values.error)) {
+      saveProgress(progress);
+      console.log(`RETRY @${step.handle} 这次没采到，已放到最后，几分钟后会再给出一次。现在运行 pnpm crawl next 继续下一个账号。${progressLine(progress)}`);
+      process.exit(0);
     }
     stopProgress(progress, step, values.status as BlockStatus, values.error);
     saveProgress(progress);
     runParse();
     console.log(`STOP 已记录异常并停止采集，进入冷却期。不要再打开任何页面，运行 scripts/daily.sh`);
     process.exit(2);
+  }
+  const missing = detectMissingAccount(date, step);
+  if (missing && !values["no-response"]) {
+    skipMissingAccount(progress, step, missing);
+    saveProgress(progress);
+    console.log(`OK @${step.handle}：${missing}，已跳过（不停止、不冷却）。${progressLine(progress)}。下一步运行 pnpm crawl next`);
+    process.exit(0);
   }
   const check = verifyStep(date, step, { noResponse: values["no-response"] });
   if (!check.ok) {

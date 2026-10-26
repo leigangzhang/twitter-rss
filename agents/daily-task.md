@@ -15,9 +15,11 @@
    a. 运行 `pnpm -s crawl next`。
    b. 输出 WAIT：立即再运行一次 `pnpm -s crawl next`（它自己会等待），不要自己 sleep，也不要跳过。
    c. 输出 STEP：用浏览器工具完成它列出的操作（打开页面、保存网络响应或按说明从页面读取、按给定停顿滚动），然后运行它给出的 `pnpm -s crawl done <key>`。
-   d. done 输出 NOT_DONE：按提示补做这一步，再运行 done；输出 OK：回到 a。
-   e. 遇到限流、验证码、登录失效：运行 `pnpm -s crawl done <key> --status rate_limited|captcha|login_required|error --error "页面提示"`，然后结束循环，不要重试或绕过。
-   f. 浏览器打不开网页、显示的是浏览器自己的错误页（"无法访问此网站""未连接到互联网"、ERR_INTERNET_DISCONNECTED、ERR_PROXY_* 等，不是 X 的提示）：
+   d. done 输出 NOT_DONE：按提示补做这一步，再运行 done；输出 OK 或 RETRY：回到 a。
+   e. 页面显示"此账号不存在"、账号被冻结：运行 `pnpm -s crawl done <key> --status not_found --error "页面提示"`，输出 OK 后回到 a。
+   f. 时间线一直加载不出来等其他异常：运行 `pnpm -s crawl done <key> --status error --error "页面现象"`。输出 RETRY 时回到 a（脚本稍后会再给出这个账号）；输出 STOP 时结束循环。
+   g. 遇到限流、验证码、登录失效：运行 `pnpm -s crawl done <key> --status rate_limited|captcha|login_required --error "页面提示"`，然后结束循环，不要重试或绕过。
+   h. 浏览器打不开网页、显示的是浏览器自己的错误页（"无法访问此网站""未连接到互联网"、ERR_INTERNET_DISCONNECTED、ERR_PROXY_* 等，不是 X 的提示）：
       运行 `pnpm -s crawl done <key> --status offline`。它输出 PAUSE 后结束任务，**不要执行第 3 步**，汇报"网络不通，采集暂停在 @账号"。
    不要自己挑选或跳过账号。只浏览，不点赞、不转发、不关注、不发帖。
 

@@ -7,7 +7,7 @@
 # - accounts：X 账号（不带 @），同一账号可以出现在多个主题里
 #
 # 来源：司徒K《2026 年 X 上最值得关注的 100 个 AI 博主（全球精选榜单）》
-# https://x.com/isituking/status/2110633440844693537
+# https://x.com/situking/status/2110633440844693537
 # 原文章：https://x.com/i/article/2110625670472908800
 # 原文 10 组合并为 5 个主题，共 100 个账号；原分组见每个主题下的注释。
 
@@ -99,7 +99,7 @@ topics:
     aliases: [cn-business, cn-media]
     accounts:
       # cn-business
-      - isituking
+      - situking
       - AYi_AInotes
       - jinchenma_ai
       - oran_ge

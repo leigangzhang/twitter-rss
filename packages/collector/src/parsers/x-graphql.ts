@@ -76,6 +76,21 @@ export function findProfile(responses: unknown[], handle: string): { name?: stri
   return found;
 }
 
+/**
+ * 账号资料响应（UserByScreenName）说明账号不存在或被冻结时返回原因，正常时返回 undefined。
+ * 不存在的账号返回 {"data":{}} 或 data.user 为空；被冻结等返回 __typename 为 UserUnavailable 的结果。
+ */
+export function profileUnavailable(response: unknown): string | undefined {
+  if (!isObj(response) || !isObj(response.data)) return undefined;
+  const user = response.data.user;
+  const result = isObj(user) ? user.result : undefined;
+  if (isObj(result) && result.__typename === "UserUnavailable") {
+    return `账号不可用${typeof result.reason === "string" ? `（${result.reason}）` : ""}`;
+  }
+  if (user === undefined || user === null || (isObj(user) && Object.keys(user).length === 0)) return "账号不存在";
+  return undefined;
+}
+
 function mediaOf(legacy: Obj): Media[] {
   const list: Obj[] = legacy.extended_entities?.media ?? legacy.entities?.media ?? [];
   return list.map((m) => ({

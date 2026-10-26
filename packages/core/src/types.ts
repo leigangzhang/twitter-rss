@@ -109,9 +109,10 @@ export const InboxFile = z.object({
   handle: Handle,
   /**
    * ok：正常；rate_limited：被限流；login_required：登录失效；
-   * captcha：出现验证；error：其他错误。非 ok 时流水线会提醒并跳过熔断后的账号。
+   * captcha：出现验证；error：其他错误；not_found：账号不存在、改名或被冻结（只跳过这个账号，不停止采集、不冷却）。
+   * 非 ok 时流水线会提醒并跳过熔断后的账号。
    */
-  status: z.enum(["ok", "rate_limited", "login_required", "captcha", "error"]).default("ok"),
+  status: z.enum(["ok", "rate_limited", "login_required", "captcha", "error", "not_found"]).default("ok"),
   error: z.string().optional(),
   /** 账号资料：没有新推文时也记录，订阅页用来显示头像 */
   profile: z

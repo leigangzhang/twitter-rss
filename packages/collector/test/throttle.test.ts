@@ -94,7 +94,7 @@ describe("采集清单的节流", () => {
 });
 
 describe("熔断与冷却", () => {
-  const run = (status: "ok" | "rate_limited" | "captcha" | "login_required", date = "2026-10-19") => ({
+  const run = (status: "ok" | "rate_limited" | "captcha" | "login_required" | "error" | "not_found", date = "2026-10-19") => ({
     date,
     files: [
       { handle: "a", status: "ok" as const },
@@ -124,6 +124,18 @@ describe("熔断与冷却", () => {
     for (let i = 0; i < 6; i++) s = recordRun(s, run("captcha", `2026-10-${20 + i}`), crawl, morning);
     expect(s.cooldownUntil).toBe(new Date(morning.getTime() + crawl.cooldown.max_hours * 3_600_000).toISOString());
     expect(recordRun(s, run("ok", "2026-10-30"), crawl, morning).consecutiveIncidents).toBe(0);
+  });
+
+  it("其他异常（error）冷却不随连续次数加倍；账号不存在不算异常", () => {
+    let s = EMPTY_STATE;
+    for (let i = 0; i < 3; i++) s = recordRun(s, run("error", `2026-10-${20 + i}`), crawl, morning);
+    expect(s.consecutiveIncidents).toBe(3);
+    expect(s.cooldownUntil).toBe(new Date(morning.getTime() + crawl.cooldown.error_hours * 3_600_000).toISOString());
+
+    const n = recordRun(EMPTY_STATE, run("not_found"), crawl, morning);
+    expect(n.incidents).toEqual([]);
+    expect(n.cooldownUntil).toBeNull();
+    expect(n.consecutiveIncidents).toBe(0);
   });
 
   it("登录失效需要人工处理，crawl:reset 后恢复", () => {
