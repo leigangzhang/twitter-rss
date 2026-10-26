@@ -42,8 +42,9 @@ p:has(>a[data-vote]) a:not([data-vote]){white-space:nowrap}`;
 /**
  * 页面脚本：
  * - 点赞 / 踩图标立即提交，不跳转、不确认；选中的变色，再点一次同一个取消；
- * - 踩了之后，这条下面出现原因（可不选）和一个说明框，选原因或保存说明时更新这条评价；
- * - 打开页面时按 __STATE__（已有的评价）上色、回填原因和说明。
+ * - 踩了之后，这条下面出现原因（可不选）和一个说明框，选原因或保存说明时更新这条评价，随后自动收起成一行
+ *   "原因：说明　修改"；点面板以外的地方或按 Esc 也会收起（没保存的说明顺手保存）；
+ * - 打开页面时按 __STATE__（已有的评价）上色，已有的踩显示为收起的一行。
  */
 const VOTE_SCRIPT = `(() => {
   const state = __STATE__;
@@ -58,12 +59,48 @@ const VOTE_SCRIPT = `(() => {
     if (!res.ok) throw new Error(String(res.status));
   };
   const chip = (sel) => "display:inline-block;margin:0 6px 6px 0;padding:3px 10px;border-radius:999px;font-size:12px;cursor:pointer;border:1px solid " + (sel ? on.down : "#D9DCE1") + ";background:" + (sel ? "#FBE9E7" : "#fff") + ";color:" + (sel ? on.down : "#4A5059");
+  const reasonText = Object.fromEntries(reasons);
+  const summary = (s) => [s.reason ? reasonText[s.reason] : null, s.note].filter(Boolean).join("：");
+  const anchorOf = (t) => document.querySelector('a[data-vote="down"][href*="t=' + t + '&"]')?.closest("p");
+  /** 收起原因面板；说明框里改过但没保存的内容顺手保存 */
+  const collapse = async (t) => {
+    const s = state[t];
+    if (!s?.open) return;
+    const input = document.getElementById("xrss-reason-" + t)?.querySelector("input");
+    const typed = input ? input.value.trim() : "";
+    if (input && typed !== (s.note ?? "")) {
+      try { await save(t, { vote: "down", note: typed }); s.note = typed || null; } catch {}
+    }
+    s.open = false;
+    picker(t);
+  };
+  const collapseLater = (t) => setTimeout(() => collapse(t), 600);
   const picker = (t) => {
-    const anchor = document.querySelector('a[data-vote="down"][href*="t=' + t + '&"]')?.closest("p");
+    const anchor = anchorOf(t);
     if (!anchor) return;
     let box = document.getElementById("xrss-reason-" + t);
+    let sum = document.getElementById("xrss-sum-" + t);
     const s = state[t];
-    if (!s || s.vote !== "down") { box?.remove(); return; }
+    if (!s || s.vote !== "down") { box?.remove(); sum?.remove(); return; }
+    if (!s.open) {
+      box?.remove();
+      if (!sum) {
+        sum = document.createElement("div");
+        sum.id = "xrss-sum-" + t;
+        sum.style.cssText = "margin:6px 0 0;font-size:12px;line-height:1.6;color:#6A717B";
+        anchor.after(sum);
+      }
+      const text = summary(s);
+      sum.textContent = text ? text + "　" : "";
+      const edit = document.createElement("a");
+      edit.href = "#";
+      edit.textContent = text ? "修改" : "加原因";
+      edit.style.cssText = "color:#6A717B;text-decoration:underline;cursor:pointer";
+      edit.addEventListener("click", (e) => { e.preventDefault(); s.open = true; picker(t); });
+      sum.append(edit);
+      return;
+    }
+    sum?.remove();
     if (!box) {
       box = document.createElement("div");
       box.id = "xrss-reason-" + t;
@@ -96,14 +133,18 @@ const VOTE_SCRIPT = `(() => {
           const before = s.reason;
           s.reason = before === id ? null : id;
           picker(t);
-          try { await save(t, { vote: "down", reason: s.reason }); } catch (err) { s.reason = before; picker(t); alert("原因没有保存（" + err.message + "）"); }
+          try {
+            await save(t, { vote: "down", reason: s.reason });
+            // 正在写说明时不收起，等保存或回车
+            if (input.value.trim() === (s.note ?? "")) collapseLater(t);
+          } catch (err) { s.reason = before; picker(t); alert("原因没有保存（" + err.message + "）"); }
         });
         chips.append(b);
       }
       const saveNote = async () => {
         const s = state[t];
         status.textContent = "保存中…";
-        try { await save(t, { vote: "down", note: input.value }); s.note = input.value.trim() || null; status.textContent = "已保存"; }
+        try { await save(t, { vote: "down", note: input.value }); s.note = input.value.trim() || null; status.textContent = "已保存"; collapseLater(t); }
         catch (err) { status.textContent = "没有保存（" + err.message + "）"; }
       };
       btn.addEventListener("click", saveNote);
@@ -122,14 +163,20 @@ const VOTE_SCRIPT = `(() => {
   };
   links().forEach((a) => { const p = parts(a); dates[p.t] = p.d; a.removeAttribute("target"); a.title = (p.v === "up" ? "赞" : "踩") + "：点一下记录，再点一次取消"; a.setAttribute("aria-label", p.v === "up" ? "赞" : "踩"); });
   Object.keys(dates).forEach(paint);
+  // 点面板以外的地方或按 Esc 收起
+  const openIds = () => Object.keys(state).filter((t) => state[t].open);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") openIds().forEach(collapse); });
   document.addEventListener("click", async (e) => {
-    const a = e.target instanceof Element ? e.target.closest("a[data-vote]") : null;
+    const el = e.target instanceof Element ? e.target : null;
+    // 点"修改"时那一行已经换成面板，被点的元素已不在页面上，不算点在外面
+    if (el?.isConnected) for (const t of openIds()) if (!document.getElementById("xrss-reason-" + t)?.contains(el)) collapse(t);
+    const a = el ? el.closest("a[data-vote]") : null;
     if (!a) return;
     e.preventDefault();
     const { t, v } = parts(a);
     const before = state[t] ?? null;
     const next = before?.vote === v ? null : v;
-    if (next) state[t] = { vote: next, reason: null, note: null }; else delete state[t];
+    if (next) state[t] = { vote: next, reason: null, note: null, open: next === "down" }; else delete state[t];
     document.getElementById("xrss-reason-" + t)?.remove();
     paint(t);
     try { await save(t, { vote: next }); }
