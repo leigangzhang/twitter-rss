@@ -48,4 +48,28 @@ describe("挑选候选", () => {
     expect(picked.map((t) => t.id).sort()).toEqual(["301", "303"]);
     delete process.env.INBOX_DIR;
   });
+
+  it("每个主题的候选数按天计算：同一天重跑只重试失败的，不再多挑新的", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "xrss-inbox-"));
+    process.env.INBOX_DIR = dir;
+    const date = "2026-10-19";
+    const range = { ...collectRange({ mode: "previous_day", timezone: "Asia/Shanghai", windowHours: 24 }, date, new Date("2026-10-18T23:00:00Z")), runDate: date };
+    mkdirSync(join(dir, date), { recursive: true });
+    const list = ["401", "402", "403", "404"].map((id, i) => tweet(id, `2026-10-18T0${i + 1}:00:00Z`));
+    writeFileSync(join(dir, date, "sama.json"), JSON.stringify({ source: "test", collectedAt: "2026-10-18T23:30:00Z", handle: "sama", status: "ok", tweets: list }));
+    const db = createDb(`file:${join(mkdtempSync(join(tmpdir(), "xrss-")), "app.db")}`);
+    await migrateDb(db);
+    await ingest(db, config, date, range);
+    const daily = { ...config, digest: { ...config.digest, digest: { ...config.digest.digest, candidates_per_topic: 2 } } };
+
+    const first = await pickCandidates(db, daily, range);
+    expect(first).toHaveLength(2);
+    // 第一次评审：一条通过，一条失败
+    await db.update(tweets).set({ status: "scored" }).where(eq(tweets.id, first[0]!.id));
+    await db.update(tweets).set({ status: "failed" }).where(eq(tweets.id, first[1]!.id));
+
+    const second = await pickCandidates(db, daily, range);
+    expect(second.map((t) => t.id)).toEqual([first[1]!.id]);
+    delete process.env.INBOX_DIR;
+  });
 });
