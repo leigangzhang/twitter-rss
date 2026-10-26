@@ -20,10 +20,13 @@ const ICON_URL = { up: "/icons/thumb-up.png", down: "/icons/thumb-down.png" };
 /** PNG 本身是很浅的灰色，白底上看不清，所以当遮罩用，颜色由背景色决定 */
 const ICON = { idle: "#9CA3AF", hover: "#6B7280", up: "#2F7D4F", down: "#A3271A" };
 
-/** 把文字"赞 · 踩"换成图标；选中（data-on）时赞变绿、踩变红。不支持遮罩的浏览器直接显示 PNG */
-const mask = (url: string) => `-webkit-mask:url("${url}") center/contain no-repeat;mask:url("${url}") center/contain no-repeat`;
-const VOTE_STYLE = `a[data-vote]{display:inline-block;width:16px;height:16px;vertical-align:-3px;font-size:0;background:center/contain no-repeat}
-a[data-vote="up"]{margin-right:12px;background-image:url("${ICON_URL.up}");opacity:.9}
+/**
+ * 把文字"赞 · 踩"换成图标；选中（data-on）时赞变绿、踩变红。不支持遮罩的浏览器直接显示 PNG。
+ * 图标 15px 画在 20px 的方块中间：方块和底部这一行的行高相同，图标和文字居中对齐，可点的范围也大一些。
+ */
+const mask = (url: string) => `-webkit-mask:url("${url}") center/15px no-repeat;mask:url("${url}") center/15px no-repeat`;
+const VOTE_STYLE = `a[data-vote]{display:inline-block;width:20px;height:20px;vertical-align:top;font-size:0;background:center/15px no-repeat}
+a[data-vote="up"]{margin-right:6px;background-image:url("${ICON_URL.up}");opacity:.9}
 a[data-vote="down"]{background-image:url("${ICON_URL.down}");opacity:.9}
 @supports ((mask-image:none) or (-webkit-mask-image:none)){
 a[data-vote]{background-image:none;opacity:1;background-color:${ICON.idle}}
@@ -33,7 +36,8 @@ a[data-vote]:hover{background-color:${ICON.hover}}
 a[data-vote="up"][data-on]{background-color:${ICON.up}}
 a[data-vote="down"][data-on]{background-color:${ICON.down}}
 }
-[data-vote-sep]{display:none}`;
+[data-vote-sep]{display:none}
+p:has(>a[data-vote]) a:not([data-vote]){white-space:nowrap}`;
 
 /**
  * 页面脚本：
