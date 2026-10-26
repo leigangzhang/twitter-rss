@@ -87,6 +87,21 @@ describe("长推文截断与详情页补抓", () => {
     ]);
   });
 
+  it("同一个响应里有推文带 note_tweet（接口会给全文）时，没带的接近上限的推文不算截断", () => {
+    const timeline = structuredClone(sample.timeline);
+    // 给响应里另一条推文加上 note_tweet，模拟 UserTweets 接口
+    const json = JSON.stringify(timeline);
+    const withNote = json.replace(
+      /("rest_id":\s*"1900000000000000203")/,
+      '$1,"note_tweet":{"is_expandable":true,"note_tweet_results":{"result":{"text":"一条长推文的全文"}}}',
+    );
+    expect(withNote).not.toBe(json);
+    const { tweets } = parseXGraphQL([JSON.parse(withNote)], "fixture_author");
+    const byId = Object.fromEntries(tweets.map((t) => [t.id, t]));
+    expect(byId["1900000000000000203"]!.text).toBe("一条长推文的全文");
+    expect(byId["1900000000000000201"]!.textTruncated).toBe(false);
+  });
+
   it("合并详情页响应：取全文、补上长文标题，互动数取较新的", () => {
     const { tweets } = parseXGraphQL([sample.timeline, ...sample.details], "fixture_author");
     const byId = Object.fromEntries(tweets.map((t) => [t.id, t]));

@@ -124,8 +124,9 @@ const X_ARTICLE = /^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/i\/article\//;
  * 正文：长推文取 note_tweet 全文；去掉开头的 @回复对象、结尾的媒体链接、引用链接和 X 长文链接，t.co 换成真实地址。
  * 时间线接口（如 UserOriginalsTimeline）不带 note_tweet，长推文只给前 280 字符左右，
  * 这时按 X 的加权字数判断是否可能被截断。
+ * notesIncluded：同一个响应里已经有推文带 note_tweet，说明这个接口会给长推文全文，没带的就是完整的短推文，不算截断。
  */
-function textOf(tweet: Obj, legacy: Obj): { text: string; truncated: boolean } {
+function textOf(tweet: Obj, legacy: Obj, notesIncluded = false): { text: string; truncated: boolean } {
   const note: string | undefined = tweet.note_tweet?.note_tweet_results?.result?.text;
   let text: string;
   let truncated = false;
@@ -135,7 +136,7 @@ function textOf(tweet: Obj, legacy: Obj): { text: string; truncated: boolean } {
     const chars = Array.from(String(legacy.full_text ?? ""));
     const [start, end] = Array.isArray(legacy.display_text_range) ? legacy.display_text_range : [0, chars.length];
     text = chars.slice(start, end).join("");
-    truncated = xWeightedLength(decodeEntities(text)) >= TRUNCATION_THRESHOLD;
+    truncated = !notesIncluded && xWeightedLength(decodeEntities(text)) >= TRUNCATION_THRESHOLD;
   }
   const mediaUrls: string[] = (legacy.extended_entities?.media ?? legacy.entities?.media ?? []).map((m: Obj) => m.url);
   const quotedUrl: string | undefined = legacy.quoted_status_permalink?.url;
@@ -209,14 +210,14 @@ function quotedOf(tweet: Obj): QuotedTweet | undefined {
   };
 }
 
-function toRaw(tweet: Obj) {
+function toRaw(tweet: Obj, notesIncluded = false) {
   const legacy: Obj = tweet.legacy;
   const author = authorOf(tweet);
   const id: string = tweet.rest_id ?? legacy.id_str;
   const isRepost = Boolean(legacy.retweeted_status_result) || String(legacy.full_text ?? "").startsWith("RT @");
   const replyTo: string | undefined = legacy.in_reply_to_screen_name;
   const views = Number(tweet.views?.count);
-  const body = textOf(tweet, legacy);
+  const body = textOf(tweet, legacy, notesIncluded);
   return {
     id,
     url: `https://x.com/${author.handle}/status/${id}`,
@@ -317,14 +318,19 @@ function collect(node: unknown, out: Obj[]): void {
  * @param handle    只保留这个账号发的推文（个人主页里可能混有别人的推文）
  */
 export function parseXGraphQL(responses: unknown[], handle?: string): ParseResult {
-  const found: Obj[] = [];
-  for (const r of responses) collect(r, found);
+  const found: Array<{ tweet: Obj; notesIncluded: boolean }> = [];
+  for (const r of responses) {
+    const list: Obj[] = [];
+    collect(r, list);
+    const notesIncluded = list.some((t) => isObj(t.note_tweet));
+    for (const tweet of list) found.push({ tweet, notesIncluded });
+  }
 
   const byId = new Map<string, ReturnType<typeof toRaw>>();
   const skipped: ParseResult["skipped"] = [];
-  for (const t of found) {
+  for (const { tweet: t, notesIncluded } of found) {
     try {
-      const raw = toRaw(t);
+      const raw = toRaw(t, notesIncluded);
       if (handle && raw.author.handle.toLowerCase() !== handle.toLowerCase()) continue;
       const prev = byId.get(raw.id);
       byId.set(raw.id, prev ? mergeVersions(prev, raw) : raw);
