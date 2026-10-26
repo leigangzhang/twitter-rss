@@ -15,9 +15,28 @@ export function withVoteLinks(view: DigestView, keep: Set<string>, date: string)
   return { ...view, groups, total: groups.reduce((n, g) => n + g.items.length, 0) };
 }
 
+/** 赞 / 踩图标（200×200 坐标）：左边一竖条加一只手，踩是赞上下翻转 */
+const THUMB_PATHS =
+  '<rect x="24" y="82" width="17" height="92" rx="6"/>' +
+  '<path d="M52 86q0-6 6-6h20q14 0 17-18l3-22q3-18 18-18 20 0 20 26l-2 30h31q21 0 17 22l-14 58q-5 14-20 14H58q-6 0-6-6z"/>';
+const iconUrl = (fill: string, flip: boolean) =>
+  `url("data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="${fill}">${flip ? `<g transform="matrix(1 0 0 -1 0 200)">${THUMB_PATHS}</g>` : THUMB_PATHS}</svg>`,
+  )}")`;
+const ICON = { idle: "#B4B9C0", up: "#2F7D4F", down: "#A3271A" };
+
+/** 把文字"赞 · 踩"换成图标；选中（data-on）时变成绿色或红色 */
+const VOTE_STYLE = `a[data-vote]{display:inline-block;width:16px;height:16px;vertical-align:-3px;font-size:0;background:no-repeat center/contain}
+a[data-vote="up"]{margin-right:12px;background-image:${iconUrl(ICON.idle, false)}}
+a[data-vote="down"]{background-image:${iconUrl(ICON.idle, true)}}
+a[data-vote="up"][data-on]{background-image:${iconUrl(ICON.up, false)}}
+a[data-vote="down"][data-on]{background-image:${iconUrl(ICON.down, true)}}
+a[data-vote]:hover{opacity:.75}
+[data-vote-sep]{display:none}`;
+
 /**
  * 页面脚本：
- * - 点"赞 / 踩"立即提交，不跳转、不确认；选中的变色加粗，再点一次同一个取消；
+ * - 点赞 / 踩图标立即提交，不跳转、不确认；选中的变色，再点一次同一个取消；
  * - 踩了之后，这条下面出现原因（可不选）和一个说明框，选原因或保存说明时更新这条评价；
  * - 打开页面时按 __STATE__（已有的评价）上色、回填原因和说明。
  */
@@ -92,14 +111,11 @@ const VOTE_SCRIPT = `(() => {
     links().forEach((a) => {
       const p = parts(a);
       if (p.t !== t) return;
-      if (a.dataset.base === undefined) a.dataset.base = a.style.color;
-      const sel = state[t]?.vote === p.v;
-      a.style.color = sel ? on[p.v] : a.dataset.base;
-      a.style.fontWeight = sel ? "700" : "";
+      if (state[t]?.vote === p.v) a.dataset.on = ""; else delete a.dataset.on;
     });
     picker(t);
   };
-  links().forEach((a) => { const p = parts(a); dates[p.t] = p.d; a.removeAttribute("target"); a.title = "点一下记录，再点一次取消"; });
+  links().forEach((a) => { const p = parts(a); dates[p.t] = p.d; a.removeAttribute("target"); a.title = (p.v === "up" ? "赞" : "踩") + "：点一下记录，再点一次取消"; a.setAttribute("aria-label", p.v === "up" ? "赞" : "踩"); });
   Object.keys(dates).forEach(paint);
   document.addEventListener("click", async (e) => {
     const a = e.target instanceof Element ? e.target.closest("a[data-vote]") : null;
@@ -124,13 +140,13 @@ const VOTE_SCRIPT = `(() => {
 /** 放进 <script> 的 JSON："<" 转义，避免提前结束标签 */
 const json = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c");
 
-/** 把脚本放进 HTML，带上已有的评价 */
+/** 把样式和脚本放进 HTML，带上已有的评价 */
 export function injectVoteScript(html: string, state: Record<string, AdminVote>): string {
   const code = VOTE_SCRIPT.replace("__STATE__", json(state))
     .replace("__REASONS__", json(FEEDBACK_REASONS.map((r) => [r, REASON_LABELS[r]])))
     .replace("__API__", json(ADMIN_FEEDBACK_PATH))
     .replace("__NOTE_MAX__", String(NOTE_MAX));
-  const script = `<script>${code}</script>`;
+  const script = `<style>${VOTE_STYLE}</style><script>${code}</script>`;
   return html.includes("</body>") ? html.replace("</body>", `${script}</body>`) : html + script;
 }
 

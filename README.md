@@ -138,7 +138,7 @@ Agent 版一次完整采集通常要 30–60 分钟，这是有意放慢的节�
 
 - `/admin/subscribers`：订阅者、邮箱、状态、主题、订阅时间、累计收到封数，可导出 CSV
 - `/admin/deliveries`：每一期的推送结果，查看发出的邮件，重试失败的、补发给未收到的、给某人重新发送
-- `/admin/feedback`：赞 / 踩和原因。现在用的是推送详情里邮件预览的"赞 · 踩"（只在后台，邮件里没有），`pnpm feedback --summary` 汇总给评审规则用；邮件里的反馈链接由 `config/digest.yaml` 的 `mail.feedback` 控制，默认关闭
+- `/admin/feedback`：赞 / 踩和原因。现在用的是推送详情里邮件预览的赞 / 踩图标（只在后台，邮件里没有），`pnpm feedback --summary` 汇总给评审规则用；邮件里的反馈链接由 `config/digest.yaml` 的 `mail.feedback` 控制，默认关闭
 
 命令行：`pnpm subscribers`、`pnpm resend`、`pnpm feedback`、`pnpm crawl progress`、`pnpm crawl:status`、`pnpm email:test --to 邮箱`、`pnpm notify "标题" "正文"`（给管理员发提醒）。
 

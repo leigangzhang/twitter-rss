@@ -190,7 +190,10 @@ function Byline({ card }: { card: CardView }) {
   );
 }
 
-/** 赞 / 踩：卡片底部最左边，和"翻译自""赞数"同样的灰色小字，其余内容依次右移 */
+/**
+ * 赞 / 踩：卡片底部最左边，和"翻译自""赞数"同样的灰色小字，其余内容依次右移。
+ * 后台预览会用样式换成图标（见 pipeline 的 admin-preview.ts），所以分隔符单独包一层便于隐藏。
+ */
 function Feedback({ links }: { links: { up: string; down: string } }) {
   const style: CSSProperties = { color: color.muted, textDecoration: "none", whiteSpace: "nowrap" };
   return (
@@ -198,7 +201,7 @@ function Feedback({ links }: { links: { up: string; down: string } }) {
       <a href={links.up} style={style} data-vote="up">
         赞
       </a>
-      {" · "}
+      <span data-vote-sep="">{" · "}</span>
       <a href={links.down} style={style} data-vote="down">
         踩
       </a>
