@@ -1,6 +1,6 @@
 import type { AppConfig, DigestView } from "@xrss/core";
 import { type AdminVote, adminVotes, type Db, FEEDBACK_REASONS, NOTE_MAX, REASON_LABELS, type Vote } from "@xrss/core/db";
-import { renderDigest } from "@xrss/emails";
+import { renderDigest, renderDigestParts } from "@xrss/emails";
 import { buildIssueEmail } from "./delivery.ts";
 
 /** 后台预览里赞 / 踩提交到的接口（只有管理员能调用） */
@@ -155,14 +155,39 @@ export function injectVoteScript(html: string, state: Record<string, AdminVote>)
   return html.includes("</body>") ? html.replace("</body>", `${script}</body>`) : html + script;
 }
 
+/** 预览顶部的说明：这一页是哪种内容、共几条 */
+export function previewBanner(text: string): string {
+  const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  return `<div style="position:sticky;top:0;z-index:10;padding:10px 16px;background:#FFF8E6;border-bottom:1px solid #F0DDB0;color:#6B4E00;font:13px/1.6 -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif">${esc}</div>`;
+}
+
+const insertAfterBodyTag = (html: string, fragment: string) => {
+  const m = /<body[^>]*>/i.exec(html);
+  return m ? html.slice(0, m.index + m[0].length) + fragment + html.slice(m.index + m[0].length) : fragment + html;
+};
+
 /**
- * 后台预览：和 buildIssueEmail 看到的内容相同（先按真实邮件的篇幅挑出条目），
- * 再给每条加上赞 / 踩并重新渲染（不再限制大小，免得链接占的字节挤掉条目）。
+ * 后台预览：把这一期给这位订阅者的全部内容放在一页里（不按邮件大小截断），每条带赞 / 踩。
+ * - sent：当时实际发出的全部条目（分卷发送时是几封合起来）；
+ * - latest：现在重新发送会发出的条目，按真实发送的规则分卷、去掉放不下的低分内容后合起来。
  */
 export async function buildAdminPreview(db: Db, config: AppConfig, date: string, subscriberId: number, mode: "latest" | "sent"): Promise<{ html: string } | { error: string }> {
   const built = await buildIssueEmail(db, config, date, subscriberId, mode);
   if ("error" in built) return { error: built.error };
-  const view = withVoteLinks(built.view, new Set(built.tweetIds), date);
-  const email = await renderDigest(view, { tabs: config.digest.mail.tabs });
-  return { html: injectVoteScript(email.html, await adminVotes(db, built.tweetIds)) };
+  const mailCfg = config.digest.mail;
+  let keep: string[];
+  let note: string;
+  if (mode === "sent") {
+    keep = built.view.groups.flatMap((g) => g.items.map((c) => c.id));
+    note = `已发出的：${built.subscriber.email} 这一期收到的全部 ${keep.length} 条（分卷发送时是几封合起来）。点每条左下角的赞 / 踩记录反馈。`;
+  } else {
+    const parts = await renderDigestParts(built.view, { tabs: mailCfg.tabs, maxBytes: mailCfg.max_kb * 1024, maxParts: mailCfg.max_parts });
+    keep = parts.flatMap((p) => p.tweetIds);
+    const dropped = parts[0]?.dropped.length ?? 0;
+    const split = parts.length > 1 ? `分 ${parts.length} 封发出（${parts.map((p) => p.tweetIds.length).join(" / ")} 条）` : "一封发出";
+    note = `预览重发：现在重新发送会${split}，共 ${keep.length} 条${dropped ? `；因篇幅去掉 ${dropped} 条低分内容，不在下面` : ""}。点每条左下角的赞 / 踩记录反馈。`;
+  }
+  const view = withVoteLinks(built.view, new Set(keep), date);
+  const email = await renderDigest(view, { tabs: mailCfg.tabs });
+  return { html: injectVoteScript(insertAfterBodyTag(email.html, previewBanner(note)), await adminVotes(db, keep)) };
 }

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { collectRange, loadConfig } from "@xrss/core";
 import { adminVotes, createDb, feedback, feedbackLinks, feedbackSignature, listFeedback, migrateDb, parseFeedbackParams, recordFeedback, setAdminFeedback, subscribers, verifyFeedback } from "@xrss/core/db";
-import { injectVoteScript } from "../src/admin-preview.ts";
+import { injectVoteScript, previewBanner } from "../src/admin-preview.ts";
 import { summarizeFeedback } from "../src/feedback-summary.ts";
 import { afterEach, describe, expect, it } from "vitest";
 import { feedbackLinker } from "../src/digest.ts";
@@ -141,5 +141,9 @@ describe("反馈链接", () => {
     expect(html).toMatch(/<script>[\s\S]*<\/script><\/body><\/html>$/);
     expect(html.match(/<\/script>/g)).toHaveLength(1);
     expect(html).toContain('"501":{"vote":"down"');
+  });
+
+  it("预览顶部说明转义 HTML", () => {
+    expect(previewBanner("共 <b>60</b> 条 & 更多")).toContain("共 &lt;b>60&lt;/b> 条 &amp; 更多");
   });
 });
