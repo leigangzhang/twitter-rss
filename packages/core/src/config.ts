@@ -95,8 +95,10 @@ const DigestFile = z.object({
       send_interval_ms: z.number().int().min(0).default(1500),
       /** 主题标签页：支持的邮箱（苹果邮件、163 网页版等）可切换主题，其他邮箱自动按主题依次排列 */
       tabs: z.boolean().default(true),
-      /** 邮件大小上限（KB）。Gmail 超过约 102KB 会折叠末尾，超出时排在后面的条目改为一句话摘要 */
+      /** 每封邮件的大小上限（KB）。Gmail 超过约 102KB 会折叠末尾，超出时分卷发送 */
       max_kb: z.number().min(20).max(500).default(95),
+      /** 内容超过 max_kb 时最多分几封发送；最后一封仍放不下的部分改为一句话摘要。1 = 不分卷 */
+      max_parts: z.number().int().min(1).max(5).default(3),
     })
     .prefault({}),
   curation: z

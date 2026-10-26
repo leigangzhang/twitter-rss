@@ -255,6 +255,8 @@ export interface DigestView {
    * 点击后需要输入邮箱，系统再把专属链接发到该邮箱
    */
   personalLinks: boolean;
+  /** 分卷发送时的第几封：total 是本封条数，overall 是这一期总条数 */
+  part?: { index: number; count: number; overall: number };
 }
 
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];

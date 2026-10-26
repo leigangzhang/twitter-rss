@@ -18,7 +18,7 @@ import {
   toCardView,
 } from "@xrss/core";
 import { type Db, deliveries, deliveryAttempts, loadLinkDigests, subscribers, tweets, type SubscriberRow, type TweetRow } from "@xrss/core/db";
-import { GMAIL_CLIP_BYTES, renderDigest } from "@xrss/emails";
+import { type DigestPart, GMAIL_CLIP_BYTES, renderDigestParts } from "@xrss/emails";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import type { Mailer } from "./mailer.ts";
 import { inBatch } from "./batch.ts";
@@ -213,8 +213,38 @@ export async function sendDigests(
     else stats.failed.push({ email: sub.email, error: result.error });
   };
 
-  const warnSize = (html: string, who: string) => {
-    if (Buffer.byteLength(html) > GMAIL_CLIP_BYTES) console.warn(`⚠ 发给 ${who} 的邮件超过 102KB，Gmail 会折叠末尾内容`);
+  const warnSize = (parts: DigestPart[], who: string) => {
+    for (const p of parts) if (Buffer.byteLength(p.html) > GMAIL_CLIP_BYTES) console.warn(`⚠ 发给 ${who} 的邮件超过 102KB，Gmail 会折叠末尾内容`);
+  };
+  const renderOpts = { tabs: mailCfg.tabs, maxBytes: mailCfg.max_kb * 1024, maxParts: mailCfg.max_parts };
+  const writePreviews = (parts: DigestPart[], base: string) => {
+    mkdirSync(outDir, { recursive: true });
+    parts.forEach((p, i) => {
+      const path = join(outDir, `${base}${parts.length > 1 ? `-${i + 1}of${parts.length}` : ""}.html`);
+      writeFileSync(path, p.html);
+      stats.previews.push(path);
+    });
+  };
+
+  /**
+   * 依次发出分卷的每一封。返回各封的 messageId，以及没收到的地址和原因（某一封失败就算这位收件人失败，
+   * 之后可以在管理页补发）。
+   */
+  const sendParts = async (parts: DigestPart[], envelope: { to: string; bcc?: string[] }, recipients: string[], headers: Record<string, string>) => {
+    const ids: string[] = [];
+    const failed = new Map<string, string>();
+    for (const part of parts) {
+      try {
+        const res = await opts.mailer!.send({ ...envelope, subject: part.subject, html: part.html, text: part.text, headers });
+        stats.messages++;
+        ids.push(res.id);
+        const rejected = new Set(res.rejected.map((r) => r.toLowerCase()));
+        for (const r of recipients) if (rejected.has(r.toLowerCase())) failed.set(r, "收件地址被拒收");
+      } catch (e) {
+        for (const r of recipients) failed.set(r, (e as Error).message);
+      }
+    }
+    return { messageId: ids.join(","), failed };
   };
 
   for (const members of groups.values()) {
@@ -230,36 +260,21 @@ export async function sendDigests(
         stats.skippedEmpty += members.length;
         continue;
       }
-      const email = await renderDigest(view, { tabs: config.digest.mail.tabs, maxBytes: config.digest.mail.max_kb * 1024 });
-      warnSize(email.html, `${members.length} 位订阅者`);
-      const tweetIds = view.groups.flatMap((g) => g.items.map((i) => i.id));
+      const parts = await renderDigestParts(view, renderOpts);
+      warnSize(parts, `${members.length} 位订阅者`);
+      const tweetIds = parts.flatMap((p) => p.tweetIds);
 
       if (opts.dryRun) {
-        mkdirSync(outDir, { recursive: true });
-        const path = join(outDir, `group-${lang}-${[...topics].sort().join("_")}-${members.length}人.html`);
-        writeFileSync(path, email.html);
-        stats.previews.push(path);
+        writePreviews(parts, `group-${lang}-${[...topics].sort().join("_")}-${members.length}人`);
         continue;
       }
 
       for (const batch of chunk(members, mailCfg.bcc_batch_size)) {
-        try {
-          const res = await opts.mailer!.send({
-            to: opts.mailer!.address,
-            bcc: batch.map((m) => m.email),
-            subject: email.subject,
-            html: email.html,
-            text: email.text,
-            headers: { "List-Unsubscribe": `<${links.unsubscribe}>` },
-          });
-          stats.messages++;
-          const rejected = new Set(res.rejected.map((r) => r.toLowerCase()));
-          for (const m of batch) {
-            await record(m, tweetIds, rejected.has(m.email.toLowerCase()) ? { status: "failed", error: "收件地址被拒收" } : { status: "sent", messageId: res.id }, batch.length);
-          }
-        } catch (e) {
-          const error = (e as Error).message;
-          for (const m of batch) await record(m, tweetIds, { status: "failed", error }, batch.length);
+        const emails = batch.map((m) => m.email);
+        const res = await sendParts(parts, { to: opts.mailer!.address, bcc: emails }, emails, { "List-Unsubscribe": `<${links.unsubscribe}>` });
+        for (const m of batch) {
+          const error = res.failed.get(m.email);
+          await record(m, tweetIds, error ? { status: "failed", error } : { status: "sent", messageId: res.messageId }, batch.length);
         }
       }
       continue;
@@ -273,31 +288,21 @@ export async function sendDigests(
         stats.skippedEmpty++;
         continue;
       }
-      const email = await renderDigest(view, { tabs: config.digest.mail.tabs, maxBytes: config.digest.mail.max_kb * 1024 });
-      warnSize(email.html, sub.email);
+      const parts = await renderDigestParts(view, renderOpts);
+      warnSize(parts, sub.email);
 
       if (opts.dryRun) {
-        mkdirSync(outDir, { recursive: true });
-        const path = join(outDir, `${sub.email.replace(/[^\w.-]+/g, "_")}.html`);
-        writeFileSync(path, email.html);
-        stats.previews.push(path);
+        writePreviews(parts, sub.email.replace(/[^\w.-]+/g, "_"));
         continue;
       }
 
-      const tweetIds = view.groups.flatMap((g) => g.items.map((i) => i.id));
-      try {
-        const res = await opts.mailer!.send({
-          to: sub.email,
-          subject: email.subject,
-          html: email.html,
-          text: email.text,
-          headers: { "List-Unsubscribe": `<${links.unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
-        });
-        stats.messages++;
-        await record(sub, tweetIds, { status: "sent", messageId: res.id });
-      } catch (e) {
-        await record(sub, tweetIds, { status: "failed", error: (e as Error).message });
-      }
+      const tweetIds = parts.flatMap((p) => p.tweetIds);
+      const res = await sendParts(parts, { to: sub.email }, [sub.email], {
+        "List-Unsubscribe": `<${links.unsubscribe}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      });
+      const error = res.failed.get(sub.email);
+      await record(sub, tweetIds, error ? { status: "failed", error } : { status: "sent", messageId: res.messageId });
     }
   }
   return stats;

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { findRepoRoot, loadConfig, loadDotEnv, localDate, runRange } from "@xrss/core";
 import { createDb, migrateDb } from "@xrss/core/db";
-import { GMAIL_CLIP_BYTES, renderDigest } from "@xrss/emails";
+import { GMAIL_CLIP_BYTES, renderDigest, renderDigestParts } from "@xrss/emails";
 import { buildView, loadDigestContext, sharedLinks } from "./digest.ts";
 import { createSmtpMailer, smtpConfigFromEnv } from "./mailer.ts";
 
@@ -37,6 +37,14 @@ mkdirSync(dir, { recursive: true });
 const path = join(dir, "tabs-test.html");
 writeFileSync(path, email.html);
 console.log(`${view.total} 条（完整卡片 ${view.total - email.compacted}，一句话摘要 ${email.compacted}），${view.groups.length} 个主题，邮件 ${(bytes / 1024).toFixed(1)}KB${bytes > GMAIL_CLIP_BYTES ? "（超过 102KB，Gmail 会折叠末尾）" : ""}`);
+const parts = await renderDigestParts(view, { tabs: true, maxBytes: config.digest.mail.max_kb * 1024, maxParts: config.digest.mail.max_parts });
+if (parts.length > 1) {
+  parts.forEach((p, i) => {
+    const partPath = join(dir, `tabs-test-${i + 1}of${parts.length}.html`);
+    writeFileSync(partPath, p.html);
+    console.log(`实际按分卷发送：第 ${i + 1}/${parts.length} 封 ${p.tweetIds.length} 条（一句话摘要 ${p.compacted}），${(Buffer.byteLength(p.html) / 1024).toFixed(1)}KB → ${partPath}`);
+  });
+}
 console.log(`已写入 ${path}`);
 
 if (values.to) {

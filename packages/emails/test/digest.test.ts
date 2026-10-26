@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderDigest } from "../src/index.ts";
+import { renderDigest, renderDigestParts } from "../src/index.ts";
 import { sampleDigest } from "../src/sample.ts";
 
 describe("每日邮件", () => {
@@ -14,6 +14,31 @@ describe("每日邮件", () => {
     expect(slim.html).toContain("篇幅所限只列摘要");
     // 标题里的条数不变
     expect(slim.subject).toBe(full.subject);
+  });
+
+  it("放不进一封时分卷发送：每封都是完整卡片、不超过上限，标题注明第几封，条目不重不漏", async () => {
+    const view = sampleDigest("zh");
+    const full = await renderDigest(view);
+    const limit = Math.ceil(Buffer.byteLength(full.html) * 0.7);
+    const parts = await renderDigestParts(view, { maxBytes: limit, maxParts: 3 });
+    expect(parts.length).toBeGreaterThan(1);
+    for (const p of parts) {
+      expect(Buffer.byteLength(p.html)).toBeLessThanOrEqual(limit);
+      expect(p.compacted).toBe(0);
+    }
+    expect(parts[0]!.subject).toContain(`${view.total} 条（1/${parts.length}）`);
+    expect(parts[0]!.html).toContain(`这是第 1 封`);
+    const all = view.groups.flatMap((g) => g.items.map((i) => i.id));
+    expect(parts.flatMap((p) => p.tweetIds)).toEqual(all);
+
+    // 放得下时只有一封，和原来一样
+    const one = await renderDigestParts(view, { maxBytes: Buffer.byteLength(full.html) + 1000, maxParts: 3 });
+    expect(one).toHaveLength(1);
+    expect(one[0]!.subject).toBe(full.subject);
+    // 不分卷（maxParts 1）时退回一句话摘要
+    const single = await renderDigestParts(view, { maxBytes: limit, maxParts: 1 });
+    expect(single).toHaveLength(1);
+    expect(single[0]!.compacted).toBeGreaterThan(0);
   });
 
   it("标签页模式：带切换用的单选按钮和不支持时的主题目录", async () => {

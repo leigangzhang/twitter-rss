@@ -249,9 +249,22 @@ export function DailyDigest({
                 }}
               >
                 {view.periodLabel
-                  ? `${view.periodLabel}值得读的 ${view.total} 条`
-                  : `今天值得读的 ${view.total} 条`}
+                  ? `${view.periodLabel}值得读的 ${view.part?.overall ?? view.total} 条`
+                  : `今天值得读的 ${view.part?.overall ?? view.total} 条`}
               </Text>
+              {view.part ? (
+                <Text
+                  style={{
+                    fontSize: 14,
+                    lineHeight: "22px",
+                    fontWeight: 700,
+                    color: color.ink,
+                    margin: "0 0 4px",
+                  }}
+                >
+                  {`内容较多，分 ${view.part.count} 封发送：这是第 ${view.part.index} 封，本封 ${view.total} 条`}
+                </Text>
+              ) : null}
               <Text
                 style={{
                   fontSize: 14,

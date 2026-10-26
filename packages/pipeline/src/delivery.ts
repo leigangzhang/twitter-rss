@@ -11,7 +11,7 @@ import {
   tweets,
 } from "@xrss/core/db";
 import { primaryArticle } from "@xrss/core";
-import { renderDigest, type RenderedEmail } from "@xrss/emails";
+import { renderDigest, renderDigestParts, type RenderedEmail } from "@xrss/emails";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { buildView, loadDigestContext, type SendStats, sendDigests, siteLinks } from "./digest.ts";
 import type { Mailer } from "./mailer.ts";
@@ -217,21 +217,30 @@ export async function resendTo(db: Db, config: AppConfig, mailer: Mailer, date: 
   // 按这一期最新的内容重新挑选（补采、重新评审之后的内容也会包含进来）
   const built = await buildIssueEmail(db, config, date, subscriberId, "latest");
   if ("error" in built) return { email: built.subscriber?.email ?? `#${subscriberId}`, status: "skipped", message: built.error };
-  const { subscriber: sub, email, tweetIds } = built;
+  const { subscriber: sub, view, tweetIds } = built;
+  const mailCfg = config.digest.mail;
+  // 和每日发送一样，放不进一封时分卷
+  const parts = await renderDigestParts(view, { tabs: mailCfg.tabs, maxBytes: mailCfg.max_kb * 1024, maxParts: mailCfg.max_parts });
   const [before] = await db.select().from(deliveries).where(and(eq(deliveries.subscriberId, sub.id), eq(deliveries.digestDate, date)));
   const added = before?.status === "sent" ? tweetIds.filter((id) => !before.tweetIds.includes(id)).length : 0;
   const links = siteLinks(sub.token, sub.lang);
 
   let result: { status: "sent"; messageId: string } | { status: "failed"; error: string };
   try {
-    const res = await mailer.send({
-      to: sub.email,
-      subject: email.subject,
-      html: email.html,
-      text: email.text,
-      headers: { "List-Unsubscribe": `<${links.unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
-    });
-    result = res.rejected.length ? { status: "failed", error: "收件地址被拒收" } : { status: "sent", messageId: res.id };
+    const ids: string[] = [];
+    let rejected = false;
+    for (const part of parts) {
+      const res = await mailer.send({
+        to: sub.email,
+        subject: part.subject,
+        html: part.html,
+        text: part.text,
+        headers: { "List-Unsubscribe": `<${links.unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+      });
+      ids.push(res.id);
+      if (res.rejected.length) rejected = true;
+    }
+    result = rejected ? { status: "failed", error: "收件地址被拒收" } : { status: "sent", messageId: ids.join(",") };
   } catch (e) {
     result = { status: "failed", error: (e as Error).message };
   }
