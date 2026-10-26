@@ -7,7 +7,7 @@
 | 位置 | 内容 |
 |---|---|
 | `config/topics.yaml` | 主题 ↔ 博主映射，**只采集这里列出的账号** |
-| `config/digest.yaml` | 精选条数、过滤阈值、视频降权、语言等规则 |
+| `config/digest.yaml` | 精选条数、过滤阈值、视频降权、个别账号降权（`account_weight`）、语言等规则 |
 | `packages/core` | 数据格式（采集契约）、配置校验、数据库表、打分与选稿算法 |
 | `packages/collector` | 采集清单、逐步采集（`crawl next / done`）、脚本采集（`crawl:auto`，`src/browser/`）、给 Agent 的采集说明、X 网页数据解析 |
 | `packages/pipeline` | 每日流水线：入库、AI 评审、发送邮件 |

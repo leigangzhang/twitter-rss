@@ -55,6 +55,8 @@ const DigestFile = z.object({
     image: z.number().min(0).default(1),
     video: z.number().min(0).default(0.6),
   }),
+  /** 个别账号的分数权重（账号不区分大小写 → 倍数，默认 1）：乘到候选排序和最终分上，用来给读者常踩的账号降权 */
+  account_weight: z.record(z.string(), z.number().min(0).max(2)).default({}),
   video_mode: z.enum(["summary", "thumbnail"]).default("thumbnail"),
   thread: z.object({
     merge: z.boolean().default(true),

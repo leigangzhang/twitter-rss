@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compactNumber, finalScore, mediaKind, median, passesFilters, RawTweet, ruleScore } from "../src/index.ts";
+import { accountWeight, compactNumber, finalScore, mediaKind, median, passesFilters, RawTweet, ruleScore } from "../src/index.ts";
 
 const base = RawTweet.parse({
   id: "1",
@@ -42,6 +42,13 @@ describe("scoring", () => {
 
   it("视频降权", () => {
     expect(finalScore(8, 0.5, "video", weights)).toBeCloseTo(finalScore(8, 0.5, "text", weights) * 0.6);
+  });
+
+  it("账号降权：不区分大小写，没设置的为 1", () => {
+    const w = { JinchenMa_AI: 0.6 };
+    expect(accountWeight(w, "jinchenma_ai")).toBe(0.6);
+    expect(accountWeight(w, "sama")).toBe(1);
+    expect(finalScore(4, 0.5, "text", weights, 0.6)).toBeCloseTo(finalScore(4, 0.5, "text", weights) * 0.6);
   });
 
   it("数字缩写", () => {

@@ -26,6 +26,11 @@ media_weight:
   image: 1.0
   video: 0.6               # 视频降权
 
+# 个别账号的分数权重（默认 1）：乘到候选排序和最终分上，名额和篇幅有限时排在后面。
+# 不改变是否通过评审，只影响排序；要完全不看，从 topics.yaml 里移出。
+account_weight:
+  jinchenma_ai: 0.6        # 2026-10-26 后台反馈：踩 6 次、赞 1 次（多为个人感受和创业观点）
+
 video_mode: thumbnail      # thumbnail：显示视频封面 | summary：不显示封面，只有一行"视频 · 时长"
 
 thread:

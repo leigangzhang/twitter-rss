@@ -1,4 +1,4 @@
-import { type AppConfig, median, ruleScore, type TimeRange } from "@xrss/core";
+import { accountWeight, type AppConfig, median, ruleScore, type TimeRange } from "@xrss/core";
 import { type Db, tweets, type TweetRow } from "@xrss/core/db";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import { inBatch } from "./batch.ts";
@@ -38,6 +38,8 @@ export async function pickCandidates(db: Db, config: AppConfig, range: TimeRange
     .from(tweets)
     .where(and(inArray(tweets.status, ["scored", "rejected", "failed"]), inBatch(range), inArray(tweets.handle, config.accounts)));
   const inTopic = (handle: string, topicId: string) => config.accountTopics.get(handle)?.includes(topicId) ?? false;
+  // 降权的账号在名额有限时排在后面
+  const rank = (t: TweetRow) => (t.ruleScore ?? 0) * accountWeight(config.digest.account_weight, t.handle);
 
   const chosen = new Map<string, TweetRow>();
   for (const t of fresh) if (t.status === "failed") chosen.set(t.id, t);
@@ -46,7 +48,7 @@ export async function pickCandidates(db: Db, config: AppConfig, range: TimeRange
     if (left <= 0) continue;
     fresh
       .filter((t) => t.status === "new" && inTopic(t.handle, topic.id))
-      .sort((a, b) => (b.ruleScore ?? 0) - (a.ruleScore ?? 0))
+      .sort((a, b) => rank(b) - rank(a))
       .slice(0, left)
       .forEach((t) => chosen.set(t.id, t));
   }

@@ -1,4 +1,4 @@
-import { type AiResult, type AppConfig, CATEGORY_LABELS, DROP_REASON_LABELS, finalScore, type LinkDigest, qualityOf } from "@xrss/core";
+import { accountWeight, type AiResult, type AppConfig, CATEGORY_LABELS, DROP_REASON_LABELS, finalScore, type LinkDigest, qualityOf } from "@xrss/core";
 import { type Db, tweets, type TweetRow } from "@xrss/core/db";
 import { eq } from "drizzle-orm";
 import type { Reviewer } from "./ai.ts";
@@ -57,7 +57,7 @@ export async function reviewCandidates(
           filterReason: rejectReason,
           ai,
           topicId: ai.topicId,
-          finalScore: finalScore(qualityOf(ai), row.ruleScore ?? 0, row.kind, config.digest.media_weight),
+          finalScore: finalScore(qualityOf(ai), row.ruleScore ?? 0, row.kind, config.digest.media_weight, accountWeight(config.digest.account_weight, row.handle)),
           processedAt: new Date(),
         })
         .where(eq(tweets.id, row.id));

@@ -49,9 +49,16 @@ export function passesFilters(t: RawTweet, cfg: DigestConfig["filters"]): Filter
   return { ok: true };
 }
 
-/** 最终分（0–1 × 媒体权重）：AI 质量分占 70%，互动表现占 30% */
-export function finalScore(quality: number, rule: number, kind: MediaKind, weights: DigestConfig["media_weight"]): number {
-  return (0.7 * (quality / 5) + 0.3 * rule) * weights[kind];
+/** 最终分（0–1 × 媒体权重 × 账号权重）：AI 质量分占 70%，互动表现占 30% */
+export function finalScore(quality: number, rule: number, kind: MediaKind, weights: DigestConfig["media_weight"], accountWeight = 1): number {
+  return (0.7 * (quality / 5) + 0.3 * rule) * weights[kind] * accountWeight;
+}
+
+/** digest.yaml 里 account_weight 设置的账号权重，没设置的为 1（账号不区分大小写） */
+export function accountWeight(weights: DigestConfig["account_weight"], handle: string): number {
+  const key = handle.toLowerCase();
+  for (const [h, w] of Object.entries(weights)) if (h.toLowerCase() === key) return w;
+  return 1;
 }
 
 /**
