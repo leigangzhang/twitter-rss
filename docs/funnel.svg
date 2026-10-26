@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 430" width="900" height="430" role="img" aria-labelledby="t d">
+  <title id="t">精选晨报的过滤漏斗</title>
+  <desc id="d">从上到下：采集、时间范围、规则粗筛、挑候选、AI 初审、编辑终审、发送。宽度只表示大致比例。</desc>
+  <style>
+    text { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+    .stage { fill: #ffffff; font-size: 16px; font-weight: 600; }
+    .desc { fill: #4b5563; font-size: 15px; }
+    @media (prefers-color-scheme: dark) { .desc { fill: #c9d1d9; } }
+  </style>
+  <polygon points="30.0,16 470.0,16 364.4,66 135.6,66" fill="#2563eb"/>
+  <text class="stage" x="250" y="46.5" text-anchor="middle">采集</text>
+  <text class="desc" x="490" y="46.0">清单里的账号主页（每天最多 50 个）</text>
+  <polygon points="135.6,74 364.4,74 360.0,124 140.0,124" fill="#2f6fe0"/>
+  <text class="stage" x="250" y="104.5" text-anchor="middle">时间范围</text>
+  <text class="desc" x="490" y="104.0">只留前一天的（含轮转补收），去重</text>
+  <polygon points="140.0,132 360.0,132 349.0,182 151.0,182" fill="#3b7bd6"/>
+  <text class="stage" x="250" y="162.5" text-anchor="middle">规则粗筛</text>
+  <text class="desc" x="490" y="162.0">去掉回复、纯转发、过短内容</text>
+  <polygon points="151.0,190 349.0,190 320.4,240 179.6,240" fill="#3f8acb"/>
+  <text class="stage" x="250" y="220.5" text-anchor="middle">挑候选</text>
+  <text class="desc" x="490" y="220.0">每个主题每天按互动表现取前 N 条</text>
+  <polygon points="179.6,248 320.4,248 311.6,298 188.4,298" fill="#3b97bd"/>
+  <text class="stage" x="250" y="278.5" text-anchor="middle">AI 初审</text>
+  <text class="desc" x="490" y="278.0">逐条按精选标准打分，3 分以上通过</text>
+  <polygon points="188.4,306 311.6,306 305.0,356 195.0,356" fill="#2fa3a8"/>
+  <text class="stage" x="250" y="336.5" text-anchor="middle">编辑终审</text>
+  <text class="desc" x="490" y="336.0">去掉同一事件、相同观点、近几天发过的</text>
+  <polygon points="195.0,364 305.0,364 299.5,414 200.5,414" fill="#1f9e86"/>
+  <text class="stage" x="250" y="394.5" text-anchor="middle">发送</text>
+  <text class="desc" x="490" y="394.0">按订阅的主题选稿，每期最多 60 条</text>
+</svg>
