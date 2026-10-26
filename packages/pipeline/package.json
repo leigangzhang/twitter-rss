@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./delivery": "./src/delivery.ts"
+    "./delivery": "./src/delivery.ts",
+    "./admin-preview": "./src/admin-preview.ts"
   },
   "scripts": {
     "daily": "tsx src/daily.ts",

@@ -2,7 +2,9 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { collectRange, loadConfig } from "@xrss/core";
-import { createDb, feedback, feedbackLinks, feedbackSignature, migrateDb, parseFeedbackParams, recordFeedback, subscribers, verifyFeedback } from "@xrss/core/db";
+import { adminVotes, createDb, feedback, feedbackLinks, feedbackSignature, listFeedback, migrateDb, parseFeedbackParams, recordFeedback, setAdminFeedback, subscribers, verifyFeedback } from "@xrss/core/db";
+import { injectVoteScript } from "../src/admin-preview.ts";
+import { summarizeFeedback } from "../src/feedback-summary.ts";
 import { afterEach, describe, expect, it } from "vitest";
 import { feedbackLinker } from "../src/digest.ts";
 import { ingest } from "../src/ingest.ts";
@@ -94,5 +96,50 @@ describe("反馈链接", () => {
     await recordFeedback(db, { ...base, vote: "up", reason: null, subscriberId: null });
     await recordFeedback(db, { ...base, vote: "down", reason: null, subscriberId: null });
     expect(await db.select().from(feedback)).toHaveLength(3);
+  });
+
+  it("后台评价：每条只留一条，再点同一个取消；换评价清掉原因；读者的评价不受影响", async () => {
+    const { db, sub } = await setup();
+    const base = { tweetId: "501", issueDate: "2026-10-19" };
+    await recordFeedback(db, { ...base, vote: "up", reason: null, subscriberId: sub.id });
+
+    await setAdminFeedback(db, { ...base, vote: "down" });
+    await setAdminFeedback(db, { ...base, vote: "down", reason: "shallow" });
+    await setAdminFeedback(db, { ...base, vote: "down", note: "  只是转述新闻  " });
+    expect(await adminVotes(db, ["501", "999"])).toEqual({ "501": { vote: "down", reason: "shallow", note: "只是转述新闻" } });
+
+    // 再点一次"踩"本身（不带原因）不会清掉已选的原因
+    await setAdminFeedback(db, { ...base, vote: "down" });
+    expect((await adminVotes(db, ["501"]))["501"]?.reason).toBe("shallow");
+
+    await setAdminFeedback(db, { ...base, vote: "up" });
+    expect(await adminVotes(db, ["501"])).toEqual({ "501": { vote: "up", reason: null, note: null } });
+    await setAdminFeedback(db, { ...base, vote: "down" });
+    expect(await adminVotes(db, ["501"])).toEqual({ "501": { vote: "down", reason: null, note: null } });
+
+    await setAdminFeedback(db, { ...base, vote: null });
+    expect(await adminVotes(db, ["501"])).toEqual({});
+    const rows = await db.select().from(feedback);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ source: "reader", subscriberId: sub.id, vote: "up" });
+  });
+
+  it("汇总：只列 👎，按账号、主题、类别、原因计数；按期数筛选", async () => {
+    const { db } = await setup();
+    await setAdminFeedback(db, { tweetId: "501", issueDate: "2026-10-19", vote: "down", reason: "ad" });
+    const list = await listFeedback(db, { from: "2026-10-13", to: "2026-10-19" });
+    expect(await listFeedback(db, { from: "2026-10-20" })).toHaveLength(0);
+    const s = summarizeFeedback(list);
+    expect(s.up).toBe(0);
+    expect(s.down.map((f) => [f.handle, f.source])).toEqual([["sama", "admin"]]);
+    expect(s.byHandle).toEqual([["sama", 1]]);
+    expect(s.byReason).toEqual([["ad", 1]]);
+  });
+
+  it("预览脚本带上已有评价，并转义 <", () => {
+    const html = injectVoteScript("<html><body><p>x</p></body></html>", { "501": { vote: "down", reason: null, note: "</script><b>" } });
+    expect(html).toMatch(/<script>[\s\S]*<\/script><\/body><\/html>$/);
+    expect(html.match(/<\/script>/g)).toHaveLength(1);
+    expect(html).toContain('"501":{"vote":"down"');
   });
 });

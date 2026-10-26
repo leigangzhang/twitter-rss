@@ -30,7 +30,7 @@ export default async function FeedbackAdminPage({ searchParams }: { searchParams
       <AdminNav current="feedback" />
       <div className="flex flex-col gap-1.5">
         <h1 className="m-0 text-3xl font-black">读者反馈</h1>
-        <p className="m-0 text-sm text-muted">最近 {list.length} 条；合并发送的邮件里的反馈不知道是谁，显示为匿名</p>
+        <p className="m-0 text-sm text-muted">最近 {list.length} 条；"后台"是你在推送详情的预览里点的；合并发送的邮件里的反馈不知道是谁，显示为匿名</p>
       </div>
       <nav aria-label="按评价筛选" className="flex gap-2">
         {tabs.map((t) => (
@@ -66,6 +66,7 @@ export default async function FeedbackAdminPage({ searchParams }: { searchParams
                   <td className="whitespace-nowrap p-3">
                     {f.vote === "up" ? "👍" : "👎"}
                     {f.reason ? <span className="ml-1 text-muted">{REASON_LABELS[f.reason]}</span> : null}
+                    {f.note ? <div className="mt-1 max-w-[240px] whitespace-normal text-xs text-muted">{f.note}</div> : null}
                   </td>
                   <td className="p-3">
                     <a href={`https://x.com/${f.handle ?? "i"}/status/${f.tweetId}`} target="_blank" rel="noreferrer">
@@ -73,7 +74,7 @@ export default async function FeedbackAdminPage({ searchParams }: { searchParams
                     </a>{" "}
                     <span className="text-body">{f.text.replace(/\s+/g, " ").slice(0, 80)}</span>
                   </td>
-                  <td className="whitespace-nowrap p-3 text-muted">{f.email ?? "匿名"}</td>
+                  <td className="whitespace-nowrap p-3 text-muted">{f.source === "admin" ? "后台" : (f.email ?? "匿名")}</td>
                 </tr>
               ))}
             </tbody>

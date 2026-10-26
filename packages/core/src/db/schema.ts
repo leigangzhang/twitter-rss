@@ -131,9 +131,10 @@ export const linkDigests = sqliteTable("link_digests", {
 });
 
 /**
- * 读者对邮件里单条推文的反馈（👍 / 👎，可选原因）。
- * 单独发送的邮件带订阅者 token，记到这位订阅者名下，重复点击覆盖上一次；
- * 合并发送的邮件不知道是谁点的，subscriberId 为空，每次确认记一条。
+ * 对单条推文的反馈（👍 / 👎，可选原因）。
+ * - source = reader：读者在邮件里点的。单独发送的邮件带订阅者 token，记到这位订阅者名下，重复点击覆盖上一次；
+ *   合并发送的邮件不知道是谁点的，subscriberId 为空，每次确认记一条。
+ * - source = admin：管理员在后台预览里点的，每条推文只留一条，用来改进评审规则。
  */
 export const feedback = sqliteTable(
   "feedback",
@@ -144,8 +145,11 @@ export const feedback = sqliteTable(
     issueDate: text("issue_date").notNull(),
     vote: text("vote").$type<"up" | "down">().notNull(),
     /** 👎 时可选的原因 */
-    reason: text("reason").$type<"topic" | "author" | "shallow" | "ad" | "other">(),
+    reason: text("reason").$type<"topic" | "author" | "shallow" | "ad" | "duplicate" | "other">(),
+    /** 👎 时可选的补充说明（后台预览里填写） */
+    note: text("note"),
     subscriberId: integer("subscriber_id").references(() => subscribers.id),
+    source: text("source").$type<"reader" | "admin">().notNull().default("reader"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(now),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(now),
   },

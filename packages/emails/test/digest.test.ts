@@ -147,7 +147,7 @@ describe("每日邮件", () => {
     expect(two.html).toContain(base.summary!);
   });
 
-  it("开启反馈时每张卡片带 👍 / 👎 链接，每张只多几百字节", async () => {
+  it("开启反馈时每张卡片底部最左边带赞 / 踩链接，每张只多几百字节", async () => {
     const view = sampleDigest("zh");
     const plain = await renderDigest(view);
     const items = view.groups.flatMap((g) => g.items);
@@ -158,6 +158,11 @@ describe("每日邮件", () => {
     const html = (await renderDigest(withLinks)).html;
     expect(html).toContain(`https://x.test/f?t=${items[0]!.id}&amp;v=down`);
     expect(plain.html).not.toContain("/f?t=");
+    // 在卡片底部，排在"在 X 上查看"前面
+    const down = html.indexOf(`/f?t=${items[0]!.id}&amp;v=down`);
+    expect(down).toBeGreaterThan(html.indexOf(items[0]!.author.handle));
+    expect(html.indexOf("在 X 上", down)).toBeGreaterThan(down);
+    expect(html).toContain('data-vote="up"');
     expect((Buffer.byteLength(html) - Buffer.byteLength(plain.html)) / items.length).toBeLessThan(400);
   });
 });

@@ -182,7 +182,6 @@ function Byline({ card }: { card: CardView }) {
               }}
             >
               {meta.join("　")}
-              {card.feedback ? <Feedback links={card.feedback} /> : null}
             </p>
           </td>
         </tr>
@@ -191,19 +190,19 @@ function Byline({ card }: { card: CardView }) {
   );
 }
 
-/** 👍 / 👎 反馈：灰色小字跟在 @账号、时间后面，打开网站上的确认页 */
+/** 赞 / 踩：卡片底部最左边，和"翻译自""赞数"同样的灰色小字，其余内容依次右移 */
 function Feedback({ links }: { links: { up: string; down: string } }) {
   const style: CSSProperties = { color: color.muted, textDecoration: "none", whiteSpace: "nowrap" };
   return (
     <>
+      <a href={links.up} style={style} data-vote="up">
+        赞
+      </a>
+      {" · "}
+      <a href={links.down} style={style} data-vote="down">
+        踩
+      </a>
       {"　"}
-      <a href={links.up} style={style} title="有用">
-        👍
-      </a>
-      {" "}
-      <a href={links.down} style={style} title="不感兴趣">
-        👎
-      </a>
     </>
   );
 }
@@ -708,6 +707,7 @@ export function TweetCard({ card, last }: { card: CardView; last?: boolean }) {
           <LinkLine card={card} />
         )}
         <p style={{ ...small, marginTop: 14 }}>
+          {card.feedback ? <Feedback links={card.feedback} /> : null}
           {card.translatedFrom
             ? `AI ${card.translatedFrom.replace(/^译自/, "翻译自")}　`
             : ""}
