@@ -15,7 +15,9 @@ export async function POST(req: Request) {
   if (!passwordMatches(body.password ?? "")) return Response.json({ message: "密码不对" }, { status: 401 });
   attempts.delete(ip);
   const res = Response.json({ ok: true });
-  const secure = new URL(req.url).protocol === "https:" ? "; Secure" : "";
+  // 经 Cloudflare Tunnel 等反向代理访问时，本机收到的是 http，原始协议在 x-forwarded-proto 里
+  const proto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || new URL(req.url).protocol.replace(/:$/, "");
+  const secure = proto === "https" ? "; Secure" : "";
   res.headers.append("set-cookie", `${ADMIN_COOKIE}=${adminToken()}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${8 * 3600}${secure}`);
   return res;
 }

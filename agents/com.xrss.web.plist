@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS 常驻运行网站（scripts/web.sh：next start，只监听 127.0.0.1:3000），开机后自动启动，退出后自动拉起。
+  对外访问由 Cloudflare Tunnel 转发到 http://127.0.0.1:3000，见 agents/script-mode.md 的"网站上线"。
+  使用前把所有 /Users/you/Workspace/twitter-rss 换成你的项目路径，然后：
+    cp agents/com.xrss.web.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.xrss.web.plist
+  代码更新后：pnpm build && launchctl kickstart -k gui/$(id -u)/com.xrss.web
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.xrss.web</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/you/Workspace/twitter-rss/scripts/web.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/you/Workspace/twitter-rss</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/you/Workspace/twitter-rss/data/logs/web.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/you/Workspace/twitter-rss/data/logs/web.log</string>
+</dict>
+</plist>

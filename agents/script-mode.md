@@ -84,3 +84,35 @@ sudo pmset repeat wakeorpoweron MTWRFSU 07:55:00     # 每天 07:55 唤醒 Mac�
 - 只有采集用到的接口（`UserByScreenName`、`UserTweets`、`UserOriginalsTimeline`、`TweetDetail`）返回 429 才算限流；主页上推荐关注、侧边栏等其他请求的 429 只记录，不停止。
 - 每一步打开了哪些接口、状态码、剩余额度和重置时间，记在 `data/inbox/<日期>/calls.jsonl`；出现限流时先看这里是哪个接口、额度是多少。最近一次看到的额度存在同目录的 `ratelimit.json`，同一天重新运行时接着用。
 - 小号的额度是所有操作共用的：手动浏览、关注等操作和采集至少隔开 60 分钟。
+
+## 6. 网站上线（Cloudflare Tunnel）
+
+邮件里的管理订阅、切换语言、退订链接都指向 `.env` 的 `SITE_URL`。没设置时是 `http://localhost:3000`，只有本机打得开。
+不想部署到 Vercel 时，可以让这台 Mac 常驻运行网站，用 Cloudflare Tunnel 对外提供访问（Mac 关机或断网时网站打不开）。
+
+1. 常驻运行网站：编辑 [`com.xrss.web.plist`](com.xrss.web.plist) 里的项目路径，然后
+
+   ```bash
+   pnpm build
+   cp agents/com.xrss.web.plist ~/Library/LaunchAgents/
+   launchctl load ~/Library/LaunchAgents/com.xrss.web.plist
+   curl -I http://127.0.0.1:3000/         # 返回 200 即可
+   ```
+
+   它运行 `scripts/web.sh`（`next start`，只监听 `127.0.0.1:3000`），开机自动启动、退出后自动拉起，日志在 `data/logs/web.log`。
+   先停掉手动启动的 `pnpm dev`，否则 3000 端口被占用。代码更新后：`pnpm build && launchctl kickstart -k gui/$(id -u)/com.xrss.web`。
+2. 在 Cloudflare 控制台 Zero Trust → Networks → Tunnels 里选一个在这台 Mac 上运行的隧道（或新建一个），
+   在 Public Hostname 里添加一个子域名，Service 选 `HTTP`、地址填 `127.0.0.1:3000`（不要写 `localhost`，网站只监听 IPv4）。
+3. 在 `.env` 里写上这个地址，重启网站：
+
+   ```
+   SITE_URL=https://你的子域名
+   ```
+
+   ```bash
+   launchctl kickstart -k gui/$(id -u)/com.xrss.web
+   ```
+
+4. 在手机上打开 `https://你的子域名/` 确认订阅页正常；之后发出的邮件里的链接就会指向这个地址。之前已经发出的邮件里的链接仍是旧地址。
+
+管理页（`/admin/...`）只在设置了 `ADMIN_PASSWORD` 时开放，上线后建议设置一个足够长的密码。

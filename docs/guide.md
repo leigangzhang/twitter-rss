@@ -161,8 +161,10 @@ AI 精选支持两种接口格式，默认是 [DeepSeek 的 Anthropic 兼容接�
 
 ## 上线
 
-- 数据库：把 `DATABASE_URL` 换成 Turso 地址，本机流水线和线上网站共用
-- 网站：`apps/web` 可部署到 Vercel 等平台；设置 `SITE_URL`、`SMTP_*`、`MAIL_FROM`，并把 `config/` 目录一起部署（或设置 `CONFIG_DIR`）
+- **在本机上线（Cloudflare Tunnel）**：网站由 launchd 常驻运行（`agents/com.xrss.web.plist` → `scripts/web.sh`，`next start` 只监听 `127.0.0.1:3000`），Cloudflare Tunnel 把一个子域名转发到 `127.0.0.1:3000`，`.env` 的 `SITE_URL` 设为这个地址；数据库继续用本机的 `data/app.db`。步骤见 [agents/script-mode.md](../agents/script-mode.md) 第 6 节。Mac 关机或断网时网站打不开
+- **部署到云端**：
+  - 数据库：把 `DATABASE_URL` 换成 Turso 地址，本机流水线和线上网站共用
+  - 网站：`apps/web` 可部署到 Vercel 等平台；设置 `SITE_URL`、`SMTP_*`、`MAIL_FROM`，并把 `config/` 目录一起部署（或设置 `CONFIG_DIR`）
 - 邮件：QQ 邮箱 SMTP（`smtp.qq.com:465`），逐封发送并间隔 1.5 秒；QQ 邮箱对每日发信量有限制，订阅者多了以后建议换企业邮箱或专业发信服务
 
 ## 常用命令
