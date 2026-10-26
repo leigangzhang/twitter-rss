@@ -15,23 +15,24 @@ export function withVoteLinks(view: DigestView, keep: Set<string>, date: string)
   return { ...view, groups, total: groups.reduce((n, g) => n + g.items.length, 0) };
 }
 
-/** 赞 / 踩图标（200×200 坐标）：左边一竖条加一只手，踩是赞上下翻转 */
-const THUMB_PATHS =
-  '<rect x="24" y="82" width="17" height="92" rx="6"/>' +
-  '<path d="M52 86q0-6 6-6h20q14 0 17-18l3-22q3-18 18-18 20 0 20 26l-2 30h31q21 0 17 22l-14 58q-5 14-20 14H58q-6 0-6-6z"/>';
-const iconUrl = (fill: string, flip: boolean) =>
-  `url("data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="${fill}">${flip ? `<g transform="matrix(1 0 0 -1 0 200)">${THUMB_PATHS}</g>` : THUMB_PATHS}</svg>`,
-  )}")`;
-const ICON = { idle: "#B4B9C0", up: "#2F7D4F", down: "#A3271A" };
+/** 赞 / 踩图标（设计稿给的 PNG，放在网站的 apps/web/public/icons/ 下，后台预览和网站同源） */
+const ICON_URL = { up: "/icons/thumb-up.png", down: "/icons/thumb-down.png" };
+/** PNG 本身是很浅的灰色，白底上看不清，所以当遮罩用，颜色由背景色决定 */
+const ICON = { idle: "#9CA3AF", hover: "#6B7280", up: "#2F7D4F", down: "#A3271A" };
 
-/** 把文字"赞 · 踩"换成图标；选中（data-on）时变成绿色或红色 */
-const VOTE_STYLE = `a[data-vote]{display:inline-block;width:16px;height:16px;vertical-align:-3px;font-size:0;background:no-repeat center/contain}
-a[data-vote="up"]{margin-right:12px;background-image:${iconUrl(ICON.idle, false)}}
-a[data-vote="down"]{background-image:${iconUrl(ICON.idle, true)}}
-a[data-vote="up"][data-on]{background-image:${iconUrl(ICON.up, false)}}
-a[data-vote="down"][data-on]{background-image:${iconUrl(ICON.down, true)}}
-a[data-vote]:hover{opacity:.75}
+/** 把文字"赞 · 踩"换成图标；选中（data-on）时赞变绿、踩变红。不支持遮罩的浏览器直接显示 PNG */
+const mask = (url: string) => `-webkit-mask:url("${url}") center/contain no-repeat;mask:url("${url}") center/contain no-repeat`;
+const VOTE_STYLE = `a[data-vote]{display:inline-block;width:16px;height:16px;vertical-align:-3px;font-size:0;background:center/contain no-repeat}
+a[data-vote="up"]{margin-right:12px;background-image:url("${ICON_URL.up}");opacity:.9}
+a[data-vote="down"]{background-image:url("${ICON_URL.down}");opacity:.9}
+@supports ((mask-image:none) or (-webkit-mask-image:none)){
+a[data-vote]{background-image:none;opacity:1;background-color:${ICON.idle}}
+a[data-vote="up"]{${mask(ICON_URL.up)}}
+a[data-vote="down"]{${mask(ICON_URL.down)}}
+a[data-vote]:hover{background-color:${ICON.hover}}
+a[data-vote="up"][data-on]{background-color:${ICON.up}}
+a[data-vote="down"][data-on]{background-color:${ICON.down}}
+}
 [data-vote-sep]{display:none}`;
 
 /**
