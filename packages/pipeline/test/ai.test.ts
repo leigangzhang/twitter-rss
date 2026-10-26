@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { RawTweet } from "@xrss/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createLlmEditor, createLlmReviewer, describeLlm, editorSystemPrompt, llmSettings, normalizeReview, reviewSystemPrompt } from "../src/ai.ts";
+import { createLlmEditor, createLlmReviewer, describeLlm, editorSystemPrompt, llmSettings, normalizeReview, reviewSystemPrompt, unwrapToolInput } from "../src/ai.ts";
 
 // 用本地假服务模拟 DeepSeek 的 Anthropic 兼容接口，检查请求内容和结果解析
 const requests: Array<{ path: string; auth: string | undefined; body: any }> = [];
@@ -352,5 +352,18 @@ describe("OpenAI 兼容接口", () => {
     );
     expect(result).toEqual({ drops: [] });
     expect(calls[0]!.body).toMatchObject({ max_tokens: 4000, temperature: 0 });
+  });
+});
+
+describe("工具参数被多包了一层", () => {
+  it("拆开 {input: {...}}、JSON 字符串和多层包装；正常结果原样返回", () => {
+    const ok = { verdict: "keep", quality: 4 };
+    expect(unwrapToolInput(ok, "verdict")).toBe(ok);
+    expect(unwrapToolInput({ input: ok }, "verdict")).toEqual(ok);
+    expect(unwrapToolInput({ parameters: JSON.stringify(ok) }, "verdict")).toEqual(ok);
+    expect(unwrapToolInput(JSON.stringify({ review: ok }), "verdict")).toEqual(ok);
+    // 看不出包装（多个字段）时不动
+    const other = { a: 1, b: 2 };
+    expect(unwrapToolInput(other, "verdict")).toBe(other);
   });
 });

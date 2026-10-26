@@ -6,3 +6,4 @@ export * from "./health.ts";
 export * from "./details.ts";
 export * from "./random.ts";
 export * from "./quality.ts";
+export { isFinished, loadPlan, loadProgress } from "./runner.ts";

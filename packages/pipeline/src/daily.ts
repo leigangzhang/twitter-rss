@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { loadPlan, loadProgress } from "@xrss/collector";
 import { loadConfig, localDate, runRange, loadDotEnv } from "@xrss/core";
 import { createDb, migrateDb, tweets } from "@xrss/core/db";
 import { and, gte, inArray, lt } from "drizzle-orm";
@@ -123,4 +124,29 @@ if (dryRun) {
 if (ing.blocked.length > 0) {
   console.warn("\n采集端报告了限流或登录问题，请检查专用账号状态后再运行采集。");
   process.exitCode = 2;
+}
+
+// 有异常时给管理员发一封提醒（.env 里设置 ADMIN_EMAIL 才发），不用等发现邮件变少才知道出了问题
+const issues: string[] = [];
+const plan = loadPlan(date);
+const stopped = loadProgress(date)?.stopped;
+if (!plan) issues.push("今天没有采集清单（每日任务没有运行 pnpm plan，或在采集前就中断了）。");
+else if (plan.skip) issues.push(`今天没有采集：${plan.skip.reason}${plan.skip.until ? `（到 ${plan.skip.until}）` : ""}。`);
+if (stopped) issues.push(`采集在 @${stopped.handle} 因 ${stopped.status} 停止${stopped.error ? `（${stopped.error}）` : ""}，之后的账号今天没有采到，下次会补收。`);
+if (stopped?.status === "login_required") issues.push("X 登录失效：在采集用的 Chrome 里重新登录后运行 pnpm crawl:reset。");
+for (const h of ing.missing) issues.push(`@${h} 不存在、已改名或被冻结，请在 config/topics.yaml 里改正或删除。`);
+if (!dryRun && sent.failed.length) issues.push(`${sent.failed.length} 位订阅者发送失败，可在管理页补发：${sent.failed.map((f) => f.error).slice(0, 3).join("；")}`);
+const admin = process.env.ADMIN_EMAIL?.trim();
+if (issues.length && admin && !dryRun) {
+  const smtp = smtpConfigFromEnv()!;
+  const notifier = createSmtpMailer(smtp, { intervalMs: 0 });
+  const text = [`${date} 的每日任务有 ${issues.length} 个问题：`, "", ...issues.map((s, i) => `${i + 1}. ${s}`), "", `今天发出 ${sent.messages} 封邮件，送达 ${sent.sent} 人。详细日志：data/logs/${date}.log；采集状态：pnpm crawl:status`].join("\n");
+  try {
+    await notifier.send({ to: admin, subject: `【精选晨报】${date} 每日任务有异常`, text, html: `<pre style="font:14px/1.6 sans-serif;white-space:pre-wrap">${text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!)}</pre>` });
+    console.log(`  已把 ${issues.length} 个问题发到管理员邮箱`);
+  } catch (e) {
+    console.warn(`  ⚠ 管理员提醒发送失败：${(e as Error).message}`);
+  } finally {
+    notifier.close();
+  }
 }

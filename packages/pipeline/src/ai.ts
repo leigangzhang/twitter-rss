@@ -375,6 +375,29 @@ function extractJson(content: unknown): string | undefined {
 }
 
 /**
+ * 偶尔模型把工具参数包了一层（{"input": {...}}、{"parameters": "{...}"}）或整个给成 JSON 字符串，
+ * 这时所有字段都会被判为缺失。拆开这一层再校验；看不出包装时原样返回。
+ */
+export function unwrapToolInput(output: unknown, expectedKey: string): unknown {
+  let value = output;
+  for (let depth = 0; depth < 3; depth++) {
+    if (typeof value === "string") {
+      try {
+        value = JSON.parse(value);
+        continue;
+      } catch {
+        return value;
+      }
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value) || expectedKey in value) return value;
+    const entries = Object.values(value as Record<string, unknown>);
+    if (entries.length !== 1) return value;
+    value = entries[0];
+  }
+  return value;
+}
+
+/**
  * 逐条评审：判断类型和去留、打分、写摘要、翻译、媒体说明。
  * 默认走 DeepSeek（deepseek-flash），通过 .env 的 LLM_API / LLM_BASE_URL / LLM_MODEL / LLM_API_KEY 可以换成其他兼容 Anthropic 或 OpenAI 接口的服务。
  */
@@ -388,10 +411,10 @@ export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
       // 只送文字：图片和视频都不做识别（邮件里视频只显示封面），节省 token
       const text = `候选主题：${JSON.stringify(topics)}\n\n推文：\n${JSON.stringify(tweetPayload(tweet, article), null, 2)}`;
       // 长推文要翻译全文、写阅读摘要，输出可能很长：先给 6000 token，被截断就用 8000 再试；
-      // 格式不符（偶发）也再试一次。最多两次。
+      // 格式不符（偶发）也再试。最多三次。
       let maxTokens = 6000;
       let lastError: unknown;
-      for (let attempt = 0; attempt < 2; attempt++) {
+      for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const output = await client.callTool({
             system,
@@ -400,7 +423,7 @@ export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
             maxTokens,
             temperature: 0.2,
           });
-          const parsed = ReviewOutput.safeParse(output);
+          const parsed = ReviewOutput.safeParse(unwrapToolInput(output, "verdict"));
           if (!parsed.success) throw new Error(`评审结果格式不符：${z.prettifyError(parsed.error)}`);
           return normalizeReview({ ...parsed.data, scale: 5 }, tweet, topics);
         } catch (e) {
