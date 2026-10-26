@@ -176,7 +176,7 @@ export const DEFAULT_LLM_MODEL = "deepseek-flash";
  * - LLM_API：接口格式，anthropic（默认）或 openai
  * - LLM_BASE_URL：端点地址，默认 DeepSeek 的 Anthropic 兼容接口
  * - LLM_MODEL：模型名，默认 deepseek-flash
- * - LLM_API_KEY（兼容旧名 DEEPSEEK_API_KEY）
+ * - LLM_API_KEY（兼容旧名 DEEPSEEK_API_KEY）；.env 里的 LLM_API_KEY 优先于系统环境变量
  */
 export function llmSettings(o: LlmOptions = {}) {
   const env = (k: string) => process.env[k]?.trim() || undefined;
@@ -243,7 +243,8 @@ function createClient(o: LlmOptions): LlmClient {
 }
 
 function anthropicClient(apiKey: string, baseURL: string, model: string): LlmClient {
-  const client = new Anthropic({ apiKey, baseURL });
+  // authToken 显式置空：否则 SDK 会读环境变量 ANTHROPIC_AUTH_TOKEN 并作为 Bearer 发出，DeepSeek 等端点会优先用它而不是 LLM_API_KEY
+  const client = new Anthropic({ apiKey, authToken: null, baseURL });
   return {
     async callTool(req) {
       const images: Anthropic.ImageBlockParam[] = (req.images ?? []).map((url) => ({ type: "image", source: { type: "url", url } }));

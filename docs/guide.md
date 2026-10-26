@@ -60,7 +60,7 @@ AI 精选支持两种接口格式，默认是 [DeepSeek 的 Anthropic 兼容接�
 | `LLM_API` | `anthropic`（Anthropic Messages API，默认）或 `openai`（OpenAI Chat Completions） |
 | `LLM_BASE_URL` | 端点地址。anthropic 格式不用带 `/v1/messages`；openai 格式写到 `/v1` 这一级，不用带 `/chat/completions`（多写了会自动去掉，只写域名会补 `/v1`） |
 | `LLM_MODEL` | 模型名，如 `deepseek-flash`、`gpt-5-mini`、`qwen-plus` |
-| `LLM_API_KEY` | 对应服务的密钥，旧名 `DEEPSEEK_API_KEY` 仍然有效 |
+| `LLM_API_KEY` | 对应服务的密钥，旧名 `DEEPSEEK_API_KEY` 仍然有效。`.env` 里的 `LLM_API_KEY` 优先于系统环境变量（其他变量以系统环境变量为准） |
 
 常见端点（以各家文档为准）：
 
