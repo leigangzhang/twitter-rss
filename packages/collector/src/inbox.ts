@@ -5,7 +5,7 @@ import { z } from "zod";
 import { inboxDir } from "./paths.ts";
 
 /** 采集目录里不属于账号数据的文件 */
-const RESERVED = new Set(["plan.json", "progress.json", "detail-needed.json"]);
+const RESERVED = new Set(["plan.json", "progress.json", "detail-needed.json", "ratelimit.json"]);
 
 export interface InboxReadResult {
   files: InboxFile[];
