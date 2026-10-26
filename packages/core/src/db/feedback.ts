@@ -171,6 +171,18 @@ export async function adminVotes(db: Db, tweetIds: string[]): Promise<Record<str
   return Object.fromEntries(rows.map(({ tweetId, ...v }) => [tweetId, v]));
 }
 
+/** 每一期后台给过的赞 / 踩数（期数 → 计数） */
+export async function adminFeedbackCounts(db: Db): Promise<Map<string, { up: number; down: number }>> {
+  const rows = await db.select({ date: feedback.issueDate, vote: feedback.vote }).from(feedback).where(eq(feedback.source, "admin"));
+  const out = new Map<string, { up: number; down: number }>();
+  for (const r of rows) {
+    const c = out.get(r.date) ?? { up: 0, down: 0 };
+    c[r.vote]++;
+    out.set(r.date, c);
+  }
+  return out;
+}
+
 export interface FeedbackInfo {
   id: number;
   issueDate: string;

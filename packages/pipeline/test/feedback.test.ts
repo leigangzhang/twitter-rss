@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { collectRange, loadConfig } from "@xrss/core";
-import { adminVotes, createDb, feedback, feedbackLinks, feedbackSignature, listFeedback, migrateDb, parseFeedbackParams, recordFeedback, setAdminFeedback, subscribers, verifyFeedback } from "@xrss/core/db";
-import { injectVoteScript, previewBanner } from "../src/admin-preview.ts";
+import { adminFeedbackCounts, adminVotes, createDb, deliveries, feedback, feedbackLinks, feedbackSignature, listFeedback, migrateDb, parseFeedbackParams, recordFeedback, setAdminFeedback, subscribers, verifyFeedback } from "@xrss/core/db";
+import { feedbackTarget, injectVoteScript, previewBanner } from "../src/admin-preview.ts";
 import { summarizeFeedback } from "../src/feedback-summary.ts";
 import { afterEach, describe, expect, it } from "vitest";
 import { feedbackLinker } from "../src/digest.ts";
@@ -145,5 +145,22 @@ describe("反馈链接", () => {
 
   it("预览顶部说明转义 HTML", () => {
     expect(previewBanner("共 <b>60</b> 条 & 更多")).toContain("共 &lt;b>60&lt;/b> 条 &amp; 更多");
+  });
+
+  it("今日反馈：最近一期；优先管理员自己收到的，否则收到最多的那位；可指定日期和订阅者", async () => {
+    const { db, sub } = await setup();
+    const [other] = await db.insert(subscribers).values({ email: "big@example.com", topics: ["labs"], token: "tok_big_1234567890", status: "active" }).returning();
+    await db.insert(deliveries).values([
+      { subscriberId: sub.id, digestDate: "2026-10-19", tweetIds: ["501"], status: "sent" },
+      { subscriberId: other!.id, digestDate: "2026-10-19", tweetIds: ["501", "502"], status: "sent" },
+      { subscriberId: other!.id, digestDate: "2026-10-20", tweetIds: ["501"], status: "failed" },
+    ]);
+    expect(await feedbackTarget(db)).toEqual({ date: "2026-10-19", subscriberId: other!.id });
+    expect(await feedbackTarget(db, { adminEmail: " Reader@example.com " })).toEqual({ date: "2026-10-19", subscriberId: sub.id });
+    expect(await feedbackTarget(db, { subscriberId: sub.id })).toEqual({ date: "2026-10-19", subscriberId: sub.id });
+    expect(await feedbackTarget(db, { date: "2026-10-20" })).toBeNull();
+
+    await setAdminFeedback(db, { tweetId: "501", issueDate: "2026-10-19", vote: "down" });
+    expect(await adminFeedbackCounts(db)).toEqual(new Map([["2026-10-19", { up: 0, down: 1 }]]));
   });
 });

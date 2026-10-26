@@ -1,5 +1,6 @@
 import type { AppConfig, DigestView } from "@xrss/core";
-import { type AdminVote, adminVotes, type Db, FEEDBACK_REASONS, NOTE_MAX, REASON_LABELS, type Vote } from "@xrss/core/db";
+import { type AdminVote, adminVotes, type Db, deliveries, FEEDBACK_REASONS, NOTE_MAX, REASON_LABELS, subscribers, type Vote } from "@xrss/core/db";
+import { and, desc, eq } from "drizzle-orm";
 import { renderDigest, renderDigestParts } from "@xrss/emails";
 import { buildIssueEmail } from "./delivery.ts";
 
@@ -226,15 +227,36 @@ export async function buildAdminPreview(db: Db, config: AppConfig, date: string,
   let note: string;
   if (mode === "sent") {
     keep = built.view.groups.flatMap((g) => g.items.map((c) => c.id));
-    note = `已发出的：${built.subscriber.email} 这一期收到的全部 ${keep.length} 条（分卷发送时是几封合起来）。点每条左下角的赞 / 踩记录反馈。`;
+    note = `${date} 已发出的：${built.subscriber.email} 这一期收到的全部 ${keep.length} 条（分卷发送时是几封合起来）。点每条左下角的赞 / 踩记录反馈。`;
   } else {
     const parts = await renderDigestParts(built.view, { tabs: mailCfg.tabs, maxBytes: mailCfg.max_kb * 1024, maxParts: mailCfg.max_parts });
     keep = parts.flatMap((p) => p.tweetIds);
     const dropped = parts[0]?.dropped.length ?? 0;
     const split = parts.length > 1 ? `分 ${parts.length} 封发出（${parts.map((p) => p.tweetIds.length).join(" / ")} 条）` : "一封发出";
-    note = `预览重发：现在重新发送会${split}，共 ${keep.length} 条${dropped ? `；因篇幅去掉 ${dropped} 条低分内容，不在下面` : ""}。点每条左下角的赞 / 踩记录反馈。`;
+    note = `${date} 预览重发：现在重新发送会${split}，共 ${keep.length} 条${dropped ? `；因篇幅去掉 ${dropped} 条低分内容，不在下面` : ""}。点每条左下角的赞 / 踩记录反馈。`;
   }
   const view = withVoteLinks(built.view, new Set(keep), date);
   const email = await renderDigest(view, { tabs: mailCfg.tabs });
   return { html: injectVoteScript(insertAfterBodyTag(email.html, previewBanner(note)), await adminVotes(db, keep)) };
+}
+
+/**
+ * "今日反馈"打开哪一期、看哪位订阅者收到的：
+ * - 期数：指定的日期，否则最近一期有成功发送的；
+ * - 订阅者：指定的，否则邮箱等于 adminEmail（.env 的 ADMIN_EMAIL）的订阅者，再否则这一期收到条目最多的那位。
+ */
+export async function feedbackTarget(db: Db, opts: { date?: string; subscriberId?: number; adminEmail?: string } = {}): Promise<{ date: string; subscriberId: number } | null> {
+  const sent = eq(deliveries.status, "sent");
+  const date = opts.date ?? (await db.select({ d: deliveries.digestDate }).from(deliveries).where(sent).orderBy(desc(deliveries.digestDate)).limit(1))[0]?.d;
+  if (!date) return null;
+  const list = await db.select().from(deliveries).where(and(sent, eq(deliveries.digestDate, date)));
+  if (list.length === 0) return null;
+  if (opts.subscriberId !== undefined && list.some((d) => d.subscriberId === opts.subscriberId)) return { date, subscriberId: opts.subscriberId };
+  const email = opts.adminEmail?.trim().toLowerCase();
+  if (email) {
+    const [admin] = await db.select({ id: subscribers.id }).from(subscribers).where(eq(subscribers.email, email));
+    if (admin && list.some((d) => d.subscriberId === admin.id)) return { date, subscriberId: admin.id };
+  }
+  const most = list.reduce((a, b) => (b.tweetIds.length > a.tweetIds.length ? b : a));
+  return { date, subscriberId: most.subscriberId };
 }
