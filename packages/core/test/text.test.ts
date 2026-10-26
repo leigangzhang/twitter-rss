@@ -41,7 +41,6 @@ describe("图片和截断", () => {
   });
 });
 
-import { ownMedia } from "../src/text.ts";
 
 describe("ownMedia", () => {
   it("去掉引用卡片的小缩略图，以及同一张图的其他尺寸", () => {

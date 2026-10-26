@@ -4,7 +4,7 @@ import { parseArgs } from "node:util";
 import { loadConfig, loadDotEnv, localDate } from "@xrss/core";
 import { checkGate, loadState, resetState, saveState, statePath } from "./health.ts";
 import {
-  addDetailSteps,
+  advancePhase,
   type BlockStatus,
   completeStep,
   counts,
@@ -115,17 +115,10 @@ if (command === "next") {
   }
 
   // 时间线采完：解析，排出详情页；详情页也采完：再解析一次，结束
-  if (!currentStep(progress) && progress.phase === "timeline") {
-    runParse();
-    const added = addDetailSteps(progress);
-    progress.phase = added > 0 ? "detail" : "finished";
-    if (added === 0) runParse();
+  const advanced = advancePhase(progress, runParse);
+  if (advanced) {
     saveProgress(progress);
-    console.log(added > 0 ? `时间线已全部采完，接下来补抓 ${added} 个详情页。` : "时间线已全部采完，不需要补抓详情页。");
-  } else if (!currentStep(progress) && progress.phase === "detail") {
-    runParse();
-    progress.phase = "finished";
-    saveProgress(progress);
+    if (progress.phase !== "finished" || !advanced.startsWith("详情页")) console.log(advanced);
   }
   if (progress.phase === "finished") {
     console.log(`FINISHED 今天的采集已全部完成。${progressLine(progress)}。下一步运行 scripts/daily.sh`);

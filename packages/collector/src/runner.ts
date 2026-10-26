@@ -124,6 +124,27 @@ export function counts(progress: Progress) {
   return { accounts: accounts.length, accountsDone: done(accounts), details: details.length, detailsDone: done(details) };
 }
 
+/**
+ * 时间线采完：解析，排出详情页；详情页也采完：再解析一次，结束。
+ * parse 由调用方传入（命令行里是另起一个 parse 进程）。返回提示语，没有阶段变化时返回 null。
+ */
+export function advancePhase(progress: Progress, parse: () => void): string | null {
+  if (currentStep(progress)) return null;
+  if (progress.phase === "timeline") {
+    parse();
+    const added = addDetailSteps(progress);
+    progress.phase = added > 0 ? "detail" : "finished";
+    if (added === 0) parse();
+    return added > 0 ? `时间线已全部采完，接下来补抓 ${added} 个详情页。` : "时间线已全部采完，不需要补抓详情页。";
+  }
+  if (progress.phase === "detail") {
+    parse();
+    progress.phase = "finished";
+    return "详情页已全部补抓完。";
+  }
+  return null;
+}
+
 /** 进行中或下一个待做的步骤 */
 export function currentStep(progress: Progress): Step | undefined {
   return progress.steps.find((s) => s.status === "in_progress") ?? progress.steps.find((s) => s.status === "pending");

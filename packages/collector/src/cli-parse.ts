@@ -134,7 +134,8 @@ const state = recordRun(
 );
 saveState(state);
 
-const blocked = inbox.files.filter((f) => f.status !== "ok");
+// 账号不存在（not_found）只跳过那个账号，不算异常，也不影响详情页补抓
+const blocked = inbox.files.filter((f) => f.status !== "ok" && f.status !== "not_found");
 const neededPath = join(dir, "detail-needed.json");
 writeFileSync(
   neededPath,

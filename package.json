@@ -16,6 +16,8 @@
     "crawl:status": "pnpm --filter @xrss/collector crawl status",
     "crawl:reset": "pnpm --filter @xrss/collector crawl reset",
     "crawl:resume": "pnpm --filter @xrss/collector crawl resume",
+    "crawl:auto": "pnpm -s --filter @xrss/collector crawl:auto",
+    "crawl:chrome": "pnpm -s --filter @xrss/collector crawl:chrome",
     "accounts": "pnpm --filter @xrss/collector accounts",
     "subscribers": "pnpm -s --filter @xrss/pipeline subscribers",
     "resend": "pnpm -s --filter @xrss/pipeline resend",

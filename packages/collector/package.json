@@ -12,11 +12,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "crawl": "tsx src/cli-crawl.ts",
-    "accounts": "tsx src/cli-accounts.ts"
+    "accounts": "tsx src/cli-accounts.ts",
+    "crawl:auto": "tsx src/cli-auto.ts",
+    "crawl:chrome": "tsx src/cli-auto.ts chrome"
   },
   "dependencies": {
     "@xrss/core": "workspace:*",
     "drizzle-orm": "^0.44.0",
+    "playwright-core": "1.56.1",
     "zod": "^4.0.0"
   },
   "devDependencies": {
