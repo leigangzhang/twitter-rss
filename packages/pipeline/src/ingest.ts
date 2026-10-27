@@ -1,5 +1,5 @@
 import { readInbox, smallAvatar } from "@xrss/collector";
-import { type AppConfig, catchUpSince, cleanTweetText, engagement, mediaKind, ownMedia, passesFilters, type RawTweet, type TimeRange } from "@xrss/core";
+import { type AppConfig, catchUpSince, cleanTweetText, engagement, type Link, mediaKind, ownMedia, passesFilters, type RawTweet, type TimeRange } from "@xrss/core";
 import { accounts, type Db, tweets } from "@xrss/core/db";
 import { eq, sql } from "drizzle-orm";
 
@@ -29,13 +29,43 @@ const maxId = (a: string | null | undefined, b: string | null | undefined) => {
   return BigInt(a) >= BigInt(b) ? a : b;
 };
 
+const SHORT_LINK_HOST = "t.co";
+const ELLIPSIS = /(…|\.\.\.)$/;
+
+/**
+ * 有时读到的链接没有展开，地址只是 t.co 短链（抓文章时会跳过），真实地址只出现在链接文字里（如"https:// ip.skk.moe"）
+ * 或正文里。这时用链接文字还原出真实地址；链接文字被截断（以…结尾）时，到正文里找以它开头的完整地址。还原不了就保持原样。
+ */
+export function expandShortLink(link: Link, text: string): Link {
+  let host: string;
+  try {
+    host = new URL(link.expandedUrl).hostname;
+  } catch {
+    return link;
+  }
+  if (host !== SHORT_LINK_HOST || !link.title) return link;
+  const shown = link.title.replace(/\s+/g, "");
+  const candidate = ELLIPSIS.test(shown) ? text.match(/https?:\/\/\S+/g)?.find((u) => u.startsWith(shown.replace(ELLIPSIS, ""))) : shown;
+  if (!candidate) return link;
+  try {
+    const url = new URL(candidate);
+    if (!/^https?:$/.test(url.protocol) || url.hostname === SHORT_LINK_HOST || !url.hostname.includes(".")) return link;
+    return { ...link, expandedUrl: url.toString(), domain: url.hostname.replace(/^www\./, ""), title: undefined };
+  } catch {
+    return link;
+  }
+}
+
 /** 从页面读取的推文会带进多余的断行（链接、@账号被拆开），入库前修好 */
 function cleanRaw(t: RawTweet): RawTweet {
+  const text = cleanTweetText(t.text);
+  const quotedText = t.quoted ? cleanTweetText(t.quoted.text) : "";
   return {
     ...t,
-    text: cleanTweetText(t.text),
+    text,
     thread: t.thread.map((p) => ({ ...p, text: cleanTweetText(p.text) })),
-    quoted: t.quoted ? { ...t.quoted, text: cleanTweetText(t.quoted.text) } : undefined,
+    links: t.links.map((l) => expandShortLink(l, text)),
+    quoted: t.quoted ? { ...t.quoted, text: quotedText, links: t.quoted.links.map((l) => expandShortLink(l, quotedText)) } : undefined,
     media: ownMedia(t.media),
   };
 }

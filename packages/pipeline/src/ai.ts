@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { AiResult, cleanTweetText, ReaderSummary, type ContentCategory, type LinkDigest, looksTruncated, type RawTweet, type Topic, xWeightedLength } from "@xrss/core";
+import { AiResult, cleanTweetText, displayTextLength, READER_SUMMARY_MIN_CHARS, ReaderSummary, type ContentCategory, type LinkDigest, looksTruncated, type RawTweet, type Topic, xWeightedLength } from "@xrss/core";
 import { z } from "zod";
 
 /** DeepSeek 的 Anthropic 兼容接口：https://api-docs.deepseek.com/guides/anthropic_api */
@@ -45,16 +45,26 @@ ${guide || DEFAULT_GUIDE}
    保留专有名词、代码、数字和 @账号，不添加原文没有的内容。原文已是中文时 zh 为 null。drop 的内容也要照常翻译。
 8. mediaNote 一律填 null（图片和视频都不需要说明）。
 9. 引用推文（quoted）较长（超过约 140 个汉字或 280 个英文字符），或 quoted.truncated 为 true（时间线只给了前一部分）时，
-   填 quotedDigest：summary 用 1–2 句中文说清它讲了什么，points 列 2–4 条具体要点（做法、数据、结论）；
-   被截断时只概括能看到的部分，不要猜测或补全没看到的内容。引用很短、或没有引用时 quotedDigest 为 null。
-10. readerSummary：正文较长（超过约 200 个汉字或 400 个英文字符，含 Thread）或是 Thread 时填写，
-   给没时间读原文的读者看，邮件里会先显示它、原文折叠。读者扫一眼 lead 就要知道这条讲什么。
-   - lead：一句简体中文，40 字以内，直接写核心结论或最重要的发现（有大胆预测或反主流观点时就写它），
-     不要写"作者分享了……""本文介绍了……"这类铺垫；有引用推文时说清作者在回应什么
-   - points：0–3 条关键依据（数据、做法、前提条件），每条一句、30 字以内，只保留最关键的 1–2 个数字；
-     不要重复 lead；内容只有一个观点时 points 为空数组
-   - 把正文和 Thread 当作一个整体总结；提到工具、产品、模型、论文时写出名称
-   - 只写原文里有的信息，不评价、不夸大；lead 加 points 合计不超过约 150 字
+   填 quotedDigest：summary 用 1–2 句中文说清它讲了什么、结论是什么，points 列 2–4 条具体要点（做法、数据、名称），
+   要求和下面 readerSummary 的写法相同；被截断时只概括能看到的部分，不要猜测或补全没看到的内容。
+   引用很短、或没有引用时 quotedDigest 为 null。
+10. readerSummary：正文（含 Thread）在中文版里超过约 ${READER_SUMMARY_MIN_CHARS} 字时填写（原文是中文按原文字数，外文按你翻译后的中文字数），
+   给没时间读原文的读者看，邮件里会先显示它、原文折叠。读者扫一眼 lead 就要知道这条讲什么、值不值得展开。
+   - lead：一句简体中文，40 字以内，直接写核心结论或最重要的发现（有大胆预测或反主流观点时就写它）。
+     不要照抄正文第一句或标题句，要把结论说得比原文开头更清楚；有引用推文时说清作者在回应什么。
+   - points：0–3 条支撑 lead 的关键依据（数据、做法或步骤、前提条件、工具或产品名），每条一句、30 字以内，
+     只保留最关键的 1–2 个数字；不要重复 lead；内容只有一个观点时 points 为空数组。
+   - points 写内容本身，不写目录：不要写"还讨论了……""介绍了……的方法"，要写出讨论的结论或方法是什么。
+   - 读者是做产品和研发的人，但不一定是这个领域的专家：每条要点最多一个专门术语（配置项、协议名、缩写、论文代号），
+     并且要让人看得懂它是干什么的；原文里的缩写（如 RDF、SPARQL、EP/DP）能不写就不写，换成它起的作用。
+     宁可少一条要点，也不要堆术语。
+   - 禁止空话："作者认为……""作者分享了……""本文介绍了……""值得一读"。直接写观点和事实。
+   - 只写原文（含引用和 Thread）里有的信息，不评价、不夸大、不补充原文没有的数字和名称；数字必须和原文完全一致。
+     lead 加 points 合计不超过约 150 字。
+   - 示例（好）：lead"本地跑 MoE 慢的真凶是专家权重反复读 SSD，关两个参数提速 8 倍"，
+     points["每个 token 仍要从 SSD 读约 78 MB 专家数据", "关掉 --ssd-cache 和 --mmap-experts，让专家常驻内存"]
+   - 示例（差）：lead"作者分享了本地部署大模型的性能优化经验"，points["介绍了问题的排查过程", "还讨论了参数设置"]
+     ——没有结论、没有数字、只是目录。
    正文较短时 readerSummary 为 null。
 
 linkedArticle 是推文（或引用推文）所附外部文章的标题、简介和正文开头（fetched 为 false 时只有标题和简介）。
@@ -442,12 +452,12 @@ export function createLlmReviewer(opts: LlmOptions = {}): Reviewer {
 export function normalizeReview(r: AiResult, tweet: RawTweet, topics: Pick<Topic, "id">[]): AiResult {
   const result = { ...r };
   if (!topics.some((t) => t.id === result.topicId)) result.topicId = topics[0]!.id;
-  // 阅读摘要只给长推文和 Thread；短推文直接读原文
-  const fullText = [tweet.text, ...tweet.thread.map((p) => p.text)].map(cleanTweetText).join("\n");
+  // 阅读摘要只给中文版里显示超过 READER_SUMMARY_MIN_CHARS 字的推文（含 Thread），和邮件里显示摘要的条件一致
+  const shown = displayTextLength(tweet, tweet.lang?.startsWith("zh") ? null : result.zh);
   const rs = result.readerSummary;
   if (rs && typeof rs === "object") result.readerSummary = { lead: rs.lead.trim(), points: rs.points.map((p) => p.trim()).filter(Boolean).slice(0, 3) };
   const lead = typeof result.readerSummary === "string" ? result.readerSummary : result.readerSummary?.lead;
-  if (!lead?.trim() || (tweet.thread.length === 0 && xWeightedLength(fullText) < 360)) result.readerSummary = null;
+  if (!lead?.trim() || shown <= READER_SUMMARY_MIN_CHARS) result.readerSummary = null;
   result.mediaNote = null;
   if (tweet.lang?.startsWith("zh")) result.zh = null;
   // 没有引用、或引用很短且完整时不需要摘要，直接显示原文
@@ -522,9 +532,9 @@ export function createRuleOnlyReviewer(ruleScores: Map<string, number>): Reviewe
 export const ArticleSummary = z.object({
   /** 中文标题（原标题已是中文时照抄） */
   titleZh: z.string(),
-  /** 2–3 句中文概要：文章讲了什么、结论是什么 */
+  /** 1–2 句中文概要：文章比推文多给了什么、结论是什么 */
   summary: z.string(),
-  /** 3–5 条要点：具体做法、数据、结论，每条一句 */
+  /** 2–4 条要点：具体做法、数据、工具和限制，每条一句（正文缺失时为空） */
   points: z.array(z.string()).max(6),
 });
 export type ArticleSummary = z.infer<typeof ArticleSummary>;
@@ -535,12 +545,20 @@ export interface Summarizer {
 
 const SUMMARY_TOOL = "submit_article_summary";
 
-const SUMMARY_SYSTEM = `你是一份中文科技日报的编辑。读者没有时间打开原文，需要你把推文里分享的外部文章总结成中文图文摘要。
+const SUMMARY_SYSTEM = `你是一份中文科技日报的编辑。推文里分享了一篇外部文章（或项目主页、产品页），读者已经能看到推文本身，
+你要用很短的中文摘要告诉他们：这篇文章比推文多给了什么、值不值得点开。读者是做产品和研发、关心 AI 的人。
 要求：
-1. titleZh：把标题翻译成简洁的中文；原标题已是中文时照抄。
-2. summary：2–3 句话，说清这篇文章讲了什么、核心结论或做法是什么。不要写"本文介绍了"这类空话。
-3. points：3–5 条要点，每条一句话，优先写具体做法、步骤、数据、工具名和结论；不要重复 summary。
-4. 只根据给你的标题、简介和正文写，不要编造正文里没有的信息。正文缺失时只根据标题和简介写，points 可以少于 3 条。
+1. titleZh：把标题翻译成简洁的中文，30 字以内；原标题已是中文时照抄。
+   去掉网站名和仓库前缀（如"GitHub - 作者/仓库："、"| 站点名"），项目页写成"项目名：一句话说明"。
+2. summary：1–2 句、80 字以内，说清它是什么、核心结论或最重要的做法。
+   推文（sharedWith）强调了某个具体新功能、数据或观点时，第一句就说清这一点是什么、怎么用（正文里有的话），再补一句整体背景。
+   不要重复推文里已经写过的内容；不要写"本文介绍了""作者分享了"这类空话。
+3. points：2–4 条要点，每条一句、40 字以内，写读者用得上的东西：具体做法或步骤、关键数据、工具和命令名、限制条件。
+   一律不写：版本号和更新记录、配件和周边价格、导航、版权、下载按钮、捐赠提示，也不要描述页面本身（"页面只有……""没有教程"）。
+   读者不是这个领域的工程师：部署参数、配置项这类细节最多写一条，并说明它意味着什么（比如省了多少卡、快了多少）；
+   每条要点最多一个专门术语，原文的缩写能不写就不写。
+4. 只根据给你的标题、简介和正文写，不要编造正文里没有的信息（包括"无需注册""免费"这类判断），数字必须和正文一致。
+   正文很短或缺失（只有标题和简介）时，summary 只写一句，points 为空数组。
 5. 保留专有名词、产品名、代码和数字。`;
 
 /** 为进入邮件的外部文章生成中文标题、概要和要点 */
@@ -566,7 +584,7 @@ export function createLlmSummarizer(opts: LlmOptions = {}): Summarizer {
       });
       const parsed = ArticleSummary.safeParse(output);
       if (!parsed.success) throw new Error(`摘要格式不符：${z.prettifyError(parsed.error)}`);
-      return { ...parsed.data, points: parsed.data.points.filter((p) => p.trim()).slice(0, 5) };
+      return { ...parsed.data, points: parsed.data.points.filter((p) => p.trim()).slice(0, 4) };
     },
   };
 }

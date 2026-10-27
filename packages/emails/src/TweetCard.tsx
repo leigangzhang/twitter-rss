@@ -6,7 +6,7 @@
 // - 头像放在作者行里，正文占满整栏宽度（不在左侧留头像栏），手机上也不显窄
 // - 不给条目、引用套边框：引用用左侧竖线，AI 说明用浅灰底，层级靠字号和颜色区分
 // 为了控制邮件体积（Gmail 超过约 102KB 会折叠末尾），样式只写必要的属性，字体从外层继承。
-import type { ArticleView, CardView } from "@xrss/core";
+import { type ArticleView, type CardView, READER_SUMMARY_MIN_CHARS } from "@xrss/core";
 import type { CSSProperties, ReactNode } from "react";
 import { CONTENT_WIDTH, color, font } from "./theme.ts";
 
@@ -111,8 +111,6 @@ function Avatar({ card }: { card: CardView }) {
   );
 }
 
-/** 超过这个字数的推文：作者行下先给 AI 摘要，原文默认折叠 */
-export const SUMMARY_MIN_CHARS = 300;
 
 /** 优先用阅读摘要（结论 + 要点）；旧数据没有时退回一句话摘要 */
 function summaryOf(
@@ -123,7 +121,8 @@ function summaryOf(
     (card.summary ? { lead: card.summary, points: [] } : undefined);
   if (!s) return undefined;
   const length = card.parts.reduce((n, p) => n + p.length, 0);
-  return length > SUMMARY_MIN_CHARS ? s : undefined;
+  // 超过这个字数的推文：作者行下先给 AI 摘要，原文默认折叠（阈值和评审时生成摘要的一致）
+  return length > READER_SUMMARY_MIN_CHARS ? s : undefined;
 }
 
 /** 作者行：小头像 + 名字，第二行是 @账号、时间和内容类型 */

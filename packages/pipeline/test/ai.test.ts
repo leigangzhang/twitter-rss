@@ -198,15 +198,21 @@ describe("精选规则", () => {
     mediaNote: null,
   };
 
-  it("阅读摘要只留给长推文和 Thread，短推文清空", () => {
+  it("阅读摘要只留给中文版显示超过 300 字的推文（含 Thread），短的清空", () => {
     const withSummary = { ...base, readerSummary: { lead: " 显存用没用上，速度差三倍 ", points: ["a", " ", "b", "c", "d"] } };
     const short = normalizeReview(withSummary, tweet, [{ id: "ai" }]);
     expect(short.readerSummary).toBeNull();
     const long = normalizeReview(withSummary, { ...tweet, text: "word ".repeat(120) }, [{ id: "ai" }]);
     // 去掉空要点，最多 3 条
     expect(long.readerSummary).toEqual({ lead: "显存用没用上，速度差三倍", points: ["a", "b", "c"] });
-    const thread = normalizeReview(withSummary, { ...tweet, thread: [{ id: "2", text: "more" }] } as typeof tweet, [{ id: "ai" }]);
-    expect(thread.readerSummary).toMatchObject({ lead: "显存用没用上，速度差三倍" });
+    // 短 Thread 不再单独给摘要；长 Thread 按总字数
+    const shortThread = normalizeReview(withSummary, { ...tweet, thread: [{ id: "2", text: "more" }] } as typeof tweet, [{ id: "ai" }]);
+    expect(shortThread.readerSummary).toBeNull();
+    const longThread = normalizeReview(withSummary, { ...tweet, thread: [{ id: "2", text: "more ".repeat(70) }] } as typeof tweet, [{ id: "ai" }]);
+    expect(longThread.readerSummary).toMatchObject({ lead: "显存用没用上，速度差三倍" });
+    // 外文原文长、但翻译成中文后不到 300 字：邮件里不显示摘要，也就不保留
+    const translatedShort = normalizeReview({ ...withSummary, zh: { text: "中".repeat(200), thread: [] } }, { ...tweet, text: "word ".repeat(120) }, [{ id: "ai" }]);
+    expect(translatedShort.readerSummary).toBeNull();
     expect(reviewSystemPrompt("")).toContain("40 字以内");
   });
 

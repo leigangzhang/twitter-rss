@@ -160,6 +160,17 @@ export interface ViewOptions {
   now?: Date;
 }
 
+/**
+ * 正文（含 Thread）在中文版里显示多少字时给 AI 摘要：评审提示词、评审结果的整理和邮件模板都用这一个数，
+ * 免得生成了不显示、或者该有的没有。
+ */
+export const READER_SUMMARY_MIN_CHARS = 300;
+
+/** 中文版里显示的正文（含 Thread）字数：有翻译用翻译，没有用原文 */
+export function displayTextLength(raw: Pick<RawTweet, "text" | "thread">, zh: { text: string; thread: string[] } | null | undefined): number {
+  return [zh?.text ?? raw.text, ...raw.thread.map((p, i) => zh?.thread[i] ?? p.text)].map(cleanTweetText).reduce((n, s) => n + s.length, 0);
+}
+
 export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
   const raw = t.raw;
   const zh = opts.lang === "zh" ? t.ai?.zh ?? null : null;

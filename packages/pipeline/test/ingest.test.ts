@@ -5,7 +5,7 @@ import { collectRange, loadConfig } from "@xrss/core";
 import { accounts, createDb, migrateDb, tweets } from "@xrss/core/db";
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { ingest } from "../src/ingest.ts";
+import { expandShortLink, ingest } from "../src/ingest.ts";
 
 const repoConfig = loadConfig(join(import.meta.dirname, "..", "..", "..", "config"));
 const config = { ...repoConfig, accounts: ["sama", "cellinlab"], accountTopics: new Map([["sama", ["labs"]], ["cellinlab", ["cn-insight"]]]) };
@@ -53,5 +53,22 @@ describe("入库：轮转账号补收前几天的内容", () => {
     expect(sama!.lastTweetAt).toEqual(new Date("2026-10-18T20:00:00Z"));
     expect(sama!.avatarUrl).toBe("https://pbs.twimg.com/profile_images/1/a_bigger.jpg");
     delete process.env.INBOX_DIR;
+  });
+});
+
+describe("没展开的 t.co 链接", () => {
+  const link = { kind: "web" as const, url: "https://t.co/NQElpJsHIm", expandedUrl: "https://t.co/NQElpJsHIm", title: "https:// ip.skk.moe" };
+
+  it("用链接文字还原真实地址", () => {
+    expect(expandShortLink(link, "看这个 https://ip.skk.moe")).toMatchObject({ expandedUrl: "https://ip.skk.moe/", domain: "ip.skk.moe", title: undefined });
+  });
+
+  it("链接文字被截断时到正文里找完整地址；找不到或不是网址时保持原样", () => {
+    const cut = { ...link, title: "https:// reactdrops.dev/compo…" };
+    expect(expandShortLink(cut, "组件库 https://reactdrops.dev/components 很好").expandedUrl).toBe("https://reactdrops.dev/components");
+    expect(expandShortLink(cut, "没有地址")).toEqual(cut);
+    expect(expandShortLink({ ...link, title: "点这里" }, "")).toEqual({ ...link, title: "点这里" });
+    const normal = { ...link, expandedUrl: "https://example.com/a" };
+    expect(expandShortLink(normal, "")).toEqual(normal);
   });
 });
