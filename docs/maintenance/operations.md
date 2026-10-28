@@ -5,7 +5,7 @@
 ## 每天看什么
 
 1. 邮件是否收到；没收到时看 `ADMIN_EMAIL` 有没有收到提醒。
-2. 后台"今日反馈"（`/admin/feedback/today`）给当天的内容点赞 / 踩，见 [订阅页与管理后台](../features/web-admin.md#反馈赞--踩)。
+2. 后台"今日反馈"（`/admin/feedback/today`）给当天的内容点赞 / 踩，见 [订阅页与管理后台](../features/web-admin.md#内容反馈赞--踩adminfeedback)。
 3. 需要时看精选报告 `data/out/<日期>/curation.md`：分数分布、每条的判断理由、账号分档。
 
 ## 日志和状态
@@ -16,6 +16,7 @@
 | `data/logs/<日期>.log` | 解析、入库、精选和发送 |
 | `data/logs/agent-<日期>-<agent>.log` | Agent 版的输出 |
 | `data/logs/web.log` | 常驻网站的日志 |
+| `data/logs/follow-sync.log` / `data/follow-sync.json` | 同步 X 关注的输出 / 进度和最近一次结果（后台同步弹窗显示的就是这些） |
 | `data/inbox/<日期>/calls.jsonl` | 每一步用到的 X 接口、状态码和额度，排查限流先看这里 |
 | `data/out/<日期>/curation.md` | 精选报告 |
 | `pnpm crawl progress` | 今天的采集进度（账号数、详情页数） |
@@ -23,6 +24,7 @@
 | `pnpm accounts` | 账号分档（优质 / 普通 / 低质）和移出建议 |
 | `pnpm follows:sync --dry-run` | 看 X 关注列表里有哪些账号还没加进名单 |
 | `pnpm resend` / `pnpm subscribers` | 推送历史 / 订阅者 |
+| 后台 `/admin/rss` | RSS 估算订阅人数、各地址的抓取次数和阅读器分布 |
 
 ## 常见问题
 
@@ -41,6 +43,7 @@
 | AI 评审报 401 / 缺少密钥 | 检查 `.env` 的 `LLM_API_KEY`；系统环境变量里残留的旧 `DEEPSEEK_API_KEY` 不会覆盖它（launchd 的环境可以用 `launchctl unsetenv DEEPSEEK_API_KEY` 清掉）。评审失败的推文下次运行时自动重评 |
 | 有订阅者发送失败 | 后台推送详情点"重试失败的"，或 `pnpm resend --date <日期> --failed` |
 | 文章摘要失败 | 邮件里只显示标题和简介，不影响发送；还没生成概要的文章下次运行时重试 |
+| 同步关注失败 | 后台同步弹窗里看失败在哪一步和日志；连不上采集 Chrome 时运行 `pnpm crawl:chrome` 重新打开（必须是它打开的那个 Chrome，端口 9333），再点"先试运行" |
 | 网站打不开 | `curl -I http://127.0.0.1:3000/` 看本机是否正常，再看 `data/logs/web.log` 和 Cloudflare Tunnel，见 [上线部署](deployment.md) |
 
 排查时不要运行会打印其他进程环境变量的命令（如 `ps eww`、`pgrep -fl`），会把无关的密钥打到终端；需要时用 `pgrep -x` 或 `ps -o pid,comm`。
@@ -65,6 +68,6 @@
 ## 代码更新后
 
 - 流水线和采集：下次运行自动生效。
-- 网站：`pnpm build && launchctl kickstart -k gui/$(id -u)/com.xrss.web`。
-- 改了表结构：`pnpm db:migrate`。
+- 网站：`git pull && CI=true pnpm install && pnpm build && launchctl kickstart -k gui/$(id -u)/com.xrss.web`。后台改过 `config/` 时先提交或 `git stash`，见上一节。
+- 改了表结构：网站首次访问时自动迁移；命令行工具先运行 `pnpm db:migrate`。
 - 想换订阅页的邮件示例：`pnpm preview:snapshot`。

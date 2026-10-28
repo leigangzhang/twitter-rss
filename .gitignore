@@ -18,3 +18,5 @@ data/logs/
 *.tsbuildinfo
 next-env.d.ts
 data/crawl-state.json
+data/follow-sync.json
+data/browser.lock
