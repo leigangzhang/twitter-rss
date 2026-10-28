@@ -30,4 +30,4 @@ pnpm monorepo：`packages/core`（数据格式、配置、数据库）、`packag
 | `pnpm email:preview` | 用示例数据渲染邮件 |
 
 修改采集数据格式后运行 `pnpm schema`；修改表结构后运行 `pnpm --filter @xrss/core db:generate`。
-详细说明按主题放在 [docs/](docs/README.md)（功能、调度、性能、维护）；改了功能时同步更新对应的那一篇。
+详细说明按主题放在 [docs/](docs/README.md)（功能、调度、维护）；改了功能时同步更新对应的那一篇。

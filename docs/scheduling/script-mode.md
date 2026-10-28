@@ -2,7 +2,7 @@
 
 每天的流程不变：生成采集清单 → 逐个采集 → AI 精选并发邮件。区别只在"操作浏览器"这一步：
 由 `pnpm crawl:auto` 连接一个采集专用的 Chrome 完成，不再需要 DeepSeek Harness 等 Agent。
-采哪些账号、等多久、遇到什么情况停止，和 Agent 版用的是同一份清单、同一套规则（见 `config/crawl.yaml` 和 [节流、额度与容量](../performance/limits.md)）。
+采哪些账号、等多久、遇到什么情况停止，和 Agent 版用的是同一份清单、同一套规则（见 `config/crawl.yaml` 和 [采集](../features/collection.md#采集预算)）。
 采集本身的细节见 [采集](../features/collection.md)。
 
 和 Agent 版相比：
@@ -24,7 +24,7 @@ pnpm crawl:chrome
 
 这个 Chrome 启动时只带了独立资料和一个只监听本机的调试端口，没有任何自动化参数，页面看到的就是一个普通的 Chrome。
 新号建议先手动用几天（补全资料、关注几个账号、正常刷一刷），再开始每天自动采集；新号额度不稳定时，可以先用老账号跑一段时间再切回来。
-手动操作（浏览、关注）和采集至少隔开 60 分钟，见 [节流、额度与容量](../performance/limits.md#x-接口额度)。
+手动操作（浏览、关注）和采集至少隔开 60 分钟，见 [采集](../features/collection.md#x-接口额度)。
 
 ## 2. 试采
 
@@ -86,6 +86,6 @@ sudo pmset repeat wakeorpoweron MTWRFSU 07:55:00     # 每天 07:55 唤醒 Mac�
 ## 5. 限流与额度
 
 只有采集用到的接口返回 429 才算限流；按 X 响应头里的额度控制节奏；每一步的接口和额度记在 `data/inbox/<日期>/calls.jsonl`。
-详细规则见 [节流、额度与容量](../performance/limits.md)，出问题时怎么处理见 [日常运维](../maintenance/operations.md#常见问题)。
+详细规则见 [采集](../features/collection.md#x-接口额度)，出问题时怎么处理见 [日常运维](../maintenance/operations.md#常见问题)。
 
 网站常驻运行和对外访问（Cloudflare Tunnel）见 [上线部署](../maintenance/deployment.md)。

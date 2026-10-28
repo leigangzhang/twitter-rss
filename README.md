@@ -131,7 +131,6 @@ scripts/daily-auto.sh         # 网络自检 → 采集清单 → 采集 → 精
 
 按主题分类的完整说明在 [docs/](docs/README.md)：
 
-- **功能**：[采集](docs/features/collection.md) · [AI 精选](docs/features/curation.md) · [邮件与 RSS](docs/features/email.md) · [订阅页与管理后台](docs/features/web-admin.md)
+- **功能**：[采集（含节流、额度与熔断）](docs/features/collection.md) · [AI 精选](docs/features/curation.md) · [邮件与 RSS](docs/features/email.md) · [订阅页与管理后台](docs/features/web-admin.md)
 - **调度**：[脚本版每日任务](docs/scheduling/script-mode.md) · [Agent 版每日任务](docs/scheduling/agent-mode.md)
-- **性能**：[节流、额度与容量](docs/performance/limits.md)
 - **维护**：[配置参考](docs/maintenance/configuration.md) · [日常运维](docs/maintenance/operations.md) · [上线部署](docs/maintenance/deployment.md) · [开发](docs/maintenance/development.md)
