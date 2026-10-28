@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   macOS 常驻运行网站（scripts/web.sh：next start，只监听 127.0.0.1:3000），开机后自动启动，退出后自动拉起。
-  对外访问由 Cloudflare Tunnel 转发到 http://127.0.0.1:3000，见 agents/script-mode.md 的"网站上线"。
+  对外访问由 Cloudflare Tunnel 转发到 http://127.0.0.1:3000，见 docs/maintenance/deployment.md。
   使用前把所有 /Users/you/Workspace/twitter-rss 换成你的项目路径，然后：
     cp agents/com.xrss.web.plist ~/Library/LaunchAgents/
     launchctl load ~/Library/LaunchAgents/com.xrss.web.plist

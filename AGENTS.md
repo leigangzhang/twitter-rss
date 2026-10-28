@@ -6,7 +6,7 @@ pnpm monorepo：`packages/core`（数据格式、配置、数据库）、`packag
 
 ## 每日任务
 
-每天的定时任务是脚本版：launchd 每天 08:00 运行 `scripts/daily-auto.sh`（`pnpm crawl:auto` 采集，不需要 Agent），见 [agents/script-mode.md](agents/script-mode.md)。
+每天的定时任务是脚本版：launchd 每天 08:00 运行 `scripts/daily-auto.sh`（`pnpm crawl:auto` 采集，不需要 Agent），见 [docs/scheduling/script-mode.md](docs/scheduling/script-mode.md)。
 被要求由 Agent "运行每日任务""采集并发送今天的精选"时（备用方式），严格按 [agents/daily-task.md](agents/daily-task.md) 执行，
 采集循环的细节见 [packages/collector/AGENT_PROMPT.md](packages/collector/AGENT_PROMPT.md)。
 
@@ -30,4 +30,4 @@ pnpm monorepo：`packages/core`（数据格式、配置、数据库）、`packag
 | `pnpm email:preview` | 用示例数据渲染邮件 |
 
 修改采集数据格式后运行 `pnpm schema`；修改表结构后运行 `pnpm --filter @xrss/core db:generate`。
-详细说明见 [docs/guide.md](docs/guide.md)。
+详细说明按主题放在 [docs/](docs/README.md)（功能、调度、性能、维护）；改了功能时同步更新对应的那一篇。

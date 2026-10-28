@@ -34,7 +34,7 @@ run() {
       codex exec --sandbox danger-full-access "$PROMPT"
       ;;
     *)
-      echo "用法：scripts/agent-run.sh claude|codex（其他 Agent 见 agents/README.md）" >&2
+      echo "用法：scripts/agent-run.sh claude|codex（其他 Agent 见 docs/scheduling/agent-mode.md）" >&2
       return 64
       ;;
   esac

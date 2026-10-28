@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 采集完成后的处理：解析原始响应 → 入库 → AI 精选（初审 + 终审）→ 发送邮件，并写日志。
-# 由 Agent 的每日任务在采集结束后调用（见 agents/daily-task.md），也可以手动运行。
+# 由每日任务在采集结束后调用（脚本版 scripts/daily-auto.sh，Agent 版见 agents/daily-task.md），也可以手动运行。
 #   scripts/daily.sh            正式运行
 #   scripts/daily.sh --dry-run  试跑，不发邮件
 #   XRSS_ALLOW_PARTIAL=1 scripts/daily.sh   采集清单没采完也照常处理（采集因额度用完暂停时由 daily-auto.sh 使用）

@@ -13,8 +13,8 @@
 每天早上一封按主题分区的邮件，默认最多 60 条，按评分排序；一封放不下时分成几封发送（标题注明 1/2、2/2）：
 
 - **完整的推文**：长文全文、作者的连续推文（Thread）合并、引用推文、图片，不用跳转 X 也能读完
-- **中文翻译**：可选中文或原文阅读
-- **AI 摘要和要点**：较长的引用推文、外部文章（如官方技术博客）附中文概要和 3–5 条要点
+- **中文翻译**：可选中文或原文阅读；选原文时 AI 摘要也用推文原来的语言
+- **AI 摘要和要点**：超过 300 字的长推文和 Thread 先给一句结论和要点、原文折叠；较长的引用推文、外部文章（如官方技术博客）附概要和 2–4 条要点
 - **评分和类型**：最佳实践、真实问题、新发布、应用案例、行业趋势、专家思考
 - **主题标签页**：苹果邮件、163 等可以点标签切换主题；不支持的邮箱自动按主题依次排列
 - **订阅页和 RSS**：订阅者自己选主题和语言，每个主题都有 RSS 地址（`/feed/<主题>.zh.xml`）
@@ -46,28 +46,10 @@ scripts/daily-auto.sh         # 网络自检 → 采集清单 → 采集 → 精
 
 默认用脚本版：`scripts/daily-auto.sh` 由 launchd 每天 08:00 启动（[`agents/com.xrss.auto.plist`](agents/com.xrss.auto.plist)），
 依次做网络自检（WireGuard）、`pnpm plan` 生成采集清单、`pnpm crawl:auto` 采集、`scripts/daily.sh` 精选并发信，出问题时给 `ADMIN_EMAIL` 发提醒。
-安装和各种情况的处理见 [agents/script-mode.md](agents/script-mode.md)。
+安装和各种情况的处理见 [脚本版每日任务](docs/scheduling/script-mode.md)。
 
-### 备用：让 Agent 采集
-
-也可以把"操作浏览器"交给能运行命令、能操作浏览器的 Agent。每日任务写在 [`agents/daily-task.md`](agents/daily-task.md)，各种 Agent 用的都是同一份：
-生成采集清单 → 逐步采集（脚本决定账号、顺序和等待时间，Agent 只照做）→ 解析入库 → AI 精选 → 发信。
-两种方式共用同一份清单和进度，同一天不要同时运行。第一次运行前要装好 Tencent Browser Skill（`bsk`），见 [agents/README.md](agents/README.md)。
-
-| Agent | 怎么接入 |
-|---|---|
-| **Claude Code** | `scripts/agent-run.sh claude`（`claude -p` 无人值守运行），项目根目录的 `CLAUDE.md` 会自动加载项目规则 |
-| **Codex** | `scripts/agent-run.sh codex`（`codex exec`），自动读取 `AGENTS.md` |
-| **DeepSeek Harness** | 新建每天 06:30 的定时任务，把 `agents/daily-task.md` 里的提示词整段粘贴进去 |
-| **其他 Agent** | 能运行 shell 命令就行：在项目目录执行那段提示词 |
-
-定时：macOS 用 [`agents/com.xrss.daily.plist`](agents/com.xrss.daily.plist)（launchd，睡眠唤醒后会补跑），Linux 用 cron：
-
-```
-30 6 * * * cd /path/to/twitter-rss && scripts/agent-run.sh claude
-```
-
-Agent 版一次完整采集通常要 30–60 分钟，这是有意放慢的节奏。日志在 `data/logs/`，安装细节和常见问题见 [agents/README.md](agents/README.md)。
+备用方式是把"操作浏览器"交给能运行命令、能操作浏览器的 Agent（Claude Code、Codex、DeepSeek Harness 等），提示词在 [`agents/daily-task.md`](agents/daily-task.md)，
+接入方式见 [Agent 版每日任务](docs/scheduling/agent-mode.md)。两种方式共用同一份清单和进度，同一天不要同时运行。
 
 ## 修改设置
 
@@ -75,23 +57,14 @@ Agent 版一次完整采集通常要 30–60 分钟，这是有意放慢的节�
 
 | 文件 | 管什么 |
 |---|---|
-| `config/topics.yaml` | 主题和博主（只采集这里列出的账号），主题名、颜色、说明 |
-| `config/digest.yaml` | 每封邮件的条数、每个主题每天送评审的条数、最低分、视频降权、邮件大小上限和分卷、标签页、合并发送 |
+| `config/topics.yaml` | 主题和博主（只采集这里列出的账号） |
+| `config/digest.yaml` | 每期条数、送评审的条数、最低分、视频和个别账号降权、语言、邮件大小和分卷、合并发送 |
 | `config/crawl.yaml` | 采集节流：每天账号数（默认 50）、节奏、活跃时段、异常后的冷却期 |
-| `config/curation.md` | 精选标准，原样放进给大模型的提示词 |
-| `.env` | 大模型接口、SMTP、数据库地址、网站地址、管理后台密码、管理员提醒邮箱（`ADMIN_EMAIL`）、WireGuard 隧道名（`WG_TUNNEL`） |
+| `config/curation.md` | 精选标准，原样放进给大模型的提示词；想多看什么、少看什么直接改它 |
+| `.env` | 大模型接口、SMTP、网站地址、管理后台密码、管理员提醒邮箱、WireGuard 隧道名 |
 
-大模型默认用 DeepSeek（`deepseek-flash`）。同时支持 Anthropic 和 OpenAI 两种接口格式：在 `.env` 里设置 `LLM_API`（`anthropic` / `openai`）、`LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY`，就能换成 Claude、GPT、Kimi、通义千问、智谱 GLM 或本地 Ollama 等，每次运行的日志会写出实际使用的模型和端点。
-`.env` 里的 `LLM_API_KEY` 优先于系统环境变量，系统里残留的旧密钥（包括 `ANTHROPIC_AUTH_TOKEN`）不会覆盖它。
-
-## 调整精选口味
-
-精选标准就是 [`config/curation.md`](config/curation.md) 这份中文说明，直接改它：想多看什么、少看什么、读者是谁。
-
-默认的读者定位是有一定技术背景的产品、研发和 AI 爱好者：说教、显而易见、纯搬运、推广的内容剔除，有具体信息、对他们有启发的保留。
-评分是 5 分制（5 必读、4 值得读、3 有收获），默认 3 分以上通过。
-
-改完后运行 `pnpm pipeline:dry --rereview`，让已评审的推文按新标准重评，对照 `data/out/<日期>/curation.md` 里每条的分数和理由。
+大模型默认用 DeepSeek（`deepseek-flash`），支持 Anthropic 和 OpenAI 两种接口格式，可以换成 Claude、GPT、Kimi、通义千问、智谱 GLM 或本地 Ollama 等。
+全部配置项见 [配置参考](docs/maintenance/configuration.md)；改了精选标准后怎么验证见 [AI 精选](docs/features/curation.md#精选报告和重新评审)。
 
 ## 默认博主
 
@@ -125,22 +98,14 @@ Agent 版一次完整采集通常要 30–60 分钟，这是有意放慢的节�
 <p align="center"><img src="docs/funnel.svg" alt="过滤漏斗：采集 → 时间范围 → 规则粗筛 → 挑候选 → AI 初审 → 编辑终审 → 发送" width="720"></p>
 
 1. **生成清单**：`pnpm plan` 按账号质量（近 14 天的通过率）和上次采集时间挑出今天要采的账号
-2. **逐步采集**：`pnpm crawl:auto`（或 Agent 循环运行 `pnpm crawl next` / `pnpm crawl done`）按清单逐个打开主页、保存 X 的网络响应；脚本检查结果、控制间隔，按 X 返回的接口额度控制节奏，中断后从断点继续
+2. **逐步采集**：`pnpm crawl:auto`（或 Agent 循环运行 `pnpm crawl next` / `pnpm crawl done`）按清单逐个打开主页、保存 X 的网络响应，按 X 返回的接口额度控制节奏，中断后从断点继续
 3. **入库**：解析、去重、合并 Thread 和长文全文
 4. **规则粗筛**：去掉回复、纯转发、过短内容；按互动相对作者自己中位数打规则分
-5. **AI 初审**：每个主题每天最多送 `candidates_per_topic` 条，逐条判断类型和质量分，同时翻译、写摘要（图片和视频不做识别）；评审失败的下次运行时重试
+5. **AI 初审**：每个主题每天最多送 30 条，逐条判断类型和质量分（5 分制，3 分以上通过），同时翻译、写摘要
 6. **编辑终审**：整批去掉重复事件、相同观点和最近几天发过的内容
 7. **发信**：按每位订阅者的主题和语言挑选，相同组合合并成一封（密送）发送，并更新 RSS
 
-## 管理
-
-在 `.env` 设置 `ADMIN_PASSWORD` 后可以打开管理页（没设置时不开放）：
-
-- `/admin/subscribers`：订阅者、邮箱、状态、主题、订阅时间、累计收到封数，可导出 CSV
-- `/admin/deliveries`：每一期的推送结果，查看发出的邮件，重试失败的、补发给未收到的、给某人重新发送
-- `/admin/feedback`：赞 / 踩和原因。入口是右上角的"今日反馈"，在后台的邮件预览里点（发给读者的邮件里没有反馈链接），`pnpm feedback --summary` 汇总给评审规则用
-
-命令行：`pnpm subscribers`、`pnpm resend`、`pnpm feedback`、`pnpm crawl progress`、`pnpm crawl:status`、`pnpm email:test --to 邮箱`、`pnpm notify "标题" "正文"`（给管理员发提醒）。
+管理后台（`/admin`，设置 `ADMIN_PASSWORD` 后开放）可以查看订阅者、推送历史和重新推送，并在邮件预览里给每条内容点赞 / 踩，用来调整精选标准。
 
 ## 环境要求
 
@@ -149,7 +114,7 @@ Agent 版一次完整采集通常要 30–60 分钟，这是有意放慢的节�
 - 备用的 Agent 版另需一个能运行命令的 AI Agent（Claude Code、Codex、DeepSeek Harness 等）和 [Tencent Browser Skill](https://github.com/Tencent/BrowserSkill)
 - 大模型 API Key：默认 DeepSeek，可换成任何兼容 Anthropic 或 OpenAI 接口、支持工具调用的服务
 - 发信邮箱：默认 QQ 邮箱 SMTP（需要授权码）
-- 上线时：Turso 数据库 + 可部署 Next.js 的平台（如 Vercel）
+- 上线时：本机常驻运行网站 + Cloudflare Tunnel，或 Turso 数据库 + 可部署 Next.js 的平台（如 Vercel），见 [上线部署](docs/maintenance/deployment.md)
 
 ## 隐私与安全
 
@@ -159,6 +124,11 @@ Agent 版一次完整采集通常要 30–60 分钟，这是有意放慢的节�
 - **数据留在你这里**：推文和订阅者存在你自己的数据库；送给大模型的只有公开推文内容，订阅者邮箱不会发给大模型
 - 请遵守 X 的服务条款，只用于个人或小范围阅读
 
-## 更多
+## 文档
 
-完整说明（目录结构、采集节流、选稿算法、邮件版式、合并发送、部署上线、常用命令）见 [docs/guide.md](docs/guide.md)。
+按主题分类的完整说明在 [docs/](docs/README.md)：
+
+- **功能**：[采集](docs/features/collection.md) · [AI 精选](docs/features/curation.md) · [邮件与 RSS](docs/features/email.md) · [订阅页与管理后台](docs/features/web-admin.md)
+- **调度**：[脚本版每日任务](docs/scheduling/script-mode.md) · [Agent 版每日任务](docs/scheduling/agent-mode.md)
+- **性能**：[节流、额度与容量](docs/performance/limits.md)
+- **维护**：[配置参考](docs/maintenance/configuration.md) · [日常运维](docs/maintenance/operations.md) · [上线部署](docs/maintenance/deployment.md) · [开发](docs/maintenance/development.md)

@@ -2,14 +2,15 @@
 
 每天的流程不变：生成采集清单 → 逐个采集 → AI 精选并发邮件。区别只在"操作浏览器"这一步：
 由 `pnpm crawl:auto` 连接一个采集专用的 Chrome 完成，不再需要 DeepSeek Harness 等 Agent。
-采哪些账号、等多久、遇到什么情况停止，和 Agent 版用的是同一份清单、同一套规则（见 `config/crawl.yaml`）。
+采哪些账号、等多久、遇到什么情况停止，和 Agent 版用的是同一份清单、同一套规则（见 `config/crawl.yaml` 和 [节流、额度与容量](../performance/limits.md)）。
+采集本身的细节见 [采集](../features/collection.md)。
 
 和 Agent 版相比：
 - 每一步由代码执行，不会因为模型理解错指令而卡住或误报；
 - 完整保存 X 的网络响应（Browser Skill 有 256 KiB 上限），时间线响应里就带长推文全文，基本不用再开详情页；
 - 由 macOS 的 launchd 定时启动，不依赖任何 App 开着。
 
-Agent 版（[README.md](README.md)）保留作备用，两者共用同一份进度，同一天不要同时运行。
+Agent 版（[agent-mode.md](agent-mode.md)）保留作备用，两者共用同一份进度，同一天不要同时运行。
 
 ## 1. 准备采集专用的 Chrome（一次性）
 
@@ -23,7 +24,7 @@ pnpm crawl:chrome
 
 这个 Chrome 启动时只带了独立资料和一个只监听本机的调试端口，没有任何自动化参数，页面看到的就是一个普通的 Chrome。
 新号建议先手动用几天（补全资料、关注几个账号、正常刷一刷），再开始每天自动采集；新号额度不稳定时，可以先用老账号跑一段时间再切回来。
-手动操作（浏览、关注）和采集至少隔开 60 分钟，见第 5 节。
+手动操作（浏览、关注）和采集至少隔开 60 分钟，见 [节流、额度与容量](../performance/limits.md#x-接口额度)。
 
 ## 2. 试采
 
@@ -52,13 +53,16 @@ ADMIN_EMAIL=你的邮箱      # 连不上、采集停止、发送失败时收到
 scripts/daily-auto.sh        # 先手动跑一次完整流程
 ```
 
-确认正常后，编辑 [`com.xrss.auto.plist`](com.xrss.auto.plist) 里的项目路径，然后：
+确认正常后，编辑 [`agents/com.xrss.auto.plist`](../../agents/com.xrss.auto.plist) 里的项目路径，然后：
 
 ```bash
 cp agents/com.xrss.auto.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/com.xrss.auto.plist
 sudo pmset repeat wakeorpoweron MTWRFSU 07:55:00     # 每天 07:55 唤醒 Mac，08:00 准时运行
 ```
+
+采集清单里排好了开始前随机等待 0–20 分钟（`crawl.yaml` 的 `start_jitter_min`），所以实际在 08:00–08:20 开始访问 X；采集通常 30–60 分钟，之后精选和发信。
+采集专用的 Chrome 要一直开着并保持登录。
 
 同时停用 DeepSeek Harness 里的定时任务，避免两边同时采集。
 
@@ -77,42 +81,11 @@ sudo pmset repeat wakeorpoweron MTWRFSU 07:55:00     # 每天 07:55 唤醒 Mac�
 | 采集进程意外中断 | `daily.sh` 发现清单没采完时再接着采一次 |
 
 日志：`data/logs/auto-<日期>.log`（总流程）、`data/logs/<日期>.log`（精选和发送）。
-登录失效时：运行 `pnpm crawl:chrome`，在采集专用的 Chrome 里重新登录小号，然后 `pnpm crawl:reset`。
+登录失效时：运行 `pnpm crawl:chrome`，在采集专用的 Chrome 里重新登录采集用的 X 账号，然后 `pnpm crawl:reset`。
 
 ## 5. 限流与额度
 
-- 只有采集用到的接口（`UserByScreenName`、`UserTweets`、`UserOriginalsTimeline`、`TweetDetail`）返回 429 才算限流；主页上推荐关注、侧边栏等其他请求的 429 只记录，不停止。
-- 每一步打开了哪些接口、状态码、剩余额度和重置时间，记在 `data/inbox/<日期>/calls.jsonl`；出现限流时先看这里是哪个接口、额度是多少。最近一次看到的额度存在同目录的 `ratelimit.json`，同一天重新运行时接着用。
-- 小号的额度是所有操作共用的：手动浏览、关注等操作和采集至少隔开 60 分钟。
+只有采集用到的接口返回 429 才算限流；按 X 响应头里的额度控制节奏；每一步的接口和额度记在 `data/inbox/<日期>/calls.jsonl`。
+详细规则见 [节流、额度与容量](../performance/limits.md)，出问题时怎么处理见 [日常运维](../maintenance/operations.md#常见问题)。
 
-## 6. 网站上线（Cloudflare Tunnel）
-
-邮件里的管理订阅、切换语言、退订链接都指向 `.env` 的 `SITE_URL`。没设置时是 `http://localhost:3000`，只有本机打得开。
-不想部署到 Vercel 时，可以让这台 Mac 常驻运行网站，用 Cloudflare Tunnel 对外提供访问（Mac 关机或断网时网站打不开）。
-
-1. 常驻运行网站：编辑 [`com.xrss.web.plist`](com.xrss.web.plist) 里的项目路径，然后
-
-   ```bash
-   pnpm build
-   cp agents/com.xrss.web.plist ~/Library/LaunchAgents/
-   launchctl load ~/Library/LaunchAgents/com.xrss.web.plist
-   curl -I http://127.0.0.1:3000/         # 返回 200 即可
-   ```
-
-   它运行 `scripts/web.sh`（`next start`，只监听 `127.0.0.1:3000`），开机自动启动、退出后自动拉起，日志在 `data/logs/web.log`。
-   先停掉手动启动的 `pnpm dev`，否则 3000 端口被占用。代码更新后：`pnpm build && launchctl kickstart -k gui/$(id -u)/com.xrss.web`。
-2. 在 Cloudflare 控制台 Zero Trust → Networks → Tunnels 里选一个在这台 Mac 上运行的隧道（或新建一个），
-   在 Public Hostname 里添加一个子域名，Service 选 `HTTP`、地址填 `127.0.0.1:3000`（不要写 `localhost`，网站只监听 IPv4）。
-3. 在 `.env` 里写上这个地址，重启网站：
-
-   ```
-   SITE_URL=https://你的子域名
-   ```
-
-   ```bash
-   launchctl kickstart -k gui/$(id -u)/com.xrss.web
-   ```
-
-4. 在手机上打开 `https://你的子域名/` 确认订阅页正常；之后发出的邮件里的链接就会指向这个地址。之前已经发出的邮件里的链接仍是旧地址。
-
-管理页（`/admin/...`）只在设置了 `ADMIN_PASSWORD` 时开放，上线后建议设置一个足够长的密码。
+网站常驻运行和对外访问（Cloudflare Tunnel）见 [上线部署](../maintenance/deployment.md)。
