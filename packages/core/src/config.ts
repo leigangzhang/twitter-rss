@@ -48,6 +48,7 @@ const DigestFile = z.object({
     include_replies: z.boolean().default(false),
     include_reposts: z.boolean().default(false),
     min_text_length: z.number().int().min(0).default(20),
+    min_text_length_with_media: z.number().int().min(0).default(10),
     min_quality: z.number().min(1).max(5).default(3),
   }),
   media_weight: z.object({
