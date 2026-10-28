@@ -68,28 +68,8 @@ scripts/daily-auto.sh         # 网络自检 → 采集清单 → 采集 → 精
 
 ## 默认博主
 
-来自司徒K《2026 年 X 上最值得关注的 100 个 AI 博主》，合并为 5 个主题。每天按账号质量和上次采集时间轮流采集其中 50 个，
-没轮到的账号下次补收错过的日子。
-
-### 实验室与官方发布（26）
-
-[@sama](https://x.com/sama), [@demishassabis](https://x.com/demishassabis), [@gdb](https://x.com/gdb), [@mustafasuleyman](https://x.com/mustafasuleyman), [@sundarpichai](https://x.com/sundarpichai), [@DarioAmodei](https://x.com/DarioAmodei), [@elonmusk](https://x.com/elonmusk), [@OpenAI](https://x.com/OpenAI), [@AnthropicAI](https://x.com/AnthropicAI), [@GoogleDeepMind](https://x.com/GoogleDeepMind), [@deepseek_ai](https://x.com/deepseek_ai), [@AIatMeta](https://x.com/AIatMeta), [@huggingface](https://x.com/huggingface), [@Kimi_Moonshot](https://x.com/Kimi_Moonshot), [@Alibaba_Qwen](https://x.com/Alibaba_Qwen), [@MistralAI](https://x.com/MistralAI), [@Zai_org](https://x.com/Zai_org), [@MiniMax_AI](https://x.com/MiniMax_AI), [@thsottiaux](https://x.com/thsottiaux), [@claudeai](https://x.com/claudeai), [@GeminiApp](https://x.com/GeminiApp), [@OpenAIDevs](https://x.com/OpenAIDevs), [@perplexity_ai](https://x.com/perplexity_ai), [@OfficialLoganK](https://x.com/OfficialLoganK), [@alexalbert__](https://x.com/alexalbert__), [@_catwu](https://x.com/_catwu)
-
-### 研究者与深度观点（15）
-
-[@karpathy](https://x.com/karpathy), [@ylecun](https://x.com/ylecun), [@AndrewYNg](https://x.com/AndrewYNg), [@drfeifei](https://x.com/drfeifei), [@fchollet](https://x.com/fchollet), [@DrJimFan](https://x.com/DrJimFan), [@JeffDean](https://x.com/JeffDean), [@rasbt](https://x.com/rasbt), [@hardmaru](https://x.com/hardmaru), [@lilianweng](https://x.com/lilianweng), [@OriolVinyalsML](https://x.com/OriolVinyalsML), [@_jasonwei](https://x.com/_jasonwei), [@Thom_Wolf](https://x.com/Thom_Wolf), [@natolambert](https://x.com/natolambert), [@jackclarkSF](https://x.com/jackclarkSF)
-
-### AI 编程、Agent 与开源（11）
-
-[@rauchg](https://x.com/rauchg), [@bcherny](https://x.com/bcherny), [@steipete](https://x.com/steipete), [@cursor_ai](https://x.com/cursor_ai), [@amasad](https://x.com/amasad), [@simonw](https://x.com/simonw), [@mckaywrigley](https://x.com/mckaywrigley), [@LangChain](https://x.com/LangChain), [@ClementDelangue](https://x.com/ClementDelangue), [@NousResearch](https://x.com/NousResearch), [@ollama](https://x.com/ollama)
-
-### 中文圈｜行业解读与产品出海（26）
-
-[@situking](https://x.com/situking), [@AYi_AInotes](https://x.com/AYi_AInotes), [@jinchenma_ai](https://x.com/jinchenma_ai), [@oran_ge](https://x.com/oran_ge), [@lifesinger](https://x.com/lifesinger), [@yiren_ai](https://x.com/yiren_ai), [@yangyi](https://x.com/yangyi), [@vista8](https://x.com/vista8), [@howie_serious](https://x.com/howie_serious), [@gkxspace](https://x.com/gkxspace), [@servasyy_ai](https://x.com/servasyy_ai), [@cellinlab](https://x.com/cellinlab), [@Astronaut_1216](https://x.com/Astronaut_1216), [@yhslgg](https://x.com/yhslgg), [@yucheng](https://x.com/yucheng), [@hezhiyan7](https://x.com/hezhiyan7), [@dotey](https://x.com/dotey), [@Francis_YAO_](https://x.com/Francis_YAO_), [@turingbook](https://x.com/turingbook), [@shao__meng](https://x.com/shao__meng), [@Svwang1](https://x.com/Svwang1), [@xiaohu](https://x.com/xiaohu), [@aigclink](https://x.com/aigclink), [@Gorden_Sun](https://x.com/Gorden_Sun), [@frxiaobei](https://x.com/frxiaobei), [@MinLiBuilds](https://x.com/MinLiBuilds)
-
-### 中文圈｜开发实践与内容创作（22）
-
-[@AlchainHust](https://x.com/AlchainHust), [@Jason_Young1231](https://x.com/Jason_Young1231), [@GitHub_Daily](https://x.com/GitHub_Daily), [@lxfater](https://x.com/lxfater), [@HiTw93](https://x.com/HiTw93), [@geekbb](https://x.com/geekbb), [@karminski3](https://x.com/karminski3), [@yetone](https://x.com/yetone), [@yihong0618](https://x.com/yihong0618), [@Barret_China](https://x.com/Barret_China), [@Pluvio9yte](https://x.com/Pluvio9yte), [@gengdaJ](https://x.com/gengdaJ), [@li9292](https://x.com/li9292), [@cnyzgkc](https://x.com/cnyzgkc), [@op7418](https://x.com/op7418), [@Saccc_c](https://x.com/Saccc_c), [@ZHO_ZHO_ZHO](https://x.com/ZHO_ZHO_ZHO), [@huangyun_122](https://x.com/huangyun_122), [@lijigang](https://x.com/lijigang), [@liyue_ai](https://x.com/liyue_ai), [@berryxia](https://x.com/berryxia), [@dingyi](https://x.com/dingyi)
+默认跟踪司徒K《2026 年 X 上最值得关注的 100 个 AI 博主》里的 100 个账号，合并为 5 个主题：实验室与官方发布、研究者与深度观点、AI 编程、Agent 与开源、中文圈｜行业解读与产品出海、中文圈｜开发实践与内容创作。
+完整名单和修改方法见 [默认博主](docs/features/accounts.md)，配置在 [`config/topics.yaml`](config/topics.yaml)。
 
 ## 工作原理
 
@@ -131,6 +111,6 @@ scripts/daily-auto.sh         # 网络自检 → 采集清单 → 采集 → 精
 
 按主题分类的完整说明在 [docs/](docs/README.md)：
 
-- **功能**：[采集（含节流、额度与熔断）](docs/features/collection.md) · [AI 精选](docs/features/curation.md) · [邮件与 RSS](docs/features/email.md) · [订阅页与管理后台](docs/features/web-admin.md)
+- **功能**：[默认博主](docs/features/accounts.md) · [采集（含节流、额度与熔断）](docs/features/collection.md) · [AI 精选](docs/features/curation.md) · [邮件与 RSS](docs/features/email.md) · [订阅页与管理后台](docs/features/web-admin.md)
 - **调度**：[脚本版每日任务](docs/scheduling/script-mode.md) · [Agent 版每日任务](docs/scheduling/agent-mode.md)
 - **维护**：[配置参考](docs/maintenance/configuration.md) · [日常运维](docs/maintenance/operations.md) · [上线部署](docs/maintenance/deployment.md) · [开发](docs/maintenance/development.md)
