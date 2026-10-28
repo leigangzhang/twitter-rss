@@ -6,9 +6,9 @@
 
 | 文档 | 内容 |
 |---|---|
-| [采集](features/collection.md) | 脚本采集和 Agent 采集、采集数据格式、长推文全文、单个账号出错的处理 |
-| [AI 精选](features/curation.md) | 规则粗筛、AI 初审、编辑终审、评分和选稿、阅读摘要、外部文章摘要、原文版摘要、精选报告 |
-| [邮件与 RSS](features/email.md) | 邮件版式、中文版和原文版、条数和分卷、合并发送、管理员提醒、RSS |
+| [采集](features/collection.md) | 脚本采集和 Agent 采集、采集数据格式、长推文全文、采集预算和节奏、账号分档轮转、X 接口额度、限流熔断和冷却 |
+| [AI 精选](features/curation.md) | 规则粗筛、AI 初审、编辑终审、人工反馈、评分和选稿、阅读摘要、外部文章摘要、原文版摘要、精选报告、AI 用量 |
+| [邮件与 RSS](features/email.md) | 邮件版式、中文版和原文版、条数和分卷、合并发送和发信节奏、管理员提醒、RSS |
 | [订阅页与管理后台](features/web-admin.md) | 订阅页、订阅者管理、推送历史与重新推送、赞 / 踩反馈 |
 
 ## 调度：每天怎么自动跑
@@ -19,12 +19,6 @@
 | [Agent 版每日任务（备用）](scheduling/agent-mode.md) | Browser Skill、Claude Code / Codex / DeepSeek Harness 接入、定时方式 |
 | [每日任务提示词](../agents/daily-task.md) | 交给 Agent 的提示词（`scripts/agent-run.sh` 直接读取这份） |
 | [Agent 采集循环](../packages/collector/AGENT_PROMPT.md) | Agent 版里 `crawl next / done` 循环的细节 |
-
-## 性能：节流、额度与容量
-
-| 文档 | 内容 |
-|---|---|
-| [节流、额度与容量](performance/limits.md) | 采集预算和节奏、X 接口额度、限流熔断和冷却、账号分档轮转、AI 评审量、邮件大小和发信节奏 |
 
 ## 维护：配置、运维、上线、开发
 
