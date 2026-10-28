@@ -38,7 +38,7 @@ export interface CardView {
     handle: string;
     /** 有 summary 时不显示原文 */
     text: string;
-    /** 引用较长或被截断时的 AI 摘要和要点（中文版） */
+    /** 引用较长或被截断时的 AI 摘要和要点（中文版用中文，原文版用推文原来的语言） */
     summary?: string;
     points?: string[];
     /** 原文被截断（时间线里只给了前一部分） */
@@ -97,13 +97,31 @@ export function primaryArticle(raw: RawTweet): { link: Link; source: "tweet" | "
 const cleanOptional = (s: string | null | undefined) => (s ? cleanTweetText(s) : (s ?? undefined));
 const bareUrl = (s: string | undefined) => Boolean(s && /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i.test(s.trim()));
 
-function toArticleView(link: Link, d: LinkDigest | undefined, lang: Lang, zhTitle?: string | null, zhDesc?: string | null): ArticleView | undefined {
+/**
+ * 原文版用哪份 AI 概要：分享它的推文是中文时就是中文概要，否则用按推文语言写的那份（旧数据没有时不显示 AI 概要）。
+ * 中文版一律用中文概要。
+ */
+function articleDigest(d: LinkDigest | undefined, lang: Lang, chineseTweet: boolean): { summary?: string; points: string[] } {
+  if (!d) return { points: [] };
+  if (lang === "zh" || chineseTweet) return { summary: d.summary, points: d.points };
+  return { summary: d.orig?.summary, points: d.orig?.points ?? [] };
+}
+
+function toArticleView(
+  link: Link,
+  d: LinkDigest | undefined,
+  lang: Lang,
+  chineseTweet: boolean,
+  zhTitle?: string | null,
+  zhDesc?: string | null,
+): ArticleView | undefined {
   const original = cleanOptional(d?.title ?? link.title);
   const title = (lang === "zh" ? cleanOptional(d?.titleZh ?? zhTitle) : undefined) ?? original;
   if (!title) return undefined;
-  const aiSummary = Boolean(d?.summary);
-  const summary = d?.summary ?? (lang === "zh" ? (zhDesc ?? undefined) : undefined) ?? d?.description ?? link.description;
-  const points = d?.points ?? [];
+  const ai = articleDigest(d, lang, chineseTweet);
+  const aiSummary = Boolean(ai.summary);
+  const summary = ai.summary ?? (lang === "zh" ? (zhDesc ?? undefined) : undefined) ?? d?.description ?? link.description;
+  const points = ai.points;
   // 没抓到正文、也没有简介（产品首页、需要登录、拒绝抓取的站点）时不做成文章卡片，交给普通链接处理
   if (!summary?.trim() && points.length === 0) return undefined;
   let url = cleanTweetText(d?.finalUrl ?? link.expandedUrl);
@@ -189,7 +207,9 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
 
   const link = raw.links[0];
   const primary = primaryArticle(raw);
-  const ownArticle = primary?.source === "tweet" ? toArticleView(primary.link, t.article, opts.lang, zh?.linkTitle, zh?.linkDescription) : undefined;
+  const ownArticle = primary?.source === "tweet" ? toArticleView(primary.link, t.article, opts.lang, isChinese, zh?.linkTitle, zh?.linkDescription) : undefined;
+  // 阅读摘要和引用摘要：中文版用中文的；原文版用推文原来语言的那份（原文是中文时两版共用）
+  const digests = opts.lang === "zh" || isChinese ? t.ai : t.ai?.orig;
   return {
     id: raw.id,
     url: raw.url,
@@ -226,10 +246,10 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
           name: raw.quoted.author.name,
           handle: raw.quoted.author.handle,
           text: cleanTweetText(zh?.quotedText ?? raw.quoted.text),
-          ...(opts.lang === "zh" && t.ai?.quotedDigest ? { summary: t.ai.quotedDigest.summary, points: t.ai.quotedDigest.points } : {}),
+          ...(digests?.quotedDigest ? { summary: digests.quotedDigest.summary, points: digests.quotedDigest.points } : {}),
           truncated: looksTruncated(cleanTweetText(raw.quoted.text)),
           url: raw.quoted.url,
-          article: primary?.source === "quoted" ? toArticleView(primary.link, t.article, opts.lang, zh?.linkTitle, zh?.linkDescription) : undefined,
+          article: primary?.source === "quoted" ? toArticleView(primary.link, t.article, opts.lang, isChinese, zh?.linkTitle, zh?.linkDescription) : undefined,
         }
       : undefined,
     article: ownArticle,
@@ -247,8 +267,9 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
     likes: compactNumber(raw.metrics.likes),
     reposts: compactNumber(raw.metrics.reposts),
     ctaLabel: videoMedia ? "看视频 ↗" : "原推 ↗",
-    summary: opts.lang === "zh" ? (t.ai?.summary ?? undefined) : undefined,
-    readerSummary: opts.lang === "zh" ? toReaderSummary(t.ai?.readerSummary) : undefined,
+    // 一句话摘要只是旧数据的退路，而且只有中文
+    summary: opts.lang === "zh" || isChinese ? (t.ai?.summary ?? undefined) : undefined,
+    readerSummary: toReaderSummary(digests?.readerSummary),
   };
 }
 

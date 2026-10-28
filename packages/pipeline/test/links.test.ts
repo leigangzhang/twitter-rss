@@ -122,8 +122,14 @@ describe("文章缓存、摘要和展示", () => {
     expect(hits).toBe(1);
 
     const summarizer: Summarizer = {
-      async summarize(article) {
-        return { titleZh: "用智能体维护软件", summary: `概要：${article.title}`, points: ["自动找死代码", "对照线上遥测核实", "起草清理 PR"] };
+      async summarize(article, context) {
+        expect(context.lang).toBe("en");
+        return {
+          titleZh: "用智能体维护软件",
+          summary: `概要：${article.title}`,
+          points: ["自动找死代码", "对照线上遥测核实", "起草清理 PR"],
+          orig: { lang: "en", summary: "Agents find dead code and draft cleanup PRs.", points: ["Checks live telemetry first"] },
+        };
       },
     };
     const range = { since: new Date("2026-10-17T16:00:00Z"), until: new Date("2026-10-18T16:00:00Z"), contentDate: "2026-10-18" };
@@ -144,7 +150,14 @@ describe("文章缓存、摘要和展示", () => {
       url: `${base}/post`,
     });
     expect(zh.quoted?.article?.imageUrl).toBe(`${base}/img/cover.png`);
-    expect(view("orig").quoted?.article).toMatchObject({ title: "Maintaining software with agents", originalTitle: undefined });
+    // 原文版：原标题 + 按推文语言写的概要，卡片格式和中文版相同
+    expect(view("orig").quoted?.article).toMatchObject({
+      title: "Maintaining software with agents",
+      originalTitle: undefined,
+      summary: "Agents find dead code and draft cleanup PRs.",
+      aiSummary: true,
+      points: ["Checks live telemetry first"],
+    });
   });
 
   it("抓取失败时用 X 卡片的标题兜底", async () => {

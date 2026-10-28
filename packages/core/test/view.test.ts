@@ -45,4 +45,30 @@ describe("链接展示", () => {
     const card = toCardView({ id: "1", topicId: "ai", kind: "text", raw, ai: ai as never }, opts);
     expect(card.readerSummary).toEqual({ lead: "一段旧摘要", points: [] });
   });
+
+  it("原文版用推文原来语言的阅读摘要和引用摘要；原文是中文时两版共用中文摘要", () => {
+    const raw = RawTweet.parse({
+      ...tweetWithLink({ title: "x" }),
+      quoted: { id: "2", url: "https://x.com/b/status/2", author: { handle: "b", name: "B" }, text: "Quoted original text", links: [], media: [] },
+    });
+    const ai = {
+      verdict: "keep", category: "expert_insight", dropReason: null, quality: 4, scale: 5, topicId: "ai", summary: "一句话", reason: "r",
+      zh: { text: "译文", thread: [], quotedText: "引用译文" }, mediaNote: null,
+      readerSummary: { lead: "结论", points: ["要点"] },
+      quotedDigest: { summary: "引用摘要", points: ["引用要点"] },
+      orig: { readerSummary: { lead: "Conclusion", points: ["Point"] }, quotedDigest: { summary: "Quote digest", points: ["Quote point"] } },
+    };
+    const card = (lang: "zh" | "orig", r = raw, a: object = ai) => toCardView({ id: "1", topicId: "ai", kind: "text", raw: r, ai: a as never }, { ...opts, lang });
+    expect(card("zh").readerSummary).toEqual({ lead: "结论", points: ["要点"] });
+    expect(card("zh").quoted).toMatchObject({ summary: "引用摘要", text: "引用译文" });
+    const orig = card("orig");
+    expect(orig.readerSummary).toEqual({ lead: "Conclusion", points: ["Point"] });
+    expect(orig.quoted).toMatchObject({ summary: "Quote digest", points: ["Quote point"], text: "Quoted original text" });
+    expect(orig.summary).toBeUndefined();
+    // 旧数据没有原文版摘要：原文版不显示中文摘要
+    expect(card("orig", raw, { ...ai, orig: undefined }).readerSummary).toBeUndefined();
+    // 中文推文
+    const zhRaw = RawTweet.parse({ ...raw, lang: "zh" });
+    expect(card("orig", zhRaw, { ...ai, zh: null, orig: null }).readerSummary).toEqual({ lead: "结论", points: ["要点"] });
+  });
 });
