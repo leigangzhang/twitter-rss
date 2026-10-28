@@ -71,4 +71,19 @@ describe("链接展示", () => {
     const zhRaw = RawTweet.parse({ ...raw, lang: "zh" });
     expect(card("orig", zhRaw, { ...ai, zh: null, orig: null }).readerSummary).toEqual({ lead: "结论", points: ["要点"] });
   });
+
+  it("标题：中文版用中文标题，原文版用推文语言的标题，中文推文两版共用", () => {
+    const raw = tweetWithLink({ title: "x" });
+    const ai = {
+      verdict: "keep", category: "new_release", dropReason: null, quality: 4, scale: 5, topicId: "ai", summary: "一句话", reason: "r",
+      zh: null, mediaNote: null, title: "MiniMax 上线 M3.1 Flash", orig: { title: "MiniMax launches M3.1 Flash" },
+    };
+    const card = (lang: "zh" | "orig", r = raw, a: object = ai) => toCardView({ id: "1", topicId: "ai", kind: "text", raw: r, ai: a as never }, { ...opts, lang });
+    expect(card("zh").title).toBe("MiniMax 上线 M3.1 Flash");
+    expect(card("orig").title).toBe("MiniMax launches M3.1 Flash");
+    // 旧数据没有标题
+    expect(card("orig", raw, { ...ai, title: undefined, orig: null }).title).toBeUndefined();
+    const zhRaw = RawTweet.parse({ ...raw, lang: "zh" });
+    expect(card("orig", zhRaw, { ...ai, orig: null }).title).toBe("MiniMax 上线 M3.1 Flash");
+  });
 });

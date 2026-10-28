@@ -40,6 +40,9 @@ ${guide || DEFAULT_GUIDE}
 3. 打质量分 quality：1–5 的整数（5 分制），按标准里的打分说明。keep 的至少 3 分，drop 的不超过 2 分。
 4. 从给定的候选主题里选一个最贴近的 topicId。
 5. summary：用一句 30–60 字的中文概括这条推文讲了什么（事实 + 观点），后面会用它判断不同推文是否重复。
+   title：给这条推文起一个简体中文标题，用作 RSS 条目的标题，读者只看标题就要知道这条讲什么。
+   10–20 字，像新闻标题：写主体和核心内容（谁发布了什么、什么结论、什么做法），有具体名称或数字时写进去；
+   不写"作者分享了""一条推文"之类的空话，不照抄正文第一句，不加书名号、引号和句末标点，只写原文里有的信息。
 6. reason：用一句中文说明你的判断理由，指出它属于哪类、具体价值在哪里，或者为什么剔除。
 7. 如果原文不是中文，把正文、Thread 后续部分、引用推文、链接标题和简介翻译成自然流畅的简体中文，填进 zh；
    保留专有名词、代码、数字和 @账号，不添加原文没有的内容。原文已是中文时 zh 为 null。drop 的内容也要照常翻译。
@@ -66,10 +69,10 @@ ${guide || DEFAULT_GUIDE}
    - 示例（差）：lead"作者分享了本地部署大模型的性能优化经验"，points["介绍了问题的排查过程", "还讨论了参数设置"]
      ——没有结论、没有数字、只是目录。
    正文较短时 readerSummary 为 null。
-11. orig：原文版邮件用的摘要。原文不是中文时，用推文原文的语言（lang 字段；lang 缺失或不明确时用正文实际使用的语言）
-   再写一份 readerSummary 和 quotedDigest，填进 orig。填写条件、结构和全部写法要求与上面的中文版完全相同，内容与中文版对应：
-   中文版为 null 的项，orig 里也为 null。篇幅按语言换算，英文时 lead 约 25 个单词以内、每条要点约 20 个单词以内、
-   quotedDigest.summary 约 2 句；其他语言按相当的篇幅。原文已是中文时 orig 为 null。
+11. orig：原文版邮件用的标题和摘要。原文不是中文时，用推文原文的语言（lang 字段；lang 缺失或不明确时用正文实际使用的语言）
+   再写一份 title、readerSummary 和 quotedDigest，填进 orig。填写条件、结构和全部写法要求与上面的中文版完全相同，内容与中文版对应：
+   title 一定要写；其余中文版为 null 的项，orig 里也为 null。篇幅按语言换算，英文时 title 约 10 个单词以内、
+   lead 约 25 个单词以内、每条要点约 20 个单词以内、quotedDigest.summary 约 2 句；其他语言按相当的篇幅。原文已是中文时 orig 为 null。
 
 linkedArticle 是推文（或引用推文）所附外部文章的标题、简介和正文开头（fetched 为 false 时只有标题和简介）。
 推文主要是在分享这篇文章时，按文章本身的价值判断类型和去留：实践复盘、技术博客、研究报告等有实质内容的可以保留，
@@ -468,14 +471,16 @@ export function normalizeReview(r: AiResult, tweet: RawTweet, topics: Pick<Topic
   const quotedText = tweet.quoted ? cleanTweetText(tweet.quoted.text) : "";
   if (!tweet.quoted || (xWeightedLength(quotedText) < 280 && !looksTruncated(quotedText))) result.quotedDigest = null;
   // 原文版摘要和中文版一一对应：中文版没有的这里也不要，原文是中文时两版共用中文摘要
+  result.title = cleanTitle(result.title);
   if (tweet.lang?.startsWith("zh") || !result.orig) result.orig = null;
   else {
     const o = result.orig;
+    const title = cleanTitle(o.title);
     const rso = result.readerSummary && o.readerSummary?.lead.trim()
       ? { lead: o.readerSummary.lead.trim(), points: o.readerSummary.points.map((p) => p.trim()).filter(Boolean).slice(0, 3) }
       : null;
     const qdo = result.quotedDigest && o.quotedDigest?.summary.trim() ? o.quotedDigest : null;
-    result.orig = rso || qdo ? { readerSummary: rso, quotedDigest: qdo } : null;
+    result.orig = rso || qdo || title ? { ...(title ? { title } : {}), readerSummary: rso, quotedDigest: qdo } : null;
   }
   if (result.category === "other" && result.verdict === "keep") {
     result.verdict = "drop";
@@ -492,6 +497,15 @@ export function normalizeReview(r: AiResult, tweet: RawTweet, topics: Pick<Topic
     result.quality = Math.max(result.quality, 3);
   }
   return result;
+}
+
+/** 标题去掉首尾空白、句末标点和包住整个标题的引号、书名号；空的算没有 */
+function cleanTitle(t: string | null | undefined): string | null {
+  let s = (t ?? "").trim().replace(/[。．.；;，,、]+$/, "").trim();
+  // 整个标题被一对引号或书名号包着时去掉
+  const wrapped = /^(?:「(.+)」|『(.+)』|“(.+)”|"(.+)"|《(.+)》)$/.exec(s);
+  if (wrapped) s = wrapped.slice(1).find(Boolean)!.trim();
+  return s || null;
 }
 
 /** 编辑终审：把当天通过初审的候选放在一起，去掉同一事件、相同观点和近几天发过的内容 */

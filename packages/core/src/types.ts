@@ -198,6 +198,8 @@ export const AiResult = z.object({
   topicId: z.string(),
   /** 一句话中文摘要（30–60 字），说清这条讲了什么，用于终审去重 */
   summary: z.string(),
+  /** 简体中文标题（20 字以内），RSS 条目的标题；旧数据没有这个字段 */
+  title: z.string().nullish(),
   /**
    * 长推文、Thread 的阅读摘要，邮件里先给读者看（原文折叠）：一句结论 + 最多 3 条要点。
    * 短推文为 null；旧数据没有这个字段，或是一段文字（字符串）。
@@ -222,11 +224,13 @@ export const AiResult = z.object({
    */
   quotedDigest: QuotedDigest.nullish(),
   /**
-   * 原文版用的摘要：推文不是中文时，用推文原来的语言再写一份阅读摘要和引用摘要，
+   * 原文版用的标题和摘要：推文不是中文时，用推文原来的语言再写一份标题、阅读摘要和引用摘要，
    * 填写条件和写法与上面的中文版相同。原文是中文时为 null（原文版直接用中文版的摘要）；旧数据没有这个字段。
    */
   orig: z
     .object({
+      /** 原文版的标题，写法同 title */
+      title: z.string().nullish(),
       readerSummary: ReaderSummary.nullish(),
       quotedDigest: QuotedDigest.nullish(),
     })
