@@ -95,7 +95,8 @@
 
 自己部署时，可以把自己 X 账号的关注列表直接同步成采集名单，不用一个个手动加。
 
-- **怎么同步**：后台 [账号管理](web-admin.md#账号管理adminaccounts) 的"同步 X 关注"点"立即同步"，或在命令行运行 `pnpm follows:sync`（加 `--dry-run` 只列出会新增哪些账号，不改文件）。
+- **怎么同步**：后台 [账号管理](web-admin.md#账号管理adminaccounts) 右上角"同步我的关注"，在弹窗里点"先试运行"或"立即同步"；或在命令行运行 `pnpm follows:sync`（加 `--dry-run` 只列出会新增哪些账号，不改文件）。
+  每一步的进度和结果（失败时含失败在哪一步和原因）写在 `data/follow-sync.json`，后台弹窗据此显示。
 - **自动同步**：`config/crawl.yaml` 的 `follow_sync.enabled: true` 后，每日任务在采集前每 `every_days`（7）天同步一次。
 - **读谁的关注**：默认是采集用的 Chrome 里登录的账号；采集换成小号后，在 `follow_sync.handle` 写上自己的大号，读的仍是大号的关注列表（小号登录也能看到公开账号的关注列表）。
 - **放到哪里**：名单里还没有的账号加到主题 `follow_sync.topic`（默认新建「我的关注」，id `following`），已经在任何主题里的、自己都跳过；之后可以在后台把单个账号再加到其他主题。

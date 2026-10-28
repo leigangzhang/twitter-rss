@@ -156,8 +156,33 @@ export const feedback = sqliteTable(
   (t) => [uniqueIndex("feedback_tweet_subscriber").on(t.tweetId, t.subscriberId), index("feedback_issue").on(t.issueDate)],
 );
 
+/**
+ * RSS 抓取记录：按天、订阅地址、读者汇总。读者是匿名的：
+ * Feedly、Inoreader 等聚合服务按服务名记一行，并记下它报告的订阅数；其他阅读器按来源 IP + 客户端的摘要去重。
+ */
+export const feedReaders = sqliteTable(
+  "feed_readers",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** 本地日期 YYYY-MM-DD（digest.timezone） */
+    date: text("date").notNull(),
+    /** 订阅地址，如 labs.zh.xml */
+    slug: text("slug").notNull(),
+    /** 匿名读者标识：聚合服务的名字，或 IP + 客户端的摘要 */
+    readerKey: text("reader_key").notNull(),
+    /** 识别出的阅读器 */
+    client: text("client").notNull(),
+    /** 聚合服务报告的订阅数（这一天的最大值）；普通阅读器为空，按 1 人算 */
+    subscribers: integer("subscribers"),
+    hits: integer("hits").notNull().default(1),
+    lastAt: integer("last_at", { mode: "timestamp_ms" }).notNull().default(now),
+  },
+  (t) => [uniqueIndex("feed_readers_day").on(t.date, t.slug, t.readerKey), index("feed_readers_date").on(t.date)],
+);
+
 export type TweetRow = typeof tweets.$inferSelect;
 export type SubscriberRow = typeof subscribers.$inferSelect;
 export type DeliveryRow = typeof deliveries.$inferSelect;
 export type DeliveryAttemptRow = typeof deliveryAttempts.$inferSelect;
 export type FeedbackRow = typeof feedback.$inferSelect;
+export type FeedReaderRow = typeof feedReaders.$inferSelect;

@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Dialog } from "@/components/Dialog";
 
 type Result = { ok: boolean; text: string } | null;
 
@@ -186,29 +187,244 @@ export function WeightEditor({ handle, weight, note }: { handle: string; weight:
   );
 }
 
-/** 立即同步关注列表：在后台启动同步，几分钟后刷新看结果 */
-export function SyncFollowsButton({ running }: { running: boolean }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<Result>(null);
+/** 添加账号：右上角按钮，点开在弹窗里填 */
+export function AddAccountDialog({ topics }: { topics: Array<{ id: string; name: string }> }) {
+  const [open, setOpen] = useState(false);
   return (
-    <span className="inline-flex flex-col items-start gap-1.5">
-      <button
-        type="button"
-        disabled={busy || running}
-        onClick={async () => {
-          setBusy(true);
-          const res = await fetch("/api/admin/follows", { method: "POST" });
-          const data = (await res.json().catch(() => ({}))) as { ok?: boolean; message?: string };
-          setResult({ ok: res.ok, text: data.message ?? (res.ok ? "已开始同步" : "启动失败") });
-          setBusy(false);
-          router.refresh();
-        }}
-        className={`${button} bg-ink text-white`}
-      >
-        {running ? "同步中…" : busy ? "启动中…" : "立即同步"}
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={`${button} bg-ink text-white`}>
+        ＋ 添加账号
       </button>
-      <Status result={result} />
-    </span>
+      <Dialog open={open} onClose={() => setOpen(false)} title="添加账号" sub="写进 config/topics.yaml，下次生成采集清单时开始采集。已在名单里的账号只会加到选的主题；账号不存在时采集会跳过并提醒。">
+        <AddAccountForm topics={topics} />
+      </Dialog>
+    </>
+  );
+}
+
+/* ---------- 同步我的关注 ---------- */
+
+export interface SyncLast {
+  at: string;
+  ok: boolean;
+  message: string;
+  added: string[];
+  dryRun?: boolean;
+  step?: string;
+}
+export interface SyncProgressView {
+  step: string;
+  read?: number;
+  dryRun: boolean;
+  startedAt: string;
+}
+interface SyncStatus {
+  last: SyncLast | null;
+  progress: SyncProgressView | null;
+  log: string[];
+}
+
+const OPEN_SYNC = "xrss:open-sync";
+const openSync = () => window.dispatchEvent(new Event(OPEN_SYNC));
+
+function fmtTime(iso: string) {
+  return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
+}
+
+/** 右上角的"同步我的关注"按钮 */
+export function SyncFollowsButton() {
+  return (
+    <button type="button" onClick={openSync} className={`${button} border border-line bg-white text-body hover:border-[#C9CED5]`}>
+      ⟳ 同步我的关注
+    </button>
+  );
+}
+
+/** 指标卡：最近一次同步的结果，点开弹窗 */
+export function SyncFollowsCard({ last, running }: { last: SyncLast | null; running: boolean }) {
+  const failed = last && !last.ok && !running;
+  const status = running ? (
+    <span className="rounded-full bg-[#EEF3FC] px-2 py-px font-bold text-[#1F4FA8]">进行中</span>
+  ) : !last ? null : last.ok ? (
+    <span className="rounded-full bg-[#E7F3EC] px-2 py-px font-bold text-[#22663D]">{last.dryRun ? "试运行" : "成功"}</span>
+  ) : (
+    <span className="rounded-full bg-[#FBE9E7] px-2 py-px font-bold text-[#A3271A]">失败</span>
+  );
+  const headline = running ? "正在同步" : !last ? "还没有同步过" : last.ok ? (last.added.length ? `${last.dryRun ? "会" : ""}新增 ${last.added.length} 个账号` : "没有新账号") : "同步失败";
+  return (
+    <button
+      type="button"
+      onClick={openSync}
+      className={`flex min-w-0 cursor-pointer flex-col gap-2 rounded-[14px] border bg-white px-4 py-3.5 text-left hover:border-[#C9CED5] ${failed ? "border-danger" : "border-line"}`}
+    >
+      <span className="flex justify-between gap-2 text-xs text-muted">
+        同步我的关注
+        {status}
+      </span>
+      <span className={`text-lg leading-tight font-bold ${failed ? "text-danger" : ""}`}>{headline}</span>
+      <span className="line-clamp-2 text-xs text-muted">{running ? "点开看进度" : last ? `${fmtTime(last.at)} · ${failed ? "点开看原因" : "点开看详情"}` : "点开开始同步"}</span>
+    </button>
+  );
+}
+
+/**
+ * 同步弹窗：最近结果（失败时显示原因和日志最后几行）、进行中的步骤、自动同步设置、已取关的账号；
+ * 可以先试运行（只列出会新增哪些账号，不改文件）。运行中每 2 秒取一次状态，结束后刷新页面。
+ */
+export function SyncFollowsDialog({
+  steps,
+  auto,
+  unfollowed,
+  initial,
+}: {
+  steps: Array<{ id: string; label: string }>;
+  auto: string;
+  unfollowed: string[];
+  initial: SyncStatus;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<SyncStatus>(initial);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const res = await fetch("/api/admin/follows", { cache: "no-store" });
+    if (res.ok) setStatus((await res.json()) as SyncStatus);
+  }, []);
+
+  useEffect(() => {
+    const onOpen = () => {
+      setOpen(true);
+      void refresh();
+    };
+    window.addEventListener(OPEN_SYNC, onOpen);
+    return () => window.removeEventListener(OPEN_SYNC, onOpen);
+  }, [refresh]);
+
+  // 运行中轮询；从运行中变成结束时刷新页面（卡片、账号列表）
+  const running = Boolean(status.progress) || starting;
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(() => void refresh().then(() => setStarting(false)), 2000);
+    return () => clearInterval(t);
+  }, [running, refresh]);
+  const [wasRunning, setWasRunning] = useState(running);
+  useEffect(() => {
+    if (wasRunning && !running) router.refresh();
+    setWasRunning(running);
+  }, [running, wasRunning, router]);
+
+  async function start(dryRun: boolean) {
+    setError(null);
+    setStarting(true);
+    const res = await fetch("/api/admin/follows", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dryRun }) });
+    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    if (!res.ok) {
+      setStarting(false);
+      setError(data.message ?? "启动失败");
+      return;
+    }
+    // 给同步进程一点时间写下第一步
+    setTimeout(() => void refresh(), 800);
+  }
+
+  const { last, progress, log } = status;
+  const current = progress ? steps.findIndex((s) => s.id === progress.step) : -1;
+  return (
+    <Dialog
+      open={open}
+      onClose={() => setOpen(false)}
+      title="同步我的关注"
+      sub="读取采集 Chrome 里登录账号的「正在关注」，把名单里还没有的账号加进同步主题。只滚动读取，遇到限流就停止并冷却。"
+      footer={
+        running ? (
+          <button type="button" onClick={() => setOpen(false)} className={`${button} border border-line bg-white text-body`}>
+            在后台继续
+          </button>
+        ) : (
+          <>
+            <button type="button" onClick={() => start(true)} className={`${button} border border-line bg-white text-body`}>
+              先试运行
+            </button>
+            <button type="button" onClick={() => start(false)} className={`${button} bg-ink text-white`}>
+              立即同步
+            </button>
+          </>
+        )
+      }
+    >
+      {error ? <p className="m-0 rounded-[10px] bg-[#FBE9E7] px-3.5 py-2.5 text-[13px] text-danger">{error}</p> : null}
+      {running ? (
+        <ol className="m-0 flex list-none flex-col gap-2 p-0 text-[13px]">
+          {steps.map((s, i) => {
+            const done = i < current;
+            const now = i === current || (current < 0 && i === 0);
+            return (
+              <li key={s.id} className={`flex items-center gap-2.5 ${done || now ? "text-ink" : "text-muted"}`}>
+                <span
+                  className={`flex size-[18px] items-center justify-center rounded-full border text-[11px] ${done ? "border-[#2F7D4F] bg-[#2F7D4F] text-white" : now ? "animate-spin border-2 border-accent border-r-transparent" : "border-[#C9CED5]"}`}
+                >
+                  {done ? "✓" : ""}
+                </span>
+                {s.label}
+                {now && progress?.read !== undefined ? <span className="font-mono text-muted">已读 {progress.read} 个</span> : null}
+                {s.id === "write" && progress?.dryRun ? <span className="text-muted">（试运行，不改文件）</span> : null}
+              </li>
+            );
+          })}
+        </ol>
+      ) : last ? (
+        <div className={`flex flex-col gap-1.5 rounded-[10px] border px-3.5 py-3 text-[13px] ${last.ok ? "border-line bg-note text-body" : "border-danger bg-[#FBE9E7] text-danger"}`}>
+          <b>
+            {fmtTime(last.at)} {last.dryRun ? "试运行" : "同步"}
+            {last.ok ? "完成" : "失败"}
+          </b>
+          <span className="whitespace-pre-line">{last.message.replace(/；/g, "\n")}</span>
+        </div>
+      ) : (
+        <p className="m-0 text-[13px] text-muted">还没有同步过。第一次建议先点「先试运行」，看会新增哪些账号。</p>
+      )}
+      {!running && last && !last.ok && log.length ? (
+        <details className="rounded-[10px] border border-line">
+          <summary className="cursor-pointer px-3.5 py-2.5 text-[13px]">
+            <b>日志</b> <span className="text-xs text-muted">data/logs/follow-sync.log 最后 {log.length} 行</span>
+          </summary>
+          <pre className="m-0 max-h-48 overflow-auto rounded-b-[10px] bg-note px-3.5 py-2.5 font-mono text-[11.5px] leading-relaxed break-all whitespace-pre-wrap text-body">{log.join("\n")}</pre>
+        </details>
+      ) : null}
+      <div className="flex flex-col gap-1">
+        <span className="text-xs text-muted">自动同步</span>
+        <span className="text-[13px]">{auto}</span>
+      </div>
+      {unfollowed.length ? (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs text-muted">已经取关、但还在名单里（移出后不会再同步回来）· {unfollowed.length}</span>
+          <ul className="m-0 flex list-none flex-col p-0">
+            {unfollowed.map((h) => (
+              <li key={h} className="flex items-center justify-between gap-2 border-t border-line py-2 text-[13px] first:border-t-0">
+                <span className="font-mono">@{h}</span>
+                <RemoveAccountButton handle={h} label="移出" confirmLabel="确认移出" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </Dialog>
+  );
+}
+
+/** 按主题筛选：下拉框，改了就跳到对应链接 */
+export function TopicFilter({ topics, value, hrefs }: { topics: Array<{ id: string; name: string }>; value?: string; hrefs: Record<string, string> }) {
+  const router = useRouter();
+  return (
+    <select aria-label="按主题筛选" value={value ?? ""} onChange={(e) => router.push(hrefs[e.target.value] ?? hrefs[""]!)} className={`${input} rounded-full`}>
+      <option value="">所有主题</option>
+      {topics.map((t) => (
+        <option key={t.id} value={t.id}>
+          {t.name}
+        </option>
+      ))}
+    </select>
   );
 }

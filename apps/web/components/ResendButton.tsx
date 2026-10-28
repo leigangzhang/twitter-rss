@@ -10,6 +10,7 @@ export function ResendButton({
   subscriberId,
   label,
   confirmLabel,
+  previewHref,
   variant = "secondary",
 }: {
   date: string;
@@ -17,6 +18,8 @@ export function ResendButton({
   subscriberId?: number;
   label: string;
   confirmLabel: string;
+  /** 确认这一步旁边放一个"先预览"，在新标签打开将要发出的内容 */
+  previewHref?: string;
   variant?: "primary" | "secondary";
 }) {
   const router = useRouter();
@@ -41,6 +44,11 @@ export function ResendButton({
           <button type="button" onClick={send} className={`${base} bg-danger text-white`}>
             {confirmLabel}
           </button>
+          {previewHref ? (
+            <a href={previewHref} target="_blank" rel="noreferrer" className={`${base} flex items-center border border-line bg-white text-body no-underline`}>
+              先预览 ↗
+            </a>
+          ) : null}
           <button type="button" onClick={() => setStage("idle")} className={`${base} border border-line bg-white text-body`}>
             取消
           </button>

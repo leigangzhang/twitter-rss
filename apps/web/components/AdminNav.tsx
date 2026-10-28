@@ -1,18 +1,22 @@
 import Link from "next/link";
 import { AdminLogout } from "@/components/AdminLogout";
 
-/** 管理页顶部：订阅者 / 推送历史 / 读者反馈 / 账号 切换、"今日反馈"入口和退出 */
-export function AdminNav({ current }: { current: "subscribers" | "deliveries" | "feedback" | "accounts" }) {
-  const tabs = [
-    { id: "subscribers", label: "订阅者", href: "/admin/subscribers" },
-    { id: "deliveries", label: "推送历史", href: "/admin/deliveries" },
-    { id: "feedback", label: "读者反馈", href: "/admin/feedback" },
-    { id: "accounts", label: "账号", href: "/admin/accounts" },
-  ] as const;
+export type AdminTab = "accounts" | "subscribers" | "deliveries" | "rss" | "feedback";
+
+const TABS: Array<{ id: AdminTab; label: string; href: string }> = [
+  { id: "accounts", label: "账号管理", href: "/admin/accounts" },
+  { id: "subscribers", label: "订阅管理", href: "/admin/subscribers" },
+  { id: "deliveries", label: "邮件推送", href: "/admin/deliveries" },
+  { id: "rss", label: "RSS 订阅", href: "/admin/rss" },
+  { id: "feedback", label: "内容反馈", href: "/admin/feedback" },
+];
+
+/** 管理页顶部：五个标签和退出 */
+export function AdminNav({ current }: { current: AdminTab }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
-      <nav aria-label="管理" className="flex gap-1">
-        {tabs.map((t) => (
+      <nav aria-label="管理" className="flex flex-wrap gap-1">
+        {TABS.map((t) => (
           <Link
             key={t.id}
             href={t.href}
@@ -23,13 +27,7 @@ export function AdminNav({ current }: { current: "subscribers" | "deliveries" | 
           </Link>
         ))}
       </nav>
-      <div className="flex items-center gap-2">
-        {/* 普通链接（不用 Link）：目标是一个跳转到邮件预览的接口 */}
-        <a href="/admin/feedback/today" className="flex min-h-10 items-center rounded-lg bg-accent px-3.5 text-sm font-bold text-white no-underline hover:text-white hover:opacity-90">
-          今日反馈
-        </a>
-        <AdminLogout />
-      </div>
+      <AdminLogout />
     </div>
   );
 }

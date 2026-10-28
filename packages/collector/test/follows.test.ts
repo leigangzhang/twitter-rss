@@ -7,7 +7,8 @@ import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chromeOptions, connectChrome, ensureChrome } from "../src/browser/chrome.ts";
 import { captureFollowing } from "../src/browser/x-page.ts";
-import { acquireBrowserLock, EMPTY_SYNC, type FollowSyncState, lockHolder, parseFollowing, planSync, syncDue } from "../src/follows.ts";
+import { explainConnectError } from "../src/browser/chrome.ts";
+import { acquireBrowserLock, EMPTY_SYNC, type FollowSyncState, lockHolder, parseFollowing, planSync, runningSync, syncDue } from "../src/follows.ts";
 import { EMPTY_STATE, recordBlock } from "../src/health.ts";
 import { budgetWarning, estimateDailyAccounts } from "../src/quality.ts";
 import { createRandom } from "../src/random.ts";
@@ -85,6 +86,21 @@ describe("同步计划", () => {
     expect(syncDue(ok, config, now)).toBe(false);
     expect(syncDue({ ...ok, lastSyncAt: "2026-10-21T08:30:00Z" }, config, now)).toBe(true);
     expect(syncDue({ ...ok, last: { ...ok.last, ok: false } }, config, now)).toBe(true);
+    expect(syncDue({ ...ok, last: { ...ok.last, dryRun: true } }, config, now)).toBe(true);
+  });
+
+  it("进度里的进程已经不在时，不算正在同步", () => {
+    const progress = { pid: process.pid, startedAt: "", dryRun: false, step: "read" as const, read: 40 };
+    expect(runningSync({ ...EMPTY_SYNC, progress })).toEqual(progress);
+    expect(runningSync({ ...EMPTY_SYNC, progress: { ...progress, pid: 2 ** 22 + 12345 } })).toBeNull();
+  });
+
+  it("连不上采集 Chrome 时给出能照着做的说明", () => {
+    const e = new Error("browserType.connectOverCDP: Protocol error (Browser.setDownloadBehavior): Browser context management is not supported.\nCall log: ...");
+    const msg = explainConnectError(e, { port: 9333 });
+    expect(msg).toContain("pnpm crawl:chrome");
+    expect(msg).toContain("Browser context management is not supported");
+    expect(msg).not.toContain("Call log");
   });
 });
 

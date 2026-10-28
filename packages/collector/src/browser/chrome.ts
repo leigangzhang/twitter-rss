@@ -72,5 +72,21 @@ export async function ensureChrome(opts = chromeOptions(), url?: string): Promis
 }
 
 export async function connectChrome(opts = chromeOptions()): Promise<Browser> {
-  return chromium.connectOverCDP(endpoint(opts));
+  try {
+    return await chromium.connectOverCDP(endpoint(opts));
+  } catch (e) {
+    throw new Error(explainConnectError(e, opts));
+  }
+}
+
+/** 连接失败时给出能照着做的说明，原始错误只留第一行 */
+export function explainConnectError(e: unknown, opts: Pick<ChromeOptions, "port">): string {
+  const raw = ((e as Error)?.message ?? String(e)).split("\n")[0]!.replace(/^browserType\.connectOverCDP:\s*/, "");
+  if (/not supported/i.test(raw)) {
+    return `端口 ${opts.port} 上的 Chrome 不接受自动控制（${raw}）。这个端口上开着的多半不是用 pnpm crawl:chrome 启动的采集 Chrome：请完全退出它，运行 pnpm crawl:chrome 重新打开并确认登录了采集账号，再同步`;
+  }
+  if (/ECONNREFUSED|connect|timeout/i.test(raw)) {
+    return `连不上端口 ${opts.port} 上的采集 Chrome（${raw}）。请运行 pnpm crawl:chrome 打开它，再同步`;
+  }
+  return `连接采集 Chrome 失败：${raw}`;
 }
