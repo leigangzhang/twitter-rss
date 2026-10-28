@@ -44,7 +44,7 @@ function itemTitle(c: CardView): string {
   return `${c.author.name}：${first.length > 60 ? `${first.slice(0, 60)}…` : first}`;
 }
 
-export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params;
   const match = /^([a-z][a-z0-9-]*)\.(zh|orig)\.xml$/.exec(slug);
   const cfg = config();
