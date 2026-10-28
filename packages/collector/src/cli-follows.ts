@@ -4,7 +4,7 @@ import { addAccountsToTopic, addTopic, editConfigFile, loadConfig, loadDotEnv, l
 import { createDb, migrateDb } from "@xrss/core/db";
 import { connectChrome, ensureChrome } from "./browser/chrome.ts";
 import { captureFollowing, loggedInHandle } from "./browser/x-page.ts";
-import { acquireBrowserLock, type FollowSyncState, loadSyncState, parseFollowing, planSync, saveSyncState, syncDue } from "./follows.ts";
+import { acquireBrowserLock, type FollowSyncState, loadSyncState, parseFollowing, planSync, SYNC_STEP_LABELS, type SyncStep, saveSyncState, syncDue } from "./follows.ts";
 import { checkGate, loadState, recordBlock, saveState } from "./health.ts";
 import { budgetWarning, loadAccountQuality } from "./quality.ts";
 import { createRandom } from "./random.ts";
@@ -21,6 +21,9 @@ loadDotEnv();
  * 用采集专用的 Chrome 打开"正在关注"页往下滚动读取，不点任何按钮；冷却期、不在采集时段时不运行；
  * 遇到限流、验证码、登录失效就停止，并和采集一样进入冷却。
  *
+ * 每一步的进度和最后的结果（成功或失败、失败在哪一步）都写进 data/follow-sync.json，后台弹窗据此显示；
+ * 任何没预料到的错误也会记成一次失败，不会只留在日志里。
+ *
  * 退出码：0 完成或不需要同步；2 遇到限制已停止并冷却；3 冷却中或不在采集时段；4 采集的 Chrome 正被占用；5 本机网络不通；1 其他错误
  */
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean" }, "if-due": { type: "boolean" } } });
@@ -32,10 +35,23 @@ const dry = Boolean(values["dry-run"]);
 const state = loadSyncState();
 const log = (msg: string) => console.log(`[follows] ${msg}`);
 
-/** 记下这次的结果（后台显示）；试运行不记 */
+const startedAt = new Date().toISOString();
+let step: SyncStep = "gate";
+
+/** 记下进行到哪一步（后台弹窗显示进度） */
+function progress(next: SyncStep, read?: number): void {
+  step = next;
+  if (read === undefined) log(SYNC_STEP_LABELS[next]);
+  saveSyncState({ ...state, progress: { pid: process.pid, startedAt, dryRun: dry, step, read } });
+}
+
+/** 记下这次的结果（后台显示）。试运行只记结果，不改同步状态 */
 function finish(code: number, ok: boolean, message: string, added: string[] = [], next?: Partial<FollowSyncState>): never {
   log(message);
-  if (!dry) saveSyncState({ ...state, ...next, last: { at: new Date().toISOString(), ok, message, added } });
+  const last = { at: new Date().toISOString(), ok, message, added, dryRun: dry || undefined, step: ok ? undefined : step };
+  // 另一个同步正在运行（拿不到 Chrome）时，保留它的进度
+  const other = loadSyncState().progress;
+  saveSyncState({ ...state, ...(dry ? {} : next), progress: other && other.pid !== process.pid ? other : undefined, last });
   process.exit(code);
 }
 
@@ -43,6 +59,11 @@ if (values["if-due"] && (!fs.enabled || !syncDue(state, config))) {
   log(fs.enabled ? `上次同步在 ${state.lastSyncAt}，还没到 ${fs.every_days} 天的间隔` : "没有打开 follow_sync.enabled，跳过");
   process.exit(0);
 }
+
+// 没预料到的错误也记成一次失败，不只留在日志里
+const crash = (e: unknown) => finish(1, false, `${SYNC_STEP_LABELS[step]}时失败：${(e as Error)?.message ?? String(e)}`);
+process.on("uncaughtException", crash);
+process.on("unhandledRejection", crash);
 
 const crawlState = loadState();
 const gate = checkGate(crawlState, config.crawl, tz);
@@ -62,8 +83,10 @@ interface Result {
 }
 
 async function sync(page: Page): Promise<Result> {
+  progress("account");
   const handle = fs.handle ?? (await loggedInHandle(page, origin));
   if (!handle) return { code: 1, ok: false, message: "认不出采集 Chrome 里登录的是哪个账号（可能没登录）。请先登录，或在 crawl.yaml 的 follow_sync.handle 写上账号" };
+  progress("read", 0);
   log(`读取 @${handle} 的关注列表（最多 ${fs.max_accounts} 个）`);
 
   // X 每屏约 20 个，按上限留够滚动次数
@@ -71,7 +94,13 @@ async function sync(page: Page): Promise<Result> {
   const outcome = await captureFollowing(
     page,
     `${origin}/${handle}/following`,
-    { scrollPausesMs: Array.from({ length: scrolls }, () => rng.int(config.crawl.pacing.scroll_pause_ms)), maxAccounts: fs.max_accounts, count: (r) => parseFollowing(r).length },
+    { scrollPausesMs: Array.from({ length: scrolls }, () => rng.int(config.crawl.pacing.scroll_pause_ms)), maxAccounts: fs.max_accounts,
+      count: (r) => {
+        const n = parseFollowing(r).length;
+        progress("read", n);
+        return n;
+      },
+    },
     rng,
   );
   if (outcome.kind === "offline") return { code: 5, ok: false, message: `本机网络不通（${outcome.error}），没有同步` };
@@ -90,8 +119,9 @@ async function sync(page: Page): Promise<Result> {
     ...(plan.newlyIgnored.length ? [`之前同步、已被手动移出，不再同步：${plan.newlyIgnored.map((h) => `@${h}`).join(" ")}`] : []),
     ...(plan.unfollowed.length ? [`已取关但还在名单里（可在后台移出）：${plan.unfollowed.map((h) => `@${h}`).join(" ")}`] : []),
   ];
-  if (dry) return { code: 0, ok: true, message: `试运行，不改 topics.yaml。${summary.join("；")}` };
+  if (dry) return { code: 0, ok: true, message: `试运行，不改 topics.yaml。${summary.join("；")}`, added: plan.add };
 
+  progress("write");
   if (plan.add.length) {
     const t = fs.topic;
     const exists = config.topics.some((x) => x.id === t.id);
@@ -106,17 +136,19 @@ async function sync(page: Page): Promise<Result> {
   return { code: 0, ok: true, message: summary.join("；"), added: plan.add, next: { ...plan.next, handle, lastSyncAt: new Date().toISOString() } };
 }
 
-await ensureChrome();
-const browser = await connectChrome();
-const context = browser.contexts()[0] ?? (await browser.newContext());
-// 同一时间只用一个标签页，用完关掉
-const page = await context.newPage();
 let result: Result;
+let page: Page | undefined;
 try {
+  progress("chrome");
+  await ensureChrome();
+  const browser = await connectChrome();
+  const context = browser.contexts()[0] ?? (await browser.newContext());
+  // 同一时间只用一个标签页，用完关掉
+  page = await context.newPage();
   result = await sync(page);
 } catch (e) {
-  result = { code: 1, ok: false, message: `同步失败：${(e as Error).message}` };
+  result = { code: 1, ok: false, message: `${SYNC_STEP_LABELS[step]}时失败：${(e as Error).message}` };
 } finally {
-  await page.close().catch(() => {});
+  await page?.close().catch(() => {});
 }
 finish(result.code, result.ok, result.message, result.added, result.next);

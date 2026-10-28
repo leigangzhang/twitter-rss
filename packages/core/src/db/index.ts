@@ -33,6 +33,7 @@ export async function migrateDb(db: Db = getDb()): Promise<void> {
 }
 export * from "./subscribers-report.ts";
 export * from "./feedback.ts";
+export * from "./feed-stats.ts";
 
 /** 外部文章摘要缓存：按链接批量读取（流水线和网站共用） */
 export async function loadLinkDigests(db: Db, urls: string[]): Promise<Map<string, LinkDigest>> {

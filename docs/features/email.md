@@ -61,7 +61,7 @@
 
 - `pnpm email:preview`：用示例数据渲染邮件到 `data/out/preview-zh.html`。
 - `pnpm email:test --to 邮箱1,邮箱2`：用某一期的真实内容发测试邮件，顶部显示该邮箱是否支持标签页。
-- 后台 `/admin/deliveries/<日期>` 可以查看已发出的和将要重发的邮件，见 [订阅页与管理后台](web-admin.md#推送历史与重新推送admindeliveries)。
+- 后台 `/admin/deliveries/<日期>` 可以查看已发出的和将要重发的邮件，见 [订阅页与管理后台](web-admin.md#邮件推送与重新推送admindeliveries)。
 
 ## RSS
 

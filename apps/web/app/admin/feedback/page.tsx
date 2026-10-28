@@ -1,52 +1,51 @@
 import { adminFeedbackCounts, listFeedback, REASON_LABELS } from "@xrss/core/db";
 import { listIssues } from "@xrss/pipeline/delivery";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminLogin } from "@/components/AdminLogin";
 import { AdminNav } from "@/components/AdminNav";
+import { FilterChip, PageHead, Pill } from "@/components/AdminUi";
+import { Pager } from "@/components/Pager";
 import { adminEnabled, isAdmin } from "@/lib/admin";
+import { paginate, withParam } from "@/lib/paging";
 import { config, db } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "读者反馈 · 精选晨报", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "内容反馈 · 精选晨报", robots: { index: false, follow: false } };
 
-/** 按期反馈列表显示最近几期 */
-const RECENT_ISSUES = 14;
+/** 全部记录最多读这么多条，再分页显示 */
+const MAX_RECORDS = 1000;
+const PAGE_SIZE = 20;
 
-export default async function FeedbackAdminPage({ searchParams }: { searchParams: Promise<{ vote?: string }> }) {
+/**
+ * 内容反馈：管理员在邮件预览里给推文点的赞 / 踩，用来调整账号权重和精选规则。
+ * 「按期」列出发过的每一期和反馈数，「全部记录」是每一条反馈。
+ */
+export default async function FeedbackAdminPage({ searchParams }: { searchParams: Promise<{ view?: string; vote?: string; page?: string }> }) {
   if (!adminEnabled()) notFound();
   if (!(await isAdmin())) return <AdminLogin />;
 
-  const { vote } = await searchParams;
-  const filter = vote === "up" || vote === "down" ? vote : undefined;
+  const q = await searchParams;
+  const view = q.view === "all" ? "all" : "issues";
+  const vote = q.vote === "up" || q.vote === "down" ? q.vote : undefined;
   const d = await db();
-  const list = await listFeedback(d, { limit: 300, vote: filter });
-  const issues = (await listIssues(d, config())).filter((i) => i.sent > 0).slice(0, RECENT_ISSUES);
+  const cfg = config();
+  const tz = cfg.digest.timezone;
   const counts = await adminFeedbackCounts(d);
-  const tz = config().digest.timezone;
-  const fmt = (d: Date) => new Intl.DateTimeFormat("zh-CN", { timeZone: tz, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
-  const tabs = [
-    { id: undefined, label: "全部" },
-    { id: "up", label: "👍" },
-    { id: "down", label: "👎" },
-  ] as const;
+  const total = [...counts.values()].reduce((s, c) => s + c.up + c.down, 0);
+  const fmt = (x: Date) => new Intl.DateTimeFormat("zh-CN", { timeZone: tz, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(x);
+  const link = (params: Record<string, string | undefined>) => withParam("/admin/feedback", params, "page", undefined);
 
-  return (
-    <main className="flex flex-col gap-6">
-      <AdminNav current="feedback" />
-      <div className="flex flex-col gap-1.5">
-        <h1 className="m-0 text-3xl font-black">读者反馈</h1>
-        <p className="m-0 text-sm text-muted">最近 {list.length} 条；"后台"是你在推送详情的预览里点的；合并发送的邮件里的反馈不知道是谁，显示为匿名</p>
-      </div>
-      <section className="flex flex-col gap-3">
-        <h2 className="m-0 text-base font-bold">按期反馈</h2>
-        <p className="m-0 text-[13px] text-muted">点"去反馈"打开这一期发给你的完整邮件，在每条左下角点赞 / 踩；顶部的"今日反馈"直接打开最近一期。</p>
-        {issues.length === 0 ? (
-          <p className="m-0 text-muted">还没有发出过邮件。</p>
-        ) : (
-          <ul className="m-0 flex list-none flex-col overflow-hidden rounded-[14px] border border-line bg-white p-0">
-            {issues.map((i) => {
+  let body: React.ReactNode;
+  if (view === "issues") {
+    const page = paginate((await listIssues(d, cfg)).filter((i) => i.sent > 0), q.page, PAGE_SIZE);
+    body =
+      page.total === 0 ? (
+        <p className="m-0 text-muted">还没有发出过邮件。</p>
+      ) : (
+        <div className="overflow-hidden rounded-[14px] border border-line bg-white">
+          <ul className="m-0 flex list-none flex-col p-0">
+            {page.rows.map((i) => {
               const c = counts.get(i.date);
               return (
                 <li key={i.date} className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line px-4 py-3 text-[13px] last:border-b-0">
@@ -60,59 +59,87 @@ export default async function FeedbackAdminPage({ searchParams }: { searchParams
               );
             })}
           </ul>
-        )}
-      </section>
-
-      <h2 className="m-0 text-base font-bold">全部反馈</h2>
-      <nav aria-label="按评价筛选" className="flex gap-2">
-        {tabs.map((t) => (
-          <Link
-            key={t.label}
-            href={t.id ? `/admin/feedback?vote=${t.id}` : "/admin/feedback"}
-            aria-current={filter === t.id ? "page" : undefined}
-            className={`flex min-h-9 items-center rounded-lg px-3 text-[13px] no-underline ${filter === t.id ? "bg-ink font-bold text-white hover:text-white" : "border border-line text-body"}`}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </nav>
-      {list.length === 0 ? (
-        <p className="m-0 text-muted">还没有反馈。</p>
-      ) : (
-        <div className="overflow-x-auto rounded-[14px] border border-line bg-white">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="text-left text-muted">
-                <th className="p-3 font-normal">时间</th>
-                <th className="p-3 font-normal">期数</th>
-                <th className="p-3 font-normal">评价</th>
-                <th className="p-3 font-normal">推文</th>
-                <th className="p-3 font-normal">读者</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((f) => (
-                <tr key={f.id} className="border-t border-line align-top">
-                  <td className="whitespace-nowrap p-3">{fmt(f.updatedAt)}</td>
-                  <td className="whitespace-nowrap p-3">{f.issueDate}</td>
-                  <td className="whitespace-nowrap p-3">
-                    {f.vote === "up" ? "👍" : "👎"}
-                    {f.reason ? <span className="ml-1 text-muted">{REASON_LABELS[f.reason]}</span> : null}
-                    {f.note ? <div className="mt-1 max-w-[240px] whitespace-normal text-xs text-muted">{f.note}</div> : null}
-                  </td>
-                  <td className="p-3">
-                    <a href={`https://x.com/${f.handle ?? "i"}/status/${f.tweetId}`} target="_blank" rel="noreferrer">
-                      @{f.handle ?? "?"}
-                    </a>{" "}
-                    <span className="text-body">{f.text.replace(/\s+/g, " ").slice(0, 80)}</span>
-                  </td>
-                  <td className="whitespace-nowrap p-3 text-muted">{f.source === "admin" ? "后台" : (f.email ?? "匿名")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Pager page={page} href={(n) => withParam("/admin/feedback", {}, "page", String(n), "1")} />
         </div>
-      )}
+      );
+  } else {
+    const all = await listFeedback(d, { limit: MAX_RECORDS });
+    const page = paginate(vote ? all.filter((f) => f.vote === vote) : all, q.page, PAGE_SIZE);
+    const up = all.filter((f) => f.vote === "up").length;
+    body = (
+      <>
+        <nav aria-label="按评价筛选" className="flex flex-wrap gap-2">
+          <FilterChip href={link({ view: "all" })} active={!vote} count={all.length}>
+            全部
+          </FilterChip>
+          <FilterChip href={link({ view: "all", vote: "up" })} active={vote === "up"} count={up}>
+            赞
+          </FilterChip>
+          <FilterChip href={link({ view: "all", vote: "down" })} active={vote === "down"} count={all.length - up}>
+            踩
+          </FilterChip>
+        </nav>
+        {page.total === 0 ? (
+          <p className="m-0 text-muted">还没有反馈。</p>
+        ) : (
+          <div className="overflow-hidden rounded-[14px] border border-line bg-white">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] border-collapse text-left text-[13px]">
+                <thead>
+                  <tr className="border-b border-line bg-[#F5F6F8] text-xs text-muted">
+                    <th className="px-4 py-3 font-medium">时间</th>
+                    <th className="px-4 py-3 font-medium">期数</th>
+                    <th className="px-4 py-3 font-medium">评价</th>
+                    <th className="px-4 py-3 font-medium">推文</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {page.rows.map((f) => (
+                    <tr key={f.id} className="border-b border-line align-top last:border-b-0">
+                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{fmt(f.updatedAt)}</td>
+                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{f.issueDate}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Pill tone={f.vote === "up" ? "ok" : "bad"}>{f.vote === "up" ? "赞" : "踩"}</Pill>
+                        {f.reason ? <span className="ml-1.5 text-muted">{REASON_LABELS[f.reason]}</span> : null}
+                        {f.note ? <div className="mt-1 max-w-[240px] text-xs whitespace-normal text-muted">{f.note}</div> : null}
+                      </td>
+                      <td className="px-4 py-3">
+                        <a href={`https://x.com/${f.handle ?? "i"}/status/${f.tweetId}`} target="_blank" rel="noreferrer">
+                          @{f.handle ?? "?"}
+                        </a>{" "}
+                        <span className="text-body">{f.text.replace(/\s+/g, " ").slice(0, 100)}</span>
+                        {f.source !== "admin" ? <span className="ml-1.5 text-xs text-muted">（早先的读者反馈）</span> : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pager page={page} href={(n) => withParam("/admin/feedback", { view: "all", vote }, "page", String(n), "1")} />
+          </div>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <main className="flex flex-col gap-6">
+      <AdminNav current="feedback" />
+      <PageHead title="内容反馈" sub={`你在邮件预览里给推文点的赞 / 踩，用来调整账号权重和精选规则 · 共 ${total} 条`}>
+        {/* 普通链接（不用 Link）：目标是一个跳转到邮件预览的接口 */}
+        <a href="/admin/feedback/today" className="flex min-h-9 items-center rounded-lg bg-accent px-3.5 text-[13px] font-bold text-white no-underline hover:text-white hover:opacity-90">
+          今日反馈
+        </a>
+      </PageHead>
+      <nav aria-label="视图" className="flex gap-2">
+        <FilterChip href="/admin/feedback" active={view === "issues"}>
+          按期
+        </FilterChip>
+        <FilterChip href="/admin/feedback?view=all" active={view === "all"}>
+          全部记录
+        </FilterChip>
+      </nav>
+      {body}
     </main>
   );
 }

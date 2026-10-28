@@ -1,5 +1,5 @@
-import { type ArticleView, type CardView, type Lang, effectiveTopicId, primaryArticle, qualityOf, resolveTopicId, toCardView } from "@xrss/core";
-import { linkDigests, tweets } from "@xrss/core/db";
+import { type ArticleView, type CardView, type Lang, effectiveTopicId, localDate, primaryArticle, qualityOf, resolveTopicId, toCardView } from "@xrss/core";
+import { linkDigests, recordFeedHit, tweets } from "@xrss/core/db";
 import { and, desc, eq, gte, inArray, or } from "drizzle-orm";
 import { Feed } from "feed";
 import { config, db, siteUrl } from "@/lib/server";
@@ -54,6 +54,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
   // 主题合并前的旧地址：永久跳转到新主题的 Feed
   if (topic.id !== match[1]) return Response.redirect(siteUrl(`/feed/${topic.id}.${match[2]}.xml`), 301);
   const lang = match[2] as Lang;
+
+  // 记一次抓取（后台 RSS 订阅统计）；记录失败不影响输出
+  const h = req.headers;
+  const ip = h.get("cf-connecting-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? "local";
+  void db()
+    .then((d) => recordFeedHit(d, { date: localDate(new Date(), cfg.digest.timezone), slug, ip, userAgent: h.get("user-agent") ?? "" }))
+    .catch((e) => console.error(`[feed] 记录抓取失败：${(e as Error).message}`));
 
   const rows = await (await db())
     .select()

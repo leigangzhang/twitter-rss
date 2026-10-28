@@ -53,8 +53,30 @@ export interface FollowSyncState {
   ignored: string[];
   /** 加进来以后又取关了的账号（还在 topics.yaml 里），在后台提示是否移出 */
   unfollowed: string[];
-  /** 最近一次的结果，后台显示 */
-  last?: { at: string; ok: boolean; message: string; added: string[] };
+  /** 最近一次的结果，后台显示；dryRun = 试运行（只列出会新增哪些，不改文件） */
+  last?: { at: string; ok: boolean; message: string; added: string[]; dryRun?: boolean; step?: SyncStep };
+  /** 正在运行的同步：进程号和进行到哪一步，后台弹窗按这个显示进度；结束时清掉 */
+  progress?: SyncProgress;
+}
+
+/** 同步的步骤，顺序即进度 */
+export const SYNC_STEPS = ["gate", "chrome", "account", "read", "write"] as const;
+export type SyncStep = (typeof SYNC_STEPS)[number];
+export const SYNC_STEP_LABELS: Record<SyncStep, string> = {
+  gate: "检查冷却期和采集时段",
+  chrome: "连接采集 Chrome",
+  account: "确认登录的账号",
+  read: "读取「正在关注」列表",
+  write: "写进采集名单",
+};
+
+export interface SyncProgress {
+  pid: number;
+  startedAt: string;
+  dryRun: boolean;
+  step: SyncStep;
+  /** 已读到的关注数（读取这一步） */
+  read?: number;
 }
 
 export const EMPTY_SYNC: FollowSyncState = { following: [], complete: false, added: [], ignored: [], unfollowed: [] };
@@ -73,9 +95,35 @@ export function saveSyncState(state: FollowSyncState, path = syncStatePath()): v
   writeFileSync(path, `${JSON.stringify(state, null, 2)}\n`);
 }
 
+/** 同步日志（后台启动的同步把输出写到这里） */
+export function syncLogPath(): string {
+  return join(/*turbopackIgnore: true*/ findRepoRoot(), "data", "logs", "follow-sync.log");
+}
+
+/** 日志最后几行，失败时在后台显示 */
+export function syncLogTail(lines = 20, path = syncLogPath()): string[] {
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8").trimEnd().split("\n").slice(-lines);
+}
+
+/** 进程还在不在（EPERM：在，只是不属于当前用户） */
+export function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/** 正在运行的同步；进程已经不在时（被杀或崩溃）返回 null */
+export function runningSync(state: FollowSyncState): SyncProgress | null {
+  return state.progress && processAlive(state.progress.pid) ? state.progress : null;
+}
+
 /** 到了自动同步的时间没有 */
 export function syncDue(state: FollowSyncState, config: Pick<AppConfig, "crawl">, now = new Date()): boolean {
-  const last = state.last?.ok ? state.lastSyncAt : undefined;
+  const last = state.last?.ok && !state.last.dryRun ? state.lastSyncAt : undefined;
   return !last || now.getTime() - new Date(last).getTime() >= config.crawl.follow_sync.every_days * 86_400_000 - 3_600_000;
 }
 
@@ -122,13 +170,7 @@ export function lockHolder(path = browserLockPath()): { pid: number; what: strin
   if (!existsSync(path)) return null;
   try {
     const lock = JSON.parse(readFileSync(path, "utf8")) as { pid: number; what: string; at: string };
-    try {
-      process.kill(lock.pid, 0);
-    } catch (e) {
-      // EPERM：进程在，只是不属于当前用户
-      if ((e as NodeJS.ErrnoException).code !== "EPERM") return null;
-    }
-    return lock;
+    return processAlive(lock.pid) ? lock : null;
   } catch {
     return null;
   }

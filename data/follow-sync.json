@@ -1,0 +1,15 @@
+{
+  "following": [],
+  "complete": false,
+  "added": [],
+  "ignored": [],
+  "unfollowed": [],
+  "last": {
+    "at": "2026-10-28T12:22:14.397Z",
+    "ok": false,
+    "message": "连接采集 Chrome失败：找不到 Chrome：/Applications/Google Chrome.app/Contents/MacOS/Google Chrome。请安装 Google Chrome，或在 .env 里设置 XRSS_CHROME_PATH",
+    "added": [],
+    "dryRun": true,
+    "step": "chrome"
+  }
+}

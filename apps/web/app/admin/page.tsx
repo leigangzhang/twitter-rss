@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** /admin 直接进反馈页：顶部有"今日反馈"入口和按期列表 */
+/** /admin 直接进第一个标签：账号管理 */
 export default function AdminHome() {
-  redirect("/admin/feedback");
+  redirect("/admin/accounts");
 }

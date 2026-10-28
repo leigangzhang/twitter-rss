@@ -4,20 +4,25 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminLogin } from "@/components/AdminLogin";
 import { AdminNav } from "@/components/AdminNav";
+import { Pill } from "@/components/AdminUi";
+import { Pager } from "@/components/Pager";
 import { ResendButton } from "@/components/ResendButton";
 import { adminEnabled, isAdmin } from "@/lib/admin";
+import { paginate, withParam } from "@/lib/paging";
 import { config, db, getDigestMailer } from "@/lib/server";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "推送详情 · 精选晨报", robots: { index: false, follow: false } };
 
 const STATUS = {
-  sent: { label: "成功", style: "bg-[#E7F3EC] text-[#22663D]" },
-  failed: { label: "失败", style: "bg-[#FBE9E7] text-[#A3271A]" },
-  missing: { label: "未收到", style: "bg-[#FDF1DE] text-[#8A5300]" },
+  sent: { label: "成功", tone: "ok" },
+  failed: { label: "失败", tone: "bad" },
+  missing: { label: "未收到", tone: "warn" },
 } as const;
 
-export default async function DeliveryDetailPage({ params }: { params: Promise<{ date: string }> }) {
+const PAGE_SIZE = 20;
+
+export default async function DeliveryDetailPage({ params, searchParams }: { params: Promise<{ date: string }>; searchParams: Promise<{ page?: string; tp?: string }> }) {
   if (!adminEnabled()) notFound();
   if (!(await isAdmin())) return <AdminLogin />;
   const { date } = await params;
@@ -26,6 +31,10 @@ export default async function DeliveryDetailPage({ params }: { params: Promise<{
   const d = await issueDetail(await db(), cfg, date);
   if (!d) notFound();
   const canSend = getDigestMailer() !== null;
+  const q = await searchParams;
+  const recipients = paginate(d.recipients, q.page, PAGE_SIZE);
+  const list = paginate(d.list, q.tp, PAGE_SIZE);
+  const href = (key: "page" | "tp", n: number) => withParam(`/admin/deliveries/${d.date}`, { page: q.page, tp: q.tp }, key, String(n), "1");
   const fmt = (x: Date | null) =>
     x ? new Intl.DateTimeFormat("zh-CN", { timeZone: cfg.digest.timezone, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(x) : "—";
 
@@ -36,12 +45,17 @@ export default async function DeliveryDetailPage({ params }: { params: Promise<{
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1.5">
           <Link href="/admin/deliveries" className="text-sm">
-            ← 推送历史
+            ← 邮件推送
           </Link>
           <h1 className="m-0 font-mono text-3xl font-black">{d.date}</h1>
-          <p className="m-0 text-sm text-muted">
-            内容 {d.periodLabel} · 成功 {d.sent} · 失败 {d.failed} · 未收到 {d.missing} · 推文 {d.items} 条 · 发送 {d.attempts} 次
-          </p>
+          <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted">
+            <span className="mr-1">
+              内容 {d.periodLabel} · 推文 {d.items} 条 · 发送 {d.attempts} 次
+            </span>
+            <Pill tone="ok">成功 {d.sent}</Pill>
+            {d.failed ? <Pill tone="bad">失败 {d.failed}</Pill> : null}
+            {d.missing ? <Pill tone="warn">未收到 {d.missing}</Pill> : null}
+          </div>
         </div>
         {canSend ? (
           <div className="flex flex-wrap items-start gap-2">
@@ -54,8 +68,9 @@ export default async function DeliveryDetailPage({ params }: { params: Promise<{
       </div>
 
       <section className="flex flex-col gap-3">
-        <h2 className="m-0 text-base font-bold">收件人</h2>
-        <div className="overflow-x-auto rounded-[14px] border border-line bg-white">
+        <h2 className="m-0 text-base font-bold">收件人（{d.recipients.length}）</h2>
+        <div className="overflow-hidden rounded-[14px] border border-line bg-white">
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] border-collapse text-left text-[13px]">
             <thead>
               <tr className="border-b border-line bg-[#F5F6F8] text-xs text-muted">
@@ -68,7 +83,7 @@ export default async function DeliveryDetailPage({ params }: { params: Promise<{
               </tr>
             </thead>
             <tbody>
-              {d.recipients.map((r) => (
+              {recipients.rows.map((r) => (
                 <tr key={r.subscriber.id} className="border-b border-line align-top last:border-b-0">
                   <td className="px-4 py-3.5">
                     <div className="font-mono text-ink">{r.subscriber.email}</div>
@@ -79,7 +94,7 @@ export default async function DeliveryDetailPage({ params }: { params: Promise<{
                     {r.error ? <div className="mt-1.5 max-w-[320px] text-xs text-danger">{r.error}</div> : null}
                   </td>
                   <td className="px-4 py-3.5">
-                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap ${STATUS[r.status].style}`}>{STATUS[r.status].label}</span>
+                    <Pill tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Pill>
                   </td>
                   <td className="px-4 py-3.5 font-mono text-xs whitespace-nowrap text-body">{fmt(r.sentAt)}</td>
                   <td className="px-4 py-3.5 whitespace-nowrap">{r.status === "missing" ? "—" : `${r.items} 条`}</td>
@@ -88,31 +103,40 @@ export default async function DeliveryDetailPage({ params }: { params: Promise<{
                     <div className="flex flex-wrap items-start gap-2">
                       {r.status !== "missing" ? (
                         <a href={`/admin/deliveries/${d.date}/preview?subscriber=${r.subscriber.id}&sent=1`} target="_blank" rel="noreferrer" className="flex min-h-9 items-center rounded-lg border border-line px-3 text-[13px] whitespace-nowrap no-underline">
-                          已发出的
+                          已发出的 ↗
                         </a>
                       ) : null}
-                      <a href={`/admin/deliveries/${d.date}/preview?subscriber=${r.subscriber.id}`} target="_blank" rel="noreferrer" className="flex min-h-9 items-center rounded-lg border border-line px-3 text-[13px] whitespace-nowrap no-underline">
-                        {r.status === "sent" ? "预览重发" : "预览"}
-                      </a>
                       {canSend && r.subscriber.status !== "unsubscribed" ? (
-                        <ResendButton date={d.date} action="resend" subscriberId={r.subscriber.id} label={r.status === "sent" ? "重新发送" : "发送"} confirmLabel="确认发送" />
-                      ) : null}
+                        <ResendButton
+                          date={d.date}
+                          action="resend"
+                          subscriberId={r.subscriber.id}
+                          label={r.status === "sent" ? "重新发送" : "发送"}
+                          confirmLabel="确认发送"
+                          previewHref={`/admin/deliveries/${d.date}/preview?subscriber=${r.subscriber.id}`}
+                        />
+                      ) : (
+                        <a href={`/admin/deliveries/${d.date}/preview?subscriber=${r.subscriber.id}`} target="_blank" rel="noreferrer" className="flex min-h-9 items-center rounded-lg border border-line px-3 text-[13px] whitespace-nowrap no-underline">
+                          预览 ↗
+                        </a>
+                      )}
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
+          <Pager page={recipients} href={(n) => href("page", n)} />
         </div>
-        <p className="m-0 text-xs text-muted">
-          "重新发送"按这一期现在的全部内容（含之后补采的）和他现在的主题、语言重新挑选，生成一封带个人链接的邮件；"预览重发"打开的就是会发出的内容，"已发出的"是当时发出的那封。
-        </p>
+        <p className="m-0 text-xs text-muted">「重新发送」按这一期现在的内容和他现在的主题、语言重新挑选；点了之后可以先预览再确认。「已发出的」是当时发出的那封。</p>
       </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="m-0 text-base font-bold">发出的推文（{d.list.length}）</h2>
-        <ol className="m-0 flex list-none flex-col gap-0 overflow-hidden rounded-[14px] border border-line bg-white p-0">
-          {d.list.map((i) => (
+        <div className="overflow-hidden rounded-[14px] border border-line bg-white">
+        <ol className="m-0 flex list-none flex-col gap-0 p-0">
+          {list.rows.map((i) => (
             <li key={i.id} className="flex flex-wrap items-start gap-x-4 gap-y-1.5 border-b border-line px-4 py-3.5 last:border-b-0">
               <span className="flex min-w-0 flex-1 basis-[420px] flex-col gap-1">
                 <span className="flex flex-wrap items-center gap-2 text-xs">
@@ -133,11 +157,15 @@ export default async function DeliveryDetailPage({ params }: { params: Promise<{
             </li>
           ))}
         </ol>
+        <Pager page={list} href={(n) => href("tp", n)} />
+        </div>
       </section>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="m-0 text-base font-bold">发送记录（{d.log.length}）</h2>
-        <ol className="m-0 flex list-none flex-col gap-0 overflow-hidden rounded-[14px] border border-line bg-white p-0">
+      <details className="group flex flex-col gap-3">
+        <summary className="cursor-pointer list-none text-base font-bold">
+          发送记录（{d.log.length}）<span className="ml-2 text-xs font-normal text-accent group-open:hidden">展开</span>
+        </summary>
+        <ol className="m-0 mt-3 flex list-none flex-col gap-0 overflow-hidden rounded-[14px] border border-line bg-white p-0">
           {d.log.map((l) => (
             <li key={l.id} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-line px-4 py-3 text-[13px] last:border-b-0">
               <span className="font-mono text-xs whitespace-nowrap text-muted">{fmt(l.sentAt)}</span>
@@ -148,7 +176,7 @@ export default async function DeliveryDetailPage({ params }: { params: Promise<{
             </li>
           ))}
         </ol>
-      </section>
+      </details>
     </main>
   );
 }
