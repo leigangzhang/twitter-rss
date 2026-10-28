@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { AdminLogout } from "@/components/AdminLogout";
 
-/** 管理页顶部：订阅者 / 推送历史 / 读者反馈 切换、"今日反馈"入口和退出 */
-export function AdminNav({ current }: { current: "subscribers" | "deliveries" | "feedback" }) {
+/** 管理页顶部：订阅者 / 推送历史 / 读者反馈 / 账号 切换、"今日反馈"入口和退出 */
+export function AdminNav({ current }: { current: "subscribers" | "deliveries" | "feedback" | "accounts" }) {
   const tabs = [
     { id: "subscribers", label: "订阅者", href: "/admin/subscribers" },
     { id: "deliveries", label: "推送历史", href: "/admin/deliveries" },
     { id: "feedback", label: "读者反馈", href: "/admin/feedback" },
+    { id: "accounts", label: "账号", href: "/admin/accounts" },
   ] as const;
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">

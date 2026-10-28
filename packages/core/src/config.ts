@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { parse } from "yaml";
 import { z } from "zod";
@@ -20,7 +20,7 @@ const TopicSchema = z.object({
 });
 export type Topic = z.infer<typeof TopicSchema>;
 
-const TopicsFile = z.object({
+export const TopicsFile = z.object({
   topics: z
     .array(TopicSchema)
     .min(1)
@@ -33,7 +33,7 @@ const TopicsFile = z.object({
 
 const KEEP_CATEGORIES = ["best_practice", "real_problem", "new_release", "showcase", "industry_trend", "expert_insight"] as const;
 
-const DigestFile = z.object({
+export const DigestFile = z.object({
   send_time: z.string().regex(/^\d{2}:\d{2}$/).default("07:00"),
   timezone: z.string().default("Asia/Shanghai"),
   /** previous_day：只取前一天（按 timezone 的 0:00–24:00）发布的推文；rolling：最近 window_hours 小时 */
@@ -296,11 +296,37 @@ export function loadConfig(configDir = resolveConfigDir()): AppConfig {
   };
 }
 
-let cached: AppConfig | undefined;
-/** 进程内缓存一份配置（网站用） */
+let cached: { config: AppConfig; stamp: string } | undefined;
+
+/** 配置文件的修改时间，变了就重新读 */
+function configStamp(dir: string): string {
+  return ["topics.yaml", "digest.yaml", "crawl.yaml", "curation.md"]
+    .map((f) => {
+      try {
+        return statSync(join(dir, f)).mtimeMs;
+      } catch {
+        return 0;
+      }
+    })
+    .join(",");
+}
+
+/**
+ * 进程内缓存一份配置（网站用）。配置文件改动后（包括后台账号管理）自动重新读取；
+ * 改坏了时继续用上一份能用的配置，并在日志里报错。
+ */
 export function getConfig(): AppConfig {
-  cached ??= loadConfig();
-  return cached;
+  const dir = cached?.config.configDir ?? resolveConfigDir();
+  const stamp = configStamp(dir);
+  if (cached?.stamp === stamp) return cached.config;
+  try {
+    cached = { config: loadConfig(dir), stamp };
+  } catch (err) {
+    if (!cached) throw err;
+    console.error(`[config] 配置文件有误，继续使用上一次读到的配置：${(err as Error).message}`);
+    cached = { ...cached, stamp };
+  }
+  return cached.config;
 }
 
 /** 本次运行要处理的推文发布时间范围（见 digest.yaml 的 collect_window） */

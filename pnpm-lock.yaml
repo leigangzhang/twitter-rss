@@ -10,6 +10,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@xrss/collector':
+        specifier: workspace:*
+        version: link:../../packages/collector
       '@xrss/core':
         specifier: workspace:*
         version: link:../../packages/core

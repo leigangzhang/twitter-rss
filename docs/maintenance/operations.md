@@ -57,7 +57,8 @@
 ## 账号维护
 
 - 精选报告末尾和 `pnpm accounts` 会建议移出长期低质的账号（样本 ≥ 20 条且保留率 < 5%），由你决定是否从 `topics.yaml` 删除。分档、建议移出和降权的完整机制见 [账号内容质量管理](../features/accounts.md#账号内容质量管理)。
-- 新增账号直接加到 `topics.yaml` 对应主题下，下次采集时自动排进清单。
+- 新增、移出账号和调整权重可以在后台 [账号管理](../features/web-admin.md#账号管理adminaccounts)（`/admin/accounts`）里做，也可以直接改 `topics.yaml`、`digest.yaml`；新账号下次生成采集清单时自动排进去。
+- 后台改的是 Mac mini 上的 `config/` 文件，git 里会显示为本地修改。拉取代码前先提交这些改动（或 `git stash`，拉完再 `git stash pop`），以免和仓库里的改动冲突。
 - 采集账号（主号 / 小号）换成另一个时：在采集专用的 Chrome 里退出并登录新账号，手动操作和采集至少隔开 60 分钟。
 
 ## 代码更新后

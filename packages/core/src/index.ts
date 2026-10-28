@@ -6,3 +6,4 @@ export * from "./time.ts";
 export * from "./view.ts";
 export * from "./env.ts";
 export * from "./text.ts";
+export * from "./config-edit.ts";
