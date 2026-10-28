@@ -2,6 +2,7 @@ import { type ArticleView, type CardView, type Lang, effectiveTopicId, localDate
 import { linkDigests, recordFeedHit, tweets } from "@xrss/core/db";
 import { and, desc, eq, gte, inArray, or } from "drizzle-orm";
 import { Feed } from "feed";
+import { clientIp } from "@/lib/rate-limit";
 import { config, db, siteUrl } from "@/lib/server";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -57,7 +58,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
 
   // 记一次抓取（后台 RSS 订阅统计）；记录失败不影响输出
   const h = req.headers;
-  const ip = h.get("cf-connecting-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? "local";
+  const ip = clientIp(req);
   void db()
     .then((d) => recordFeedHit(d, { date: localDate(new Date(), cfg.digest.timezone), slug, ip, userAgent: h.get("user-agent") ?? "" }))
     .catch((e) => console.error(`[feed] 记录抓取失败：${(e as Error).message}`));

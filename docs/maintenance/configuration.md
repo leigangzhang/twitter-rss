@@ -43,6 +43,7 @@
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | 发信，默认 QQ 邮箱（`SMTP_PASS` 填授权码，不是 QQ 密码；`MAIL_FROM` 的地址要和 `SMTP_USER` 一致）。没配时邮件不会真的发出，确认链接打印在终端 |
 | `SITE_URL` | 网站公开地址，邮件里的确认、管理、退订、RSS 链接都用它 |
 | `ADMIN_PASSWORD` | 管理后台密码；不设置时 `/admin` 不开放 |
+| `ADMIN_SESSION_SECRET` | 后台登录签名密钥，一般不用设：默认自动生成在 `data/admin-session.key`；文件系统只读的部署（Vercel 等）才需要 |
 | `ADMIN_EMAIL` | 管理员提醒发到这里；"今日反馈"也按它找你收到的那一期 |
 | `WG_TUNNEL` | WireGuard 隧道名，连不上 X 时自动连接；不设置时用第一个 WireGuard 隧道 |
 | `XRSS_CHROME_PATH` / `XRSS_CHROME_PROFILE` / `XRSS_CHROME_PORT` | 采集专用 Chrome 的路径、资料目录（`~/.xrss-chrome`）、调试端口（9333），一般不用改 |

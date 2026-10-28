@@ -2,6 +2,7 @@ import { subscribers } from "@xrss/core/db";
 import { renderManageLink } from "@xrss/emails";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { clientIp, RateLimiter } from "@/lib/rate-limit";
 import { db, sendMail, siteUrl } from "@/lib/server";
 
 const Body = z.object({
@@ -10,9 +11,9 @@ const Body = z.object({
   to: z.enum(["zh", "orig"]).optional(),
 });
 
-/** 同一邮箱 5 分钟内只发一次，避免被用来刷邮件 */
-const recent = new Map<string, number>();
-const COOLDOWN_MS = 5 * 60_000;
+/** 同一邮箱 5 分钟内只发一次；同一来源 10 分钟最多请求 20 次，避免被用来刷邮件 */
+const perEmail = new RateLimiter(1, 5 * 60_000);
+const perIp = new RateLimiter(20, 10 * 60_000);
 
 // 无论邮箱是否订阅过都返回同样的提示，避免被用来探测谁订阅了
 const GENERIC = "如果这个邮箱订阅过精选晨报，专属链接已经发过去了，请查收（也看看垃圾邮件）。";
@@ -22,13 +23,12 @@ const GENERIC = "如果这个邮箱订阅过精选晨报，专属链接已经发
  * 这里把带专属 token 的管理 / 退订 / 切换语言链接发到该邮箱。
  */
 export async function POST(req: Request) {
+  if (!perIp.take(clientIp(req))) return Response.json({ message: "请求太频繁，请稍后再试" }, { status: 429 });
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ message: parsed.error.issues[0]?.message ?? "参数有误" }, { status: 400 });
   const { email, action, to } = parsed.data;
 
-  const last = recent.get(email) ?? 0;
-  if (Date.now() - last < COOLDOWN_MS) return Response.json({ message: GENERIC });
-  recent.set(email, Date.now());
+  if (!perEmail.take(email)) return Response.json({ message: GENERIC });
 
   const [sub] = await (await db()).select().from(subscribers).where(eq(subscribers.email, email));
   if (!sub) return Response.json({ message: GENERIC });
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     await sendMail({ to: email, ...mail });
   } catch (e) {
     console.error("管理链接邮件发送失败", e);
-    recent.delete(email);
+    perEmail.reset(email);
     return Response.json({ message: "邮件发送失败，请稍后再试" }, { status: 502 });
   }
   return Response.json({ message: GENERIC });
