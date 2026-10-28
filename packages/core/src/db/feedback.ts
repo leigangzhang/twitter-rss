@@ -96,6 +96,23 @@ export async function adminFeedbackCounts(db: Db): Promise<Map<string, { up: num
   return out;
 }
 
+/** 后台给每个账号的赞 / 踩数（小写账号 → 计数），账号管理页用 */
+export async function feedbackByHandle(db: Db): Promise<Map<string, { up: number; down: number }>> {
+  const rows = await db
+    .select({ handle: tweets.handle, vote: feedback.vote })
+    .from(feedback)
+    .innerJoin(tweets, eq(tweets.id, feedback.tweetId))
+    .where(eq(feedback.source, "admin"));
+  const out = new Map<string, { up: number; down: number }>();
+  for (const r of rows) {
+    const key = r.handle.toLowerCase();
+    const c = out.get(key) ?? { up: 0, down: 0 };
+    c[r.vote]++;
+    out.set(key, c);
+  }
+  return out;
+}
+
 export interface FeedbackInfo {
   id: number;
   issueDate: string;

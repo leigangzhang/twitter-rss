@@ -11,6 +11,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@xrss/collector": "workspace:*",
     "@xrss/core": "workspace:*",
     "@xrss/emails": "workspace:*",
     "@xrss/pipeline": "workspace:*",

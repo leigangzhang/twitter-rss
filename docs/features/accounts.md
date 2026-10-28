@@ -74,13 +74,13 @@
 
 ### 怎么看、怎么调
 
-1. `pnpm accounts` 查看每个账号的档位、评审数、保留数、保留率、平均分，和建议移出的名单。
+1. 后台 [账号管理](web-admin.md#账号管理adminaccounts)（`/admin/accounts`）或 `pnpm accounts` 查看每个账号的档位、评审数、保留数、保留率、平均分，和建议移出的名单；后台还显示每个账号累计的赞 / 踩。
 2. `pnpm feedback --summary` 看踩按账号的计数，找出 AI 放行但读者不喜欢的账号（见 [AI 精选](curation.md#5-人工反馈不过滤内容)）。
-3. 据此决定：降权（`account_weight`）、移出（`topics.yaml`），或者不动、让自动分档处理。
+3. 据此决定：降权（`account_weight`）、移出（`topics.yaml`），或者不动、让自动分档处理。降权和移出都可以直接在后台账号管理里点。
 
 ## 修改博主和主题
 
-在 `config/topics.yaml` 里改，下次运行生效：
+在 `config/topics.yaml` 里改，下次运行生效。增删账号和调权重也可以在后台 [账号管理](web-admin.md#账号管理adminaccounts) 里点，效果和手改文件一样：
 
 - **加账号**：写在对应主题的 `accounts` 下（不带 @），下次生成采集清单时自动排进去；同一账号可以出现在多个主题里。
 - **删账号**：从 `accounts` 里去掉。长期低质的账号会被建议移出，见上面的 [账号内容质量管理](#账号内容质量管理)。

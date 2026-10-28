@@ -6,11 +6,11 @@ pnpm monorepo，Node.js 22+。改了代码时，把对应主题的文档一起�
 
 | 位置 | 内容 |
 |---|---|
-| `packages/core` | 数据格式（采集契约 `types.ts`）、配置校验（`config.ts`）、`.env` 读取（`env.ts`）、数据库表和查询（`db/`，含反馈 `db/feedback.ts`）、打分（`scoring.ts`）、选稿（`select.ts`）、邮件和 RSS 共用的卡片视图（`view.ts`） |
+| `packages/core` | 数据格式（采集契约 `types.ts`）、配置校验（`config.ts`）、后台改配置文件（`config-edit.ts`，只改涉及的行、保留注释）、`.env` 读取（`env.ts`）、数据库表和查询（`db/`，含反馈 `db/feedback.ts`）、打分（`scoring.ts`）、选稿（`select.ts`）、邮件和 RSS 共用的卡片视图（`view.ts`） |
 | `packages/collector` | 采集清单（`plan.ts`）、逐步采集（`runner.ts`，`crawl next / done`）、脚本采集（`cli-auto.ts`、`browser/`）、X 网页数据解析（`parsers/`）、账号分档（`quality.ts`） |
 | `packages/pipeline` | 每日流水线（`daily.ts`）：入库（`ingest.ts`）、挑候选（`candidates.ts`）、AI 评审和摘要（`ai.ts`，Anthropic / OpenAI 两种格式）、终审（`editorial.ts`）、外部文章（`links.ts`）、发信（`digest.ts`、`delivery.ts`、`mailer.ts`）、后台预览（`admin-preview.ts`）和各个命令行工具（`cli-*.ts`） |
 | `packages/emails` | 邮件模板（React Email）：每日精选、确认、管理链接、设置变更通知 |
-| `apps/web` | Next.js 订阅页、偏好管理、退订、RSS、管理后台 |
+| `apps/web` | Next.js 订阅页、偏好管理、退订、RSS、管理后台（订阅者、推送历史、反馈、账号） |
 | `config/` | 主题和博主、精选规则、采集节流、精选标准，见 [配置参考](configuration.md) |
 | `schemas/inbox-file.schema.json` | 采集输出的 JSON Schema（`pnpm schema` 生成） |
 | `scripts/` | `daily-auto.sh`（脚本版每日任务）、`daily.sh`（采集后的处理和发信）、`net-check.sh`（WireGuard 自检）、`web.sh`（常驻网站）、`dev.command`（双击启动本地服务） |

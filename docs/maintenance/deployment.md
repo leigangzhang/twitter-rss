@@ -32,7 +32,7 @@
 
 4. 在手机上打开 `https://你的子域名/` 确认订阅页正常；之后发出的邮件里的链接就会指向这个地址。之前已经发出的邮件里的链接仍是旧地址。
 
-**代码或配置更新后**：`pnpm build && launchctl kickstart -k gui/$(id -u)/com.xrss.web`。
+**代码更新后**：`pnpm build && launchctl kickstart -k gui/$(id -u)/com.xrss.web`。只改 `config/` 下的配置不用重启，网站会自动重新读取。
 
 ## 方式二：部署到云端
 
