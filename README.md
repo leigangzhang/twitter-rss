@@ -93,9 +93,9 @@ scripts/daily-auto.sh         # 网络自检 → 采集清单 → 采集 → 精
 
 ## 工作原理
 
-每天从采集到发送是一个逐层过滤的漏斗（宽度只表示大致比例）：
+每天从采集到发送是一个逐层过滤的漏斗（宽度只表示大致比例），发送后的人工反馈再回头调整精选标准：
 
-<p align="center"><img src="docs/funnel.svg" alt="过滤漏斗：采集 → 时间范围 → 规则粗筛 → 挑候选 → AI 初审 → 编辑终审 → 发送" width="720"></p>
+<p align="center"><img src="docs/funnel.svg" alt="过滤漏斗：采集 → 时间范围 → 规则粗筛 → 挑候选 → AI 初审 → 编辑终审 → 发送 → 人工反馈（回到 AI 初审）" width="720"></p>
 
 1. **生成清单**：`pnpm plan` 按账号质量（近 14 天的通过率）和上次采集时间挑出今天要采的账号
 2. **逐步采集**：`pnpm crawl:auto`（或 Agent 循环运行 `pnpm crawl next` / `pnpm crawl done`）按清单逐个打开主页、保存 X 的网络响应，按 X 返回的接口额度控制节奏，中断后从断点继续

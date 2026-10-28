@@ -3,7 +3,7 @@
 采集入库后，`scripts/daily.sh` 把推文逐层过滤，选出当天值得读的内容，同时翻译和写摘要。
 代码在 `packages/pipeline`（`candidates.ts`、`ai.ts`、`review.ts`、`editorial.ts`、`links.ts`），打分算法在 `packages/core/src/scoring.ts`。
 
-<p align="center"><img src="../funnel.svg" alt="过滤漏斗：采集 → 时间范围 → 规则粗筛 → 挑候选 → AI 初审 → 编辑终审 → 发送" width="720"></p>
+<p align="center"><img src="../funnel.svg" alt="过滤漏斗：采集 → 时间范围 → 规则粗筛 → 挑候选 → AI 初审 → 编辑终审 → 发送 → 人工反馈（回到 AI 初审）" width="720"></p>
 
 ## 1. 时间范围和规则粗筛
 
