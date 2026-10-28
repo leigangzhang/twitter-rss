@@ -17,8 +17,9 @@
 |---|---|
 | [脚本版每日任务（默认）](scheduling/script-mode.md) | 采集专用的 Chrome、试采、WireGuard 网络自检、launchd 定时、退出码和异常处理 |
 | [Agent 版每日任务（备用）](scheduling/agent-mode.md) | Browser Skill、Claude Code / Codex / DeepSeek Harness 接入、定时方式 |
-| [每日任务提示词](../agents/daily-task.md) | 交给 Agent 的提示词（`scripts/agent-run.sh` 直接读取这份） |
-| [Agent 采集循环](../packages/collector/AGENT_PROMPT.md) | Agent 版里 `crawl next / done` 循环的细节 |
+| [定时任务 Agent 的规则](../agents/AGENTS.md) | 运行每日任务的 Agent 必须遵守的规则，以及 `agents/` 下每个文件的作用 |
+| [每日任务提示词](../agents/daily-task.md) | 交给 Agent 的提示词（`agents/agent-run.sh` 直接读取这份） |
+| [Agent 采集循环](../agents/crawl-loop.md) | Agent 版里 `crawl next / done` 循环的细节 |
 
 ## 维护：配置、运维、上线、开发
 

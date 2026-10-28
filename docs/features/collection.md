@@ -32,7 +32,7 @@
 - **Agent 采集（备用）**：能运行命令、能操作浏览器的 Agent 循环运行 `pnpm crawl next` 领取下一步、用浏览器做完、`pnpm crawl done <key>` 报告。
   采哪个账号、等多久由脚本决定，`done` 会检查网络响应是否真的保存、能否解析，不合格的不算完成。
   Browser Skill 抓网络数据有 256 KiB 上限，X 的时间线数据通常更大，这时 Agent 从页面读取推文（`crawl done --no-response`），入库时自动修复页面读取带来的断行。
-  说明见 [Agent 版每日任务](../scheduling/agent-mode.md) 和 [`AGENT_PROMPT.md`](../../packages/collector/AGENT_PROMPT.md)。
+  说明见 [Agent 版每日任务](../scheduling/agent-mode.md) 和 [`agents/crawl-loop.md`](../../agents/crawl-loop.md)。
 
 时间线采完后自动解析并补抓需要的详情页；清单没采完时 `scripts/daily.sh` 不发送（退出码 4），`pnpm crawl progress` 查看进度。
 
