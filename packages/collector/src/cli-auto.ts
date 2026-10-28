@@ -6,6 +6,7 @@ import { findRepoRoot, loadConfig, loadDotEnv, localDate, runRange, TRUNCATION_T
 import type { Page } from "playwright-core";
 import { connectChrome, ensureChrome } from "./browser/chrome.ts";
 import { budgetWait, captureAccount, captureDetail, formatClock, type RateLimit, rateLimits, type StepOutcome } from "./browser/x-page.ts";
+import { acquireBrowserLock } from "./follows.ts";
 import { parseXGraphQL } from "./parsers/x-graphql.ts";
 import { inboxDir } from "./paths.ts";
 import type { CrawlPlan } from "./plan.ts";
@@ -174,6 +175,17 @@ function quota(outcome: StepOutcome): string {
   return last ? `（${last.op} 额度 ${last.remaining}/${last.limit}）` : "";
 }
 
+// 同步关注也用这个 Chrome：正在同步时等它结束（一般几分钟），最多等 15 分钟
+for (let waited = 0; ; waited++) {
+  const busy = acquireBrowserLock(trial ? "试采" : "采集");
+  if (!busy) break;
+  if (waited >= 15) {
+    log(`${busy}，等了 15 分钟还没结束，这次不采集`);
+    process.exit(1);
+  }
+  if (waited === 0) log(`${busy}，等它结束`);
+  await sleep(60_000);
+}
 await ensureChrome();
 const browser = await connectChrome();
 const context = browser.contexts()[0] ?? (await browser.newContext());

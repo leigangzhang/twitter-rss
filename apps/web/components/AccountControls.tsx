@@ -185,3 +185,30 @@ export function WeightEditor({ handle, weight, note }: { handle: string; weight:
     </form>
   );
 }
+
+/** 立即同步关注列表：在后台启动同步，几分钟后刷新看结果 */
+export function SyncFollowsButton({ running }: { running: boolean }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<Result>(null);
+  return (
+    <span className="inline-flex flex-col items-start gap-1.5">
+      <button
+        type="button"
+        disabled={busy || running}
+        onClick={async () => {
+          setBusy(true);
+          const res = await fetch("/api/admin/follows", { method: "POST" });
+          const data = (await res.json().catch(() => ({}))) as { ok?: boolean; message?: string };
+          setResult({ ok: res.ok, text: data.message ?? (res.ok ? "已开始同步" : "启动失败") });
+          setBusy(false);
+          router.refresh();
+        }}
+        className={`${button} bg-ink text-white`}
+      >
+        {running ? "同步中…" : busy ? "启动中…" : "立即同步"}
+      </button>
+      <Status result={result} />
+    </span>
+  );
+}

@@ -66,6 +66,8 @@ sudo pmset repeat wakeorpoweron MTWRFSU 07:55:00     # 每天 07:55 唤醒 Mac�
 
 同时停用 DeepSeek Harness 里的定时任务，避免两边同时采集。
 
+打开 `crawl.yaml` 的 `follow_sync.enabled` 后，每日任务在生成采集清单前按间隔同步一次关注列表，见 [同步 X 关注](../features/accounts.md#同步-x-关注)。
+
 `pnpm crawl:auto` 的退出码：0 完成；2 因限流、验证码、登录失效等停止；3 今天不采集；5 本机网络不通（暂停，恢复后重新运行接着采）；6 额度用完暂停（不冷却）；1 其他错误。
 
 `daily-auto.sh` 的处理：

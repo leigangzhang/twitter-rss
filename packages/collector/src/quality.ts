@@ -127,3 +127,22 @@ export function renderAccountReport(quality: Map<string, AccountQuality>, config
   }
   return lines.join("\n");
 }
+
+/**
+ * 按各档的采集间隔估算每天平均要采多少个账号（样本不足按普通算）。
+ * 超过每天的上限（budget.max_accounts_per_run）时，各账号实际间隔会拉长。
+ */
+export function estimateDailyAccounts(tiers: AccountTier[], config: Pick<AppConfig, "crawl">): number {
+  const h = config.crawl.account_quality.interval_hours;
+  const interval: Record<AccountTier, number> = { good: h.good, normal: h.normal, unrated: h.normal, poor: h.poor, inactive: h.poor };
+  return Math.round(tiers.reduce((sum, t) => sum + Math.min(1, 24 / Math.max(interval[t], 1)), 0));
+}
+
+/** 预算提醒：账号多到轮一遍要超过补收天数（catch_up_days）、会漏内容时返回一句说明，否则 null */
+export function budgetWarning(tiers: AccountTier[], config: Pick<AppConfig, "crawl">): string | null {
+  const need = estimateDailyAccounts(tiers, config);
+  const max = config.crawl.budget.max_accounts_per_run;
+  const days = Math.ceil((tiers.length / max) * 10) / 10;
+  if (need <= max || days <= config.crawl.catch_up_days) return null;
+  return `${tiers.length} 个账号按档位每天约需采 ${need} 个，超过每天上限 ${max} 个，每个账号平均约 ${days} 天才轮到一次，超过补收天数 ${config.crawl.catch_up_days} 天，部分内容会漏掉。可以调高 crawl.yaml 的 budget.max_accounts_per_run，或减少账号。`;
+}

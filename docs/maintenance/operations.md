@@ -21,6 +21,7 @@
 | `pnpm crawl progress` | 今天的采集进度（账号数、详情页数） |
 | `pnpm crawl:status` | 冷却期、最近异常和用量（`data/crawl-state.json`） |
 | `pnpm accounts` | 账号分档（优质 / 普通 / 低质）和移出建议 |
+| `pnpm follows:sync --dry-run` | 看 X 关注列表里有哪些账号还没加进名单 |
 | `pnpm resend` / `pnpm subscribers` | 推送历史 / 订阅者 |
 
 ## 常见问题

@@ -45,7 +45,7 @@ scripts/daily-auto.sh         # 网络自检 → 采集清单 → 采集 → 精
 ## 每天自动运行
 
 默认用脚本版：`scripts/daily-auto.sh` 由 launchd 每天 08:00 启动（[`agents/com.xrss.auto.plist`](agents/com.xrss.auto.plist)），
-依次做网络自检（WireGuard）、`pnpm plan` 生成采集清单、`pnpm crawl:auto` 采集、`scripts/daily.sh` 精选并发信，出问题时给 `ADMIN_EMAIL` 发提醒。
+依次做网络自检（WireGuard）、同步关注列表（打开 `follow_sync` 时）、`pnpm plan` 生成采集清单、`pnpm crawl:auto` 采集、`scripts/daily.sh` 精选并发信，出问题时给 `ADMIN_EMAIL` 发提醒。
 安装和各种情况的处理见 [脚本版每日任务](docs/scheduling/script-mode.md)。
 
 备用方式是把"操作浏览器"交给能运行命令、能操作浏览器的 Agent（Claude Code、Codex、DeepSeek Harness 等），提示词在 [`agents/daily-task.md`](agents/daily-task.md)，
@@ -88,7 +88,7 @@ scripts/daily-auto.sh         # 网络自检 → 采集清单 → 采集 → 精
    反馈不直接参与选稿，发给读者的邮件里也没有反馈按钮
 8. **发信**：按每位订阅者的主题和语言挑选，相同组合合并成一封（密送）发送，并更新 RSS
 
-管理后台（`/admin`，设置 `ADMIN_PASSWORD` 后开放）还可以查看订阅者、推送历史和重新推送，增删账号、查看账号质量和调整权重，见 [订阅页与管理后台](docs/features/web-admin.md)。
+管理后台（`/admin`，设置 `ADMIN_PASSWORD` 后开放）还可以查看订阅者、推送历史和重新推送，增删账号、查看账号质量和调整权重、一键同步自己 X 账号的关注列表，见 [订阅页与管理后台](docs/features/web-admin.md)。
 
 ## 环境要求
 

@@ -172,6 +172,28 @@ const CrawlFile = z.object({
         .prefault({}),
     })
     .prefault({}),
+  /** 把某个 X 账号的关注列表同步进 topics.yaml（pnpm follows:sync） */
+  follow_sync: z
+    .object({
+      /** 每日任务（scripts/daily-auto.sh）里自动同步；关闭时只能手动运行或在后台点 */
+      enabled: z.boolean().default(false),
+      /** 同步谁的关注列表；留空 = 采集用的 Chrome 里登录的账号 */
+      handle: z.string().regex(/^[A-Za-z0-9_]{1,15}$/).optional(),
+      /** 自动同步的间隔（天） */
+      every_days: z.number().min(1).default(7),
+      /** 一次最多读多少个关注对象，读到就停 */
+      max_accounts: z.number().int().min(20).max(5000).default(1000),
+      /** 新账号放进的主题；topics.yaml 里没有时自动新建 */
+      topic: z
+        .object({
+          id: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/).default("following"),
+          name: z.string().min(1).default("我的关注"),
+          color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#0F766E"),
+          description: z.string().default("我在 X 上关注的账号"),
+        })
+        .prefault({}),
+    })
+    .prefault({}),
   cooldown: z
     .object({
       rate_limited_hours: z.number().min(0).default(24),

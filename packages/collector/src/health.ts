@@ -134,3 +134,10 @@ export function recordRun(state: CrawlState, run: RunSummary, crawl: CrawlConfig
 export function resetState(state: CrawlState): CrawlState {
   return { ...structuredClone(state), cooldownUntil: null, manualHold: null, consecutiveIncidents: 0 };
 }
+
+/** 采集以外访问 X 时（如同步关注）遇到的异常：和采集一样记录并冷却，但不算一次采集 */
+export function recordBlock(state: CrawlState, block: { date: string; handle: string; status: InboxFile["status"]; error?: string }, crawl: CrawlConfig, now = new Date()): CrawlState {
+  const next = recordRun(state, { date: block.date, files: [{ handle: block.handle, status: block.status, error: block.error }], timelinePages: 0, detailPages: 0 }, crawl, now);
+  next.runs = structuredClone(state.runs);
+  return next;
+}

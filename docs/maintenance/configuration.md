@@ -9,7 +9,7 @@
 |---|---|---|
 | `topics.yaml` | 主题和博主（**只采集这里列出的账号**），主题名、颜色、说明；主题合并前的旧 ID 会跳转 | [采集](../features/collection.md) |
 | `digest.yaml` | 时间范围、每期条数、每个主题每天送评审的条数、最低分、视频降权、账号权重、语言、外部文章、邮件大小和分卷、合并发送、订阅页、RSS | 见下表 |
-| `crawl.yaml` | 采集预算、节奏、活跃时段、账号分档、异常后的冷却期 | [采集](../features/collection.md#采集预算) |
+| `crawl.yaml` | 采集预算、节奏、活跃时段、账号分档、同步 X 关注（`follow_sync`）、异常后的冷却期 | [采集](../features/collection.md#采集预算) |
 | `curation.md` | 精选标准：要什么、不要什么，原样放进给大模型的提示词 | [AI 精选](../features/curation.md#3-ai-初审逐条) |
 
 `config/` 的位置可以用 `.env` 的 `CONFIG_DIR` 改。

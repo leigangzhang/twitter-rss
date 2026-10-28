@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { addAccountToTopic, normalizeHandle, readAccountWeights, removeAccountFromTopics, setAccountWeight } from "../src/config-edit.ts";
+import { addAccountsToTopic, addAccountToTopic, addTopic, normalizeHandle, readAccountWeights, removeAccountFromTopics, setAccountWeight } from "../src/config-edit.ts";
 import { DigestFile, TopicsFile } from "../src/config.ts";
 
 const dir = join(import.meta.dirname, "..", "..", "..", "config");
@@ -62,6 +62,23 @@ describe("topics.yaml", () => {
     const text = "topics:\n  - id: a\n    name: A\n    color: \"#000000\"\n    accounts: [one, two]\n";
     expect(accountsOf(addAccountToTopic(text, "a", "three"), "a")).toEqual(["one", "two", "three"]);
     expect(accountsOf(removeAccountFromTopics(text, "one"), "a")).toEqual(["two"]);
+  });
+});
+
+describe("topics.yaml 批量新增和新建主题（同步关注用）", () => {
+  it("批量新增：跳过已有的和重复的，只多出新账号的行", () => {
+    const out = addAccountsToTopic(topicsText, "research", ["Karpathy", "alice", "bob", "ALICE"]);
+    expect(changedLines(topicsText, out)).toEqual({ removed: [], added: ["      - alice", "      - bob"] });
+    expect(addAccountsToTopic(topicsText, "research", ["karpathy"])).toBe(topicsText);
+  });
+
+  it("新建主题：追加在末尾，缩进和已有主题一致，原内容不变", () => {
+    const out = addTopic(topicsText, { id: "following", name: "我的关注", color: "#0F766E", description: "我在 X 上关注的账号" }, ["alice", "bob"]);
+    expect(out.startsWith(topicsText.trimEnd())).toBe(true);
+    const topic = TopicsFile.parse(parse(out)).topics.at(-1)!;
+    expect(topic).toMatchObject({ id: "following", name: "我的关注", color: "#0F766E", accounts: ["alice", "bob"] });
+    expect(out).toContain("\n  - id: following\n    name: \"我的关注\"\n");
+    expect(() => addTopic(out, { id: "following", name: "x", color: "#000000" }, ["a"])).toThrow("已经存在");
   });
 });
 
