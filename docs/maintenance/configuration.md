@@ -20,7 +20,7 @@
 |---|---|---|
 | `collect_window` / `window_hours` / `timezone` | 只取前一天，或最近 N 小时 | [AI 精选](../features/curation.md#1-时间范围和规则粗筛) |
 | `digest` | `total_items`（60）、`min_per_topic`（1）、`candidates_per_topic`（30，按天） | [AI 精选](../features/curation.md#6-评分和选稿) |
-| `filters` | 回复、纯转发、过短内容、`min_quality`（3） | [AI 精选](../features/curation.md) |
+| `filters` | 回复、纯转发、过短内容（`min_text_length` 20、只有图片或视频时 `min_text_length_with_media` 10）、`min_quality`（3） | [AI 精选](../features/curation.md#1-时间范围和规则粗筛) |
 | `media_weight` / `video_mode` | 视频降权（0.6）、视频显示封面还是一行文字 | [邮件与 RSS](../features/email.md#版式) |
 | `account_weight` | 个别账号的分数权重（默认 1，0–2），只影响排序；目前 `jinchenma_ai: 0.6` | [AI 精选](../features/curation.md#6-评分和选稿) |
 | `thread` | 合并连续推文、最多显示几条 | [邮件与 RSS](../features/email.md#版式) |
@@ -43,6 +43,7 @@
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | 发信，默认 QQ 邮箱（`SMTP_PASS` 填授权码，不是 QQ 密码；`MAIL_FROM` 的地址要和 `SMTP_USER` 一致）。没配时邮件不会真的发出，确认链接打印在终端 |
 | `SITE_URL` | 网站公开地址，邮件里的确认、管理、退订、RSS 链接都用它 |
 | `ADMIN_PASSWORD` | 管理后台密码；不设置时 `/admin` 不开放 |
+| `ADMIN_SESSION_SECRET` | 后台登录签名密钥，一般不用设：默认自动生成在 `data/admin-session.key`；文件系统只读的部署（Vercel 等）才需要 |
 | `ADMIN_EMAIL` | 管理员提醒发到这里；"今日反馈"也按它找你收到的那一期 |
 | `WG_TUNNEL` | WireGuard 隧道名，连不上 X 时自动连接；不设置时用第一个 WireGuard 隧道 |
 | `XRSS_CHROME_PATH` / `XRSS_CHROME_PROFILE` / `XRSS_CHROME_PORT` | 采集专用 Chrome 的路径、资料目录（`~/.xrss-chrome`）、调试端口（9333），一般不用改 |

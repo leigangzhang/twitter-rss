@@ -42,7 +42,14 @@
 
 ## 管理后台
 
-`/admin/...` 只在设置了 `ADMIN_PASSWORD` 时开放，上线后设置一个足够长的密码。
+`/admin/...` 只在设置了 `ADMIN_PASSWORD` 时开放，上线后设置一个 16 位以上的随机密码。网站对外公开时建议再加两层 Cloudflare 的保护（都不用改代码）：
+
+- **Cloudflare Access**：Zero Trust → Access → Applications 新建 Self-hosted 应用，路径填 `你的子域名/admin` 和 `你的子域名/api/admin`，策略只允许自己的邮箱（邮件一次性验证码登录）。陌生人连后台登录页都看不到，订阅页、RSS、退订不受影响。
+- **限流规则**：Security → WAF → Rate limiting rules，给 `/api/subscribe`、`/api/manage-link`、`/api/admin/login` 设每个 IP 每分钟的上限。网站自己也有限流（见 [订阅页与管理后台](../features/web-admin.md)），但只在内存里，重启后清零。
+
+网站给所有页面加了安全响应头（不允许被别的网站嵌入、HSTS 等，见 `apps/web/next.config.ts`）。
+
+部署到 Vercel 等文件系统只读的平台时，在环境变量里设置 `ADMIN_SESSION_SECRET`（一串随机字符）代替 `data/admin-session.key`；这时"退出"只清掉本机的登录，要让所有登录失效就换这个值。
 
 ## 发信邮箱
 
