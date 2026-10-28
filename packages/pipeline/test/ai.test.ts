@@ -224,7 +224,17 @@ describe("精选规则", () => {
     // 中文版阅读摘要因篇幅被清空时，原文版的也清空
     expect(normalizeReview(withBoth, tweet, [{ id: "ai" }]).orig).toBeNull();
     expect(normalizeReview(withBoth, { ...long, lang: "zh" }, [{ id: "ai" }]).orig).toBeNull();
-    expect(reviewSystemPrompt("")).toContain("orig：原文版邮件用的摘要");
+    expect(reviewSystemPrompt("")).toContain("orig：原文版邮件用的标题和摘要");
+  });
+
+  it("标题去掉句末标点和包住整个标题的引号；原文版标题即使没有原文版摘要也保留", () => {
+    const r = normalizeReview({ ...base, title: " 「DeepSeek Flash 悄悄换了后端」。 ", orig: { title: "DeepSeek Flash quietly swapped backends." } }, tweet, [{ id: "ai" }]);
+    expect(r.title).toBe("DeepSeek Flash 悄悄换了后端");
+    expect(r.orig).toEqual({ title: "DeepSeek Flash quietly swapped backends", readerSummary: null, quotedDigest: null });
+    expect(normalizeReview({ ...base, title: "“Agent” 不等于自动化" }, tweet, [{ id: "ai" }]).title).toBe("“Agent” 不等于自动化");
+    expect(normalizeReview({ ...base, title: " " }, tweet, [{ id: "ai" }]).title).toBeNull();
+    expect(normalizeReview({ ...base, title: "标题", orig: { title: "Title" } }, { ...tweet, lang: "zh" }, [{ id: "ai" }]).orig).toBeNull();
+    expect(reviewSystemPrompt("")).toContain("title：给这条推文起一个简体中文标题");
   });
 
   it("提示词包含 config/curation.md 的内容，缺省时使用内置标准", () => {
