@@ -10,7 +10,7 @@ const base = RawTweet.parse({
   metrics: { likes: 100, reposts: 10, replies: 4 },
 });
 
-const filters = { include_replies: false, include_reposts: false, min_text_length: 20, min_quality: 5 };
+const filters = { include_replies: false, include_reposts: false, min_text_length: 20, min_text_length_with_media: 10, min_quality: 5 };
 const weights = { text: 1, image: 1, video: 0.6 };
 
 describe("scoring", () => {
@@ -37,7 +37,11 @@ describe("scoring", () => {
     expect(passesFilters(base, filters)).toEqual({ ok: true });
     expect(passesFilters({ ...base, isReply: true }, filters)).toEqual({ ok: false, reason: "回复" });
     expect(passesFilters({ ...base, text: "gm https://t.co/abc" }, filters)).toEqual({ ok: false, reason: "正文过短" });
-    expect(passesFilters({ ...base, text: "look", media: [{ type: "photo", url: "https://a.b/c.jpg" }] }, filters).ok).toBe(true);
+    // 评审看不到图片：配文只有一两个词的图片按过短剔除，有一句话说明的照常评审
+    const photo = [{ type: "photo" as const, url: "https://a.b/c.jpg" }];
+    expect(passesFilters({ ...base, text: "Not in SF", media: photo }, filters)).toEqual({ ok: false, reason: "正文过短（只有图片或视频）" });
+    expect(passesFilters({ ...base, text: "Introducing Sora 3", media: photo }, filters).ok).toBe(true);
+    expect(passesFilters({ ...base, text: "look https://t.co/x", media: photo, links: [{ kind: "web", url: "https://t.co/x", expandedUrl: "https://a.b", domain: "a.b" }] }, filters).ok).toBe(true);
   });
 
   it("视频降权", () => {

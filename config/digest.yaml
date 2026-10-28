@@ -19,6 +19,7 @@ filters:
   include_replies: false   # 回复别人的推文
   include_reposts: false   # 纯转发
   min_text_length: 20      # 正文过短（且无图片、无引用、无外链）时丢弃
+  min_text_length_with_media: 10  # 只有图片或视频、配文过短（且无引用、无外链）时丢弃：评审看不到图片
   min_quality: 3           # AI 质量分（5 分制：5 必读 / 4 值得读 / 3 有收获）低于此值不进入邮件
 
 media_weight:

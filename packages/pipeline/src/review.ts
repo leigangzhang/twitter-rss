@@ -1,4 +1,4 @@
-import { accountWeight, type AiResult, type AppConfig, CATEGORY_LABELS, DROP_REASON_LABELS, finalScore, type LinkDigest, qualityOf } from "@xrss/core";
+import { accountWeight, type AiResult, type AppConfig, bodyLength, CATEGORY_LABELS, DROP_REASON_LABELS, finalScore, type LinkDigest, qualityOf, type RawTweet } from "@xrss/core";
 import { type Db, tweets, type TweetRow } from "@xrss/core/db";
 import { eq } from "drizzle-orm";
 import type { Reviewer } from "./ai.ts";
@@ -18,6 +18,13 @@ export function gate(ai: AiResult, config: AppConfig, strict: boolean): string |
   if (!config.digest.curation.allowed_categories.includes(ai.category)) return `初审剔除：类型为${CATEGORY_LABELS[ai.category]}`;
   if (qualityOf(ai) < config.digest.filters.min_quality) return `初审剔除：质量分 ${qualityOf(ai)} 低于 ${config.digest.filters.min_quality}`;
   return null;
+}
+
+/** 没有引用、外链，正文去掉链接后不到这么多字：评审几次都给不出结果时按闲聊剔除，不再每次重试 */
+const THIN_TEXT_LENGTH = 50;
+
+export function isThin(t: RawTweet): boolean {
+  return t.quoted === undefined && t.links.length === 0 && bodyLength(t) < THIN_TEXT_LENGTH;
 }
 
 export interface ReviewStats {
@@ -64,6 +71,15 @@ export async function reviewCandidates(
       stats.reviewed++;
     } catch (e) {
       const error = (e as Error).message;
+      // 只有一两个词的推文，模型常常不知道怎么填评审结果（格式不符），重试也没用
+      if (opts.strict && isThin(row.raw) && error.startsWith("评审结果格式不符")) {
+        stats.rejected++;
+        await db
+          .update(tweets)
+          .set({ status: "rejected", filterReason: `初审剔除：${DROP_REASON_LABELS.chitchat}（内容过短，评审给不出结果）`, processedAt: new Date() })
+          .where(eq(tweets.id, row.id));
+        return;
+      }
       stats.failed.push({ id: row.id, error });
       await db.update(tweets).set({ status: "failed", filterReason: error.slice(0, 500), processedAt: new Date() }).where(eq(tweets.id, row.id));
     }

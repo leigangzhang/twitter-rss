@@ -36,15 +36,21 @@ export function textLength(t: Pick<RawTweet, "text" | "thread">): number {
 
 export type FilterVerdict = { ok: true } | { ok: false; reason: string };
 
+/** 去掉链接后的正文长度（含 Thread），按字符计 */
+export function bodyLength(t: Pick<RawTweet, "text" | "thread">): number {
+  const stripUrls = (s: string) => s.replace(/https?:\/\/\S+/g, "").trim();
+  return textLength({ text: stripUrls(t.text), thread: t.thread.map((p) => ({ ...p, text: stripUrls(p.text) })) });
+}
+
 /** 规则粗筛：不需要 AI 就能排除的内容 */
 export function passesFilters(t: RawTweet, cfg: DigestConfig["filters"]): FilterVerdict {
   if (t.isRepost && !cfg.include_reposts) return { ok: false, reason: "纯转发" };
   if (t.isReply && !cfg.include_replies) return { ok: false, reason: "回复" };
-  const hasSubstance = t.media.length > 0 || t.quoted !== undefined || t.links.length > 0;
-  const stripUrls = (s: string) => s.replace(/https?:\/\/\S+/g, "").trim();
-  const length = textLength({ text: stripUrls(t.text), thread: t.thread.map((p) => ({ ...p, text: stripUrls(p.text) })) });
-  if (!hasSubstance && length < cfg.min_text_length) {
-    return { ok: false, reason: "正文过短" };
+  const length = bodyLength(t);
+  if (t.quoted === undefined && t.links.length === 0) {
+    // 评审只看文字、不识别图片和视频：只配一两个词的图片或视频（如"Not in SF" + 自拍）没有可评审的内容
+    if (t.media.length === 0 && length < cfg.min_text_length) return { ok: false, reason: "正文过短" };
+    if (t.media.length > 0 && length < cfg.min_text_length_with_media) return { ok: false, reason: "正文过短（只有图片或视频）" };
   }
   return { ok: true };
 }
