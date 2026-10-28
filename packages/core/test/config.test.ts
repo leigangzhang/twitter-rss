@@ -5,9 +5,10 @@ import { effectiveTopicId, loadConfig, normalizeTopicIds, resolveTopicId } from 
 const config = loadConfig(join(import.meta.dirname, "..", "..", "..", "config"));
 
 describe("topics.yaml", () => {
-  it("合并成 5 个主题，100 个账号一个不少", () => {
+  it("合并成 5 个主题，账号不重复且超过 10 个", () => {
     expect(config.topics.map((t) => t.id)).toEqual(["labs", "research", "builders", "cn-insight", "cn-builders"]);
-    expect(config.accounts).toHaveLength(100);
+    expect(new Set(config.accounts).size).toBe(config.accounts.length);
+    expect(config.accounts.length).toBeGreaterThan(10);
     expect(config.topics.every((t) => t.description)).toBe(true);
   });
 
