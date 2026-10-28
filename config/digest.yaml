@@ -46,7 +46,7 @@ default_language: zh       # 订阅页默认选中的阅读语言（新订阅）
 # 推文或引用推文里的外部文章：抓取标题、封面和正文，在邮件里生成图文摘要
 links:
   fetch: true              # 抓取文章（普通 HTTP 请求，不经过 X）
-  summarize: true          # 对进入邮件的文章，用 DeepSeek 生成中文标题、概要和 3–5 条要点
+  summarize: true          # 对通过精选的推文分享的文章，用大模型生成中文标题、概要和 2–4 条要点（推文不是中文时另写一份原文版）
   timeout_ms: 12000
   max_bytes: 3000000
   skip_domains: [x.com, twitter.com, t.co]   # 需要登录或没有正文的站点不抓取
