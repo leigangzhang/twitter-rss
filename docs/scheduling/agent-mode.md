@@ -5,7 +5,7 @@
 
 每天的流程是：生成采集清单 → Agent 操作浏览器逐个采集 → AI 精选并发邮件。
 只有"操作浏览器"这一步需要 Agent，其余都是项目里的脚本，所以任何**能运行 shell 命令、又能操作浏览器**的 Agent 都可以接入。
-Agent 采集循环的细节见 [`packages/collector/AGENT_PROMPT.md`](../../packages/collector/AGENT_PROMPT.md)，为什么要"逐步采集"见 [`agents/daily-task.md`](../../agents/daily-task.md) 末尾。
+Agent 要遵守的规则在 [`agents/AGENTS.md`](../../agents/AGENTS.md)（每日任务提示词会让它先读这份），采集循环的细节见 [`agents/crawl-loop.md`](../../agents/crawl-loop.md)，为什么要"逐步采集"见 [`agents/daily-task.md`](../../agents/daily-task.md) 末尾。
 
 交给 Agent 的提示词只有一份：[`agents/daily-task.md`](../../agents/daily-task.md)。下面是各 Agent 的接入方式。
 
@@ -26,18 +26,18 @@ bsk doctor               # 确认浏览器扩展已连接
 ### Claude Code
 
 ```bash
-scripts/agent-run.sh claude        # 手动跑一次，确认整个流程正常
+agents/agent-run.sh claude        # 手动跑一次，确认整个流程正常
 ```
 
-脚本以无人值守方式调用 `claude -p`，只开放读写文件和运行命令的权限。项目根目录的 `CLAUDE.md` 会告诉它这个项目的规则。
+脚本以无人值守方式调用 `claude -p`，只开放读写文件和运行命令的权限。根目录的 `CLAUDE.md` / `AGENTS.md` 是给开发用的；每日任务提示词会让它改读 `agents/AGENTS.md` 的规则。
 
 ### Codex
 
 ```bash
-scripts/agent-run.sh codex
+agents/agent-run.sh codex
 ```
 
-脚本调用 `codex exec`。采集要访问本机的 Browser Skill 守护进程（`~/.bsk`），精选要访问 DeepSeek 接口，所以用的是不限制沙箱的模式；只在你信任的本机项目里这样运行。项目根目录的 `AGENTS.md` 会告诉它这个项目的规则。
+脚本调用 `codex exec`。采集要访问本机的 Browser Skill 守护进程（`~/.bsk`），精选要访问 DeepSeek 接口，所以用的是不限制沙箱的模式；只在你信任的本机项目里这样运行。同样由提示词让它读 `agents/AGENTS.md`。
 
 ### DeepSeek Harness
 
@@ -45,11 +45,11 @@ scripts/agent-run.sh codex
 
 ### 其他 Agent
 
-把 `agents/daily-task.md` 的提示词交给它即可，或者在 `scripts/agent-run.sh` 里照着 claude / codex 的写法加一行。要求只有两个：能在项目目录运行 shell 命令；能操作一个已登录 X 的浏览器。
+把 `agents/daily-task.md` 的提示词交给它即可，或者在 `agents/agent-run.sh` 里照着 claude / codex 的写法加一行。要求只有两个：能在项目目录运行 shell 命令；能操作一个已登录 X 的浏览器。
 
 ## 3. 每天定时运行
 
-自带定时任务的 Agent（如 DeepSeek Harness）直接在它里面设置。命令行 Agent 用系统定时任务调用 `scripts/agent-run.sh`：
+自带定时任务的 Agent（如 DeepSeek Harness）直接在它里面设置。命令行 Agent 用系统定时任务调用 `agents/agent-run.sh`：
 
 **macOS（launchd，推荐）**：编辑 [`agents/com.xrss.daily.plist`](../../agents/com.xrss.daily.plist) 里的项目路径和 Agent 名，然后
 
@@ -61,7 +61,7 @@ launchctl load ~/Library/LaunchAgents/com.xrss.daily.plist
 **Linux（cron）**：`crontab -e` 加一行
 
 ```
-30 6 * * * cd /path/to/twitter-rss && scripts/agent-run.sh claude
+30 6 * * * cd /path/to/twitter-rss && agents/agent-run.sh claude
 ```
 
 定时时间建议 06:30：脚本会再随机等待 0–20 分钟才开始，加上 30–60 分钟的采集，再加上精选和发信，邮件大约 7:10–8:00 发出。

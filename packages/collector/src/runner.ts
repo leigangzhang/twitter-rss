@@ -197,7 +197,7 @@ export function verifyStep(date: string, step: Step, opts: { noResponse?: string
   if (!opts.noResponse) {
     return {
       ok: false,
-      message: `没有找到 raw/${step.handle}-*.json。请把地址含 UserOriginalsTimeline 或 UserTweets 的网络响应原样保存到 raw/${step.handle}-1.json（滚动后的响应依次存 -2、-3…），UserByScreenName 存为 raw/${step.handle}-profile.json，然后再运行。确实拿不到网络响应时，按 AGENT_PROMPT.md "只能读取页面内容时"写好 ${step.handle}.json，再加 --no-response "原因" 运行。`,
+      message: `没有找到 raw/${step.handle}-*.json。请把地址含 UserOriginalsTimeline 或 UserTweets 的网络响应原样保存到 raw/${step.handle}-1.json（滚动后的响应依次存 -2、-3…），UserByScreenName 存为 raw/${step.handle}-profile.json，然后再运行。确实拿不到网络响应时，按 agents/crawl-loop.md "拿不到网络响应时（从页面读取）"写好 ${step.handle}.json，再加 --no-response "原因" 运行。`,
     };
   }
   const file = join(inboxDir(date), `${step.handle}.json`);

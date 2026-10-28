@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # 让命令行 Agent 无人值守地跑一次每日任务（手动运行，或交给 launchd / cron 定时调用）。
-#   scripts/agent-run.sh claude     用 Claude Code
-#   scripts/agent-run.sh codex      用 Codex
-# 提示词来自 agents/daily-task.md，输出写到 data/logs/agent-<日期>-<agent>.log
+#   agents/agent-run.sh claude     用 Claude Code
+#   agents/agent-run.sh codex      用 Codex
+# 提示词来自 agents/daily-task.md（它会让 Agent 先读 agents/AGENTS.md 的规则），输出写到 data/logs/agent-<日期>-<agent>.log
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -34,7 +34,7 @@ run() {
       codex exec --sandbox danger-full-access "$PROMPT"
       ;;
     *)
-      echo "用法：scripts/agent-run.sh claude|codex（其他 Agent 见 docs/scheduling/agent-mode.md）" >&2
+      echo "用法：agents/agent-run.sh claude|codex（其他 Agent 见 docs/scheduling/agent-mode.md）" >&2
       return 64
       ;;
   esac

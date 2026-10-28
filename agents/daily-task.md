@@ -1,7 +1,7 @@
 # 每日任务提示词
 
 无论用哪个 Agent，每天交给它的都是下面这段提示词。
-用 `scripts/agent-run.sh` 运行时会自动读取这里的内容；用 DeepSeek Harness 等自带定时任务的 Agent 时，把它整段粘贴进去。
+用 `agents/agent-run.sh` 运行时会自动读取这里的内容；用 DeepSeek Harness 等自带定时任务的 Agent 时，把它整段粘贴进去。
 
 ```text
 你负责运行"精选晨报"的每日任务：采集 X（原 Twitter）博主前一天的推文，精选后发邮件给订阅者。
@@ -9,9 +9,11 @@
 
 这是无人值守的定时任务。无论是定时触发还是我手动触发，都要完整执行：不要为了尽快出结果缩小采集范围、只采样、跳过等待或合并步骤。采集通常需要 30–60 分钟，这是正常的。采哪些账号、按什么顺序、每步等多久，都由脚本决定，你只负责照做。
 
+开始前先完整阅读 `agents/AGENTS.md`，遵守其中的采集规则。你在这里只负责运行每日任务，不修改仓库里的代码、配置和文档；根目录的 AGENTS.md / CLAUDE.md 是给开发用的，这次不按它做。
+
 1. 生成采集清单：运行 `pnpm plan`。退出码为 3 时今天不采集（冷却期、登录失效或非允许时段），不要打开浏览器，直接执行第 3 步，并在汇报开头说明原因。
 
-2. 采集：先完整阅读 `packages/collector/AGENT_PROMPT.md`，然后重复下面的循环，直到输出 FINISHED、STOP、SKIP 或 PAUSE：
+2. 采集：先完整阅读 `agents/crawl-loop.md`，然后重复下面的循环，直到输出 FINISHED、STOP、SKIP 或 PAUSE：
    a. 运行 `pnpm -s crawl next`。
    b. 输出 WAIT：立即再运行一次 `pnpm -s crawl next`（它自己会等待），不要自己 sleep，也不要跳过。
    c. 输出 STEP：用浏览器工具完成它列出的操作（打开页面、保存网络响应或按说明从页面读取、按给定停顿滚动），然后运行它给出的 `pnpm -s crawl done <key>`。
