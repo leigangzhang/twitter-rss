@@ -62,18 +62,66 @@ export function addAccountToTopic(text: string, topicId: string, handle: string)
   const { doc, list } = topicNodes(text);
   const topic = list.find((t) => t.id === topicId);
   if (!topic) throw new Error(`没有主题 ${topicId}`);
-  const seq = topic.accounts;
-  if (!isSeq(seq)) throw new Error(`主题 ${topicId} 没有 accounts 列表`);
-  if (seq.items.some((i) => isScalar(i) && same(i.value, handle))) throw new Error(`@${handle} 已经在「${topic.name}」里`);
+  if (isSeq(topic.accounts) && topic.accounts.items.some((i) => isScalar(i) && same(i.value, handle))) throw new Error(`@${handle} 已经在「${topic.name}」里`);
+  return appendAccounts(text, doc, topic, [handle]);
+}
 
+/** 一次加多个账号到主题末尾，已经在这个主题里的跳过 */
+export function addAccountsToTopic(text: string, topicId: string, handles: string[]): string {
+  const { doc, list } = topicNodes(text);
+  const topic = list.find((t) => t.id === topicId);
+  if (!topic) throw new Error(`没有主题 ${topicId}`);
+  const have = new Set(isSeq(topic.accounts) ? topic.accounts.items.filter(isScalar).map((i) => String(i.value).toLowerCase()) : []);
+  const fresh = handles.filter((h) => {
+    const key = h.toLowerCase();
+    if (have.has(key)) return false;
+    have.add(key);
+    return true;
+  });
+  return fresh.length ? appendAccounts(text, doc, topic, fresh) : text;
+}
+
+function appendAccounts(text: string, doc: ReturnType<typeof parseDocument>, topic: ReturnType<typeof topicNodes>["list"][number], handles: string[]): string {
+  const seq = topic.accounts;
+  if (!isSeq(seq)) throw new Error(`主题 ${topic.id} 没有 accounts 列表`);
   const last = seq.items.at(-1);
   const prefix = !seq.flow && isScalar(last) ? itemPrefix(text, last) : null;
   if (!prefix || !isScalar(last) || !last.range) {
-    seq.add(handle);
+    for (const h of handles) seq.add(h);
     return doc.toString({ lineWidth: 0 });
   }
   const at = lineEnd(text, last.range[1]);
-  return text.slice(0, at) + ensureNewline(text, at) + `${prefix}${handle}\n` + text.slice(at);
+  return text.slice(0, at) + ensureNewline(text, at) + handles.map((h) => `${prefix}${h}\n`).join("") + text.slice(at);
+}
+
+export interface NewTopic {
+  id: string;
+  name: string;
+  color: string;
+  description?: string;
+}
+
+/** 在 topics.yaml 末尾新建一个主题（带上账号，主题不能是空的），缩进和已有主题一致 */
+export function addTopic(text: string, topic: NewTopic, handles: string[]): string {
+  if (!handles.length) throw new Error("新主题至少要有一个账号");
+  const { doc, list } = topicNodes(text);
+  if (list.some((t) => t.id === topic.id)) throw new Error(`主题 ${topic.id} 已经存在`);
+  const first = list[0]?.node;
+  const prefix = first?.range ? text.slice(lineStart(text, first.range[0]), first.range[0]) : "";
+  if (!/^\s*-\s+$/.test(prefix)) {
+    (doc.get("topics", true) as YAMLSeq).add(doc.createNode({ ...topic, accounts: handles }));
+    return doc.toString({ lineWidth: 0 });
+  }
+  const key = " ".repeat(prefix.length);
+  const lines = [
+    `${prefix}id: ${topic.id}`,
+    `${key}name: ${JSON.stringify(topic.name)}`,
+    `${key}color: "${topic.color}"`,
+    ...(topic.description ? [`${key}description: ${JSON.stringify(topic.description)}`] : []),
+    `${key}accounts:`,
+    ...handles.map((h) => `${key}  - ${h}`),
+  ];
+  return `${text.replace(/\s*$/, "")}\n\n${lines.join("\n")}\n`;
 }
 
 /** 从主题里移出账号；不指定主题时从所有主题移出。主题不能因此变空 */

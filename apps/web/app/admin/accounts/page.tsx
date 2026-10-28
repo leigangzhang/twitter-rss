@@ -2,11 +2,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { accountWeight, readAccountWeights } from "@xrss/core";
 import { accounts, feedbackByHandle } from "@xrss/core/db";
-import { type AccountQuality, type AccountTier, loadAccountQuality, TIER_LABELS } from "@xrss/collector/quality";
+import { loadSyncState, lockHolder } from "@xrss/collector/follows";
+import { type AccountQuality, type AccountTier, budgetWarning, loadAccountQuality, TIER_LABELS } from "@xrss/collector/quality";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AddAccountForm, RemoveAccountButton, RemoveFromTopicButton, WeightEditor } from "@/components/AccountControls";
+import { AddAccountForm, RemoveAccountButton, RemoveFromTopicButton, SyncFollowsButton, WeightEditor } from "@/components/AccountControls";
 import { AdminLogin } from "@/components/AdminLogin";
 import { AdminNav } from "@/components/AdminNav";
 import { adminEnabled, isAdmin } from "@/lib/admin";
@@ -40,6 +41,12 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   const topicById = new Map(cfg.topics.map((t) => [t.id, t]));
   const q = cfg.crawl.account_quality;
   const tz = cfg.digest.timezone;
+  const fs = cfg.crawl.follow_sync;
+  const sync = loadSyncState();
+  const syncing = lockHolder()?.what === "同步关注";
+  const unfollowed = sync.unfollowed.filter((h) => cfg.accountTopics.has(h));
+  const warning = budgetWarning([...quality.values()].map((a) => a.tier), cfg);
+  const fmtTime = (iso: string) => new Intl.DateTimeFormat("zh-CN", { timeZone: tz, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
   const fmt = (d: Date | null | undefined) => (d ? new Intl.DateTimeFormat("zh-CN", { timeZone: tz, month: "2-digit", day: "2-digit" }).format(d) : "—");
 
   const all = [...quality.values()].sort(
@@ -81,10 +88,45 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
         </p>
       </div>
 
+      {warning ? <p className="m-0 rounded-[10px] border border-[#F0C987] bg-[#FDF1DE] px-4 py-3 text-[13px] text-[#8A5300]">⚠ {warning}</p> : null}
+
       <section className="flex flex-col gap-2 rounded-[14px] border border-line bg-white p-4">
         <h2 className="m-0 text-base font-bold">新增账号</h2>
         <p className="m-0 text-[13px] text-muted">写进 config/topics.yaml，下次生成采集清单时开始采集。同一账号可以加到多个主题；账号不存在时采集会跳过并提醒。</p>
         <AddAccountForm topics={cfg.topics.map((t) => ({ id: t.id, name: t.name }))} />
+      </section>
+
+      <section className="flex flex-col gap-2 rounded-[14px] border border-line bg-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <h2 className="m-0 text-base font-bold">同步 X 关注</h2>
+            <p className="m-0 text-[13px] text-muted">
+              读取{fs.handle ? ` @${fs.handle} ` : "采集 Chrome 里登录的账号"}的"正在关注"列表，把名单里还没有的账号加进主题「{fs.topic.name}」。只滚动读取，冷却期内不运行，遇到限流就停止并冷却。
+              {fs.enabled ? `每日任务每 ${fs.every_days} 天自动同步一次。` : "自动同步没有打开（crawl.yaml 的 follow_sync.enabled）。"}
+            </p>
+          </div>
+          <SyncFollowsButton running={syncing} />
+        </div>
+        {sync.last ? (
+          <p className={`m-0 text-[13px] ${sync.last.ok ? "text-body" : "text-danger"}`}>
+            <span className="font-mono text-xs text-muted">{fmtTime(sync.last.at)}</span> {sync.last.message}
+          </p>
+        ) : (
+          <p className="m-0 text-[13px] text-muted">还没有同步过。</p>
+        )}
+        {unfollowed.length ? (
+          <div className="flex flex-col gap-2 border-t border-line pt-3">
+            <p className="m-0 text-[13px]">已经取关、但还在名单里的同步账号（移出后不会再同步回来）：</p>
+            <ul className="m-0 flex list-none flex-wrap gap-3 p-0">
+              {unfollowed.map((h) => (
+                <li key={h} className="flex items-center gap-2 text-[13px]">
+                  <span className="font-mono">@{h}</span>
+                  <RemoveAccountButton handle={h} label="移出" confirmLabel="确认移出" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </section>
 
       <div className="flex flex-col gap-2">

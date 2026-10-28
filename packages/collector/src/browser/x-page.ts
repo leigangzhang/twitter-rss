@@ -294,3 +294,86 @@ export async function captureDetail(page: Page, step: Step, rawDir: string): Pro
     net.stop();
   }
 }
+
+/** 关注列表接口（"正在关注"页）；它和账号资料接口返回 429 时算限流 */
+const FOLLOWING_OPS = new Set(["Following", "UserByScreenName"]);
+
+export type FollowingOutcome =
+  | { kind: "ok"; responses: unknown[]; complete: boolean; calls: CallRecord[]; note?: string }
+  | Exclude<StepOutcome, { kind: "ok" }>;
+
+/**
+ * 读某个账号的"正在关注"列表：打开 /<handle>/following，按给定的停顿往下滚，直到连续两次没有新内容（读完）、
+ * 读到 maxAccounts 个、或接口额度只剩 1 次。只滚动，不点击。返回 Following 响应原文，由 parseFollowing 解析。
+ */
+export async function captureFollowing(
+  page: Page,
+  url: string,
+  opts: { scrollPausesMs: number[]; maxAccounts: number; count: (responses: unknown[]) => number },
+  rng: Random,
+): Promise<FollowingOutcome> {
+  const net = listen(page);
+  const limited = (): Extract<StepOutcome, { kind: "blocked" }> | null => {
+    const hit = net.got.find((r) => r.status === 429 && FOLLOWING_OPS.has(r.op));
+    if (!hit) return null;
+    const quota = hit.rl ? `，额度 ${hit.rl.remaining}/${hit.rl.limit}，${formatClock(hit.rl.resetAt)} 重置` : "";
+    return { kind: "blocked", status: "rate_limited", error: `${hit.op} 返回 429（请求过多）${quota}`, calls: net.calls };
+  };
+  try {
+    const failed = await open(page, url);
+    if (failed) return failed as Exclude<StepOutcome, { kind: "ok" }>;
+    const lists = () => net.got.filter((r) => r.op === "Following" && r.status === 200 && r.body).map((r) => r.body);
+    await waitFor(() => lists().length > 0 || Boolean(limited()) || Boolean(classifyPage(page.url(), "")), TIMELINE_TIMEOUT_MS);
+    await net.settle();
+    const first = limited();
+    if (first) return first;
+    const blocked = await blockedByPage(page);
+    if (blocked) return { ...blocked, calls: net.calls };
+    if (lists().length === 0) return { kind: "blocked", status: "error", error: "关注列表在页面加载后 30 秒内没有加载出来", calls: net.calls };
+
+    let idle = 0;
+    let complete = false;
+    let note: string | undefined;
+    for (const pause of opts.scrollPausesMs) {
+      if (opts.count(lists()) >= opts.maxAccounts) {
+        note = `已读到 ${opts.maxAccounts} 个（follow_sync.max_accounts），不再往下滚`;
+        break;
+      }
+      const rl = rateLimits.get("Following");
+      if (rl && rl.remaining <= 1 && rl.resetAt > Date.now()) {
+        note = `Following 额度剩 ${rl.remaining}/${rl.limit}，不再往下滚，下次同步再读剩下的`;
+        break;
+      }
+      await sleep(pause);
+      const before = lists().length;
+      await page.mouse.move(rng.int([300, 700]), rng.int([300, 600]));
+      await page.mouse.wheel(0, rng.int([1500, 2500]));
+      const grew = await waitFor(() => lists().length > before, SCROLL_RESPONSE_MS);
+      await net.settle();
+      const onScroll = limited();
+      if (onScroll) return onScroll;
+      idle = grew ? 0 : idle + 1;
+      if (idle >= 2) {
+        complete = true;
+        break;
+      }
+    }
+    if (!complete && !note) note = "滚动次数用完，列表可能没读完";
+    return note ? { kind: "ok", responses: lists(), complete, calls: net.calls, note } : { kind: "ok", responses: lists(), complete, calls: net.calls };
+  } finally {
+    net.stop();
+  }
+}
+
+/** 采集 Chrome 里登录的是哪个账号：首页左侧"个人资料"链接 /<handle> */
+export async function loggedInHandle(page: Page, origin = "https://x.com"): Promise<string | null> {
+  const failed = await open(page, `${origin}/home`);
+  if (failed) return null;
+  const link = page.locator('a[data-testid="AppTabBar_Profile_Link"]');
+  const href = await link
+    .first()
+    .getAttribute("href", { timeout: 20_000 })
+    .catch(() => null);
+  const m = href ? /^\/?([A-Za-z0-9_]{1,15})$/.exec(href.replace(/^https?:\/\/[^/]+/, "")) : null;
+  return m ? m[1]! : null;
+}

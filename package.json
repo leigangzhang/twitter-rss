@@ -19,6 +19,7 @@
     "crawl:auto": "pnpm -s --filter @xrss/collector crawl:auto",
     "crawl:chrome": "pnpm -s --filter @xrss/collector crawl:chrome",
     "accounts": "pnpm --filter @xrss/collector accounts",
+    "follows:sync": "pnpm -s --filter @xrss/collector follows:sync",
     "subscribers": "pnpm -s --filter @xrss/pipeline subscribers",
     "resend": "pnpm -s --filter @xrss/pipeline resend",
     "notify": "pnpm -s --filter @xrss/pipeline notify",

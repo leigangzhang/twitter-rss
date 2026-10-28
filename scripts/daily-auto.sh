@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 不依赖 AI Agent 的每日任务：网络自检 → 生成采集清单 → 脚本采集（pnpm crawl:auto）→ 精选并发送（scripts/daily.sh）。
+# 不依赖 AI Agent 的每日任务：网络自检 → 同步关注（打开时）→ 生成采集清单 → 脚本采集（pnpm crawl:auto）→ 精选并发送（scripts/daily.sh）。
 # 由 launchd 每天定时调用（见 agents/com.xrss.auto.plist），也可以手动运行。
 #
 # - 连不上 X（WireGuard 没连上）：先尝试连接，不通就每 15 分钟重试，到 XRSS_DEADLINE_HOUR 点（默认 10 点）仍不通就发提醒，
@@ -59,6 +59,8 @@ crawl() {
 main() {
   say "===== 每日任务开始 ====="
   if wait_network; then
+    # 按 crawl.yaml 的 follow_sync 同步关注列表（没打开或没到间隔时直接跳过）；遇到限制会进入冷却，下面的 plan 就不会安排采集
+    pnpm -s follows:sync --if-due
     pnpm -s plan
     local plan=$?
     if [ "$plan" -eq 0 ]; then

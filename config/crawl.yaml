@@ -41,6 +41,20 @@ account_quality:
     min_samples: 20
     max_keep_rate: 0.05
 
+# 把一个 X 账号的关注列表同步进 topics.yaml（pnpm follows:sync，或后台账号页的"立即同步"）
+# 只打开"正在关注"页往下滚动读取，不点任何按钮；冷却期内不运行，遇到限流、验证码、登录失效就停止并进入冷却。
+# 只新增，不自动删除：取关的账号在后台标出来，由你决定是否移出；同步来的账号被你移出后，以后不会再加回来。
+follow_sync:
+  enabled: false           # true：每日任务在采集前按间隔自动同步一次
+  # handle: your_handle    # 同步谁的关注列表；不写 = 采集用的 Chrome 里登录的账号
+  every_days: 7            # 自动同步的间隔（天）
+  max_accounts: 1000       # 一次最多读多少个关注对象
+  topic:                   # 新账号放进这个主题；topics.yaml 里没有时自动新建
+    id: following
+    name: 我的关注
+    color: "#0F766E"
+    description: 我在 X 上关注的账号
+
 # 采集端报告异常后的冷却期，期间 pnpm plan 不会安排采集
 cooldown:
   rate_limited_hours: 24        # 限流 / 内容加载不出

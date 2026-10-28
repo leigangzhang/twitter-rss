@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./quality": "./src/quality.ts"
+    "./quality": "./src/quality.ts",
+    "./follows": "./src/follows.ts"
   },
   "scripts": {
     "plan": "tsx src/cli-plan.ts",
@@ -14,6 +15,7 @@
     "test": "vitest run",
     "crawl": "tsx src/cli-crawl.ts",
     "accounts": "tsx src/cli-accounts.ts",
+    "follows:sync": "tsx src/cli-follows.ts",
     "crawl:auto": "tsx src/cli-auto.ts",
     "crawl:chrome": "tsx src/cli-auto.ts chrome"
   },
