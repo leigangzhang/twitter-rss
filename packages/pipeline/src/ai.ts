@@ -66,6 +66,10 @@ ${guide || DEFAULT_GUIDE}
    - 示例（差）：lead"作者分享了本地部署大模型的性能优化经验"，points["介绍了问题的排查过程", "还讨论了参数设置"]
      ——没有结论、没有数字、只是目录。
    正文较短时 readerSummary 为 null。
+11. orig：原文版邮件用的摘要。原文不是中文时，用推文原文的语言（lang 字段；lang 缺失或不明确时用正文实际使用的语言）
+   再写一份 readerSummary 和 quotedDigest，填进 orig。填写条件、结构和全部写法要求与上面的中文版完全相同，内容与中文版对应：
+   中文版为 null 的项，orig 里也为 null。篇幅按语言换算，英文时 lead 约 25 个单词以内、每条要点约 20 个单词以内、
+   quotedDigest.summary 约 2 句；其他语言按相当的篇幅。原文已是中文时 orig 为 null。
 
 linkedArticle 是推文（或引用推文）所附外部文章的标题、简介和正文开头（fetched 为 false 时只有标题和简介）。
 推文主要是在分享这篇文章时，按文章本身的价值判断类型和去留：实践复盘、技术博客、研究报告等有实质内容的可以保留，
@@ -463,6 +467,16 @@ export function normalizeReview(r: AiResult, tweet: RawTweet, topics: Pick<Topic
   // 没有引用、或引用很短且完整时不需要摘要，直接显示原文
   const quotedText = tweet.quoted ? cleanTweetText(tweet.quoted.text) : "";
   if (!tweet.quoted || (xWeightedLength(quotedText) < 280 && !looksTruncated(quotedText))) result.quotedDigest = null;
+  // 原文版摘要和中文版一一对应：中文版没有的这里也不要，原文是中文时两版共用中文摘要
+  if (tweet.lang?.startsWith("zh") || !result.orig) result.orig = null;
+  else {
+    const o = result.orig;
+    const rso = result.readerSummary && o.readerSummary?.lead.trim()
+      ? { lead: o.readerSummary.lead.trim(), points: o.readerSummary.points.map((p) => p.trim()).filter(Boolean).slice(0, 3) }
+      : null;
+    const qdo = result.quotedDigest && o.quotedDigest?.summary.trim() ? o.quotedDigest : null;
+    result.orig = rso || qdo ? { readerSummary: rso, quotedDigest: qdo } : null;
+  }
   if (result.category === "other" && result.verdict === "keep") {
     result.verdict = "drop";
     result.dropReason ??= "other";
@@ -537,10 +551,29 @@ export const ArticleSummary = z.object({
   /** 2–4 条要点：具体做法、数据、工具和限制，每条一句（正文缺失时为空） */
   points: z.array(z.string()).max(6),
 });
-export type ArticleSummary = z.infer<typeof ArticleSummary>;
+export type ArticleSummary = z.infer<typeof ArticleSummary> & { orig?: { lang: string; summary: string; points: string[] } };
+
+/** 要原文版概要时多填的两项 */
+const ArticleSummaryWithOrig = ArticleSummary.extend({
+  /** 用 origLang 写的概要，要求同 summary */
+  summaryOrig: z.string(),
+  /** 用 origLang 写的要点，要求同 points */
+  pointsOrig: z.array(z.string()).max(6),
+});
+
+/**
+ * 原文版概要用什么语言：分享它的推文是中文时不需要（两版共用中文概要）；
+ * 推文语言未知（只有链接、表情等）时用文章本身的语言。
+ */
+export function articleOrigLang(tweetLang: string | undefined): string | null {
+  if (tweetLang?.startsWith("zh")) return null;
+  if (!tweetLang || ["zxx", "und", "qme", "qht", "qam"].includes(tweetLang)) return "article";
+  return tweetLang;
+}
 
 export interface Summarizer {
-  summarize(article: LinkDigest, context: { tweetText: string }): Promise<ArticleSummary>;
+  /** lang：分享它的推文的语言，不是中文时再写一份原文版概要 */
+  summarize(article: LinkDigest, context: { tweetText: string; lang?: string }): Promise<ArticleSummary>;
 }
 
 const SUMMARY_TOOL = "submit_article_summary";
@@ -559,14 +592,19 @@ const SUMMARY_SYSTEM = `你是一份中文科技日报的编辑。推文里分�
    每条要点最多一个专门术语，原文的缩写能不写就不写。
 4. 只根据给你的标题、简介和正文写，不要编造正文里没有的信息（包括"无需注册""免费"这类判断），数字必须和正文一致。
    正文很短或缺失（只有标题和简介）时，summary 只写一句，points 为空数组。
-5. 保留专有名词、产品名、代码和数字。`;
+5. 保留专有名词、产品名、代码和数字。
+6. 给了 origLang 时（原文版邮件用），再用这种语言写 summaryOrig 和 pointsOrig：与 summary、points 内容对应，
+   第 2–5 条的要求全部相同，篇幅按语言换算（英文时 summary 约 50 个单词以内，每条要点约 25 个单词以内）。
+   origLang 为 article 时用文章正文本身的语言。`;
 
 /** 为进入邮件的外部文章生成中文标题、概要和要点 */
 export function createLlmSummarizer(opts: LlmOptions = {}): Summarizer {
   const client = createClient(opts);
   const schema = z.toJSONSchema(ArticleSummary, { io: "input" }) as Record<string, unknown>;
+  const schemaWithOrig = z.toJSONSchema(ArticleSummaryWithOrig, { io: "input" }) as Record<string, unknown>;
   return {
     async summarize(article, context) {
+      const origLang = articleOrigLang(context.lang);
       const payload = {
         url: article.finalUrl ?? article.url,
         site: article.siteName,
@@ -574,17 +612,25 @@ export function createLlmSummarizer(opts: LlmOptions = {}): Summarizer {
         description: article.description,
         text: article.excerpt?.slice(0, 10_000),
         sharedWith: context.tweetText.slice(0, 500),
+        ...(origLang ? { origLang } : {}),
       };
       const output = await client.callTool({
         system: SUMMARY_SYSTEM,
         text: `文章：\n${JSON.stringify(payload, null, 2)}`,
-        tool: { name: SUMMARY_TOOL, description: "提交文章的中文摘要", schema },
-        maxTokens: 1500,
+        tool: { name: SUMMARY_TOOL, description: "提交文章的中文摘要", schema: origLang ? schemaWithOrig : schema },
+        maxTokens: origLang ? 2500 : 1500,
         temperature: 0.2,
       });
+      const cleanPoints = (points: string[]) => points.filter((p) => p.trim()).slice(0, 4);
+      if (origLang) {
+        const parsed = ArticleSummaryWithOrig.safeParse(output);
+        if (!parsed.success) throw new Error(`摘要格式不符：${z.prettifyError(parsed.error)}`);
+        const { summaryOrig, pointsOrig, ...zh } = parsed.data;
+        return { ...zh, points: cleanPoints(zh.points), orig: { lang: origLang, summary: summaryOrig, points: cleanPoints(pointsOrig) } };
+      }
       const parsed = ArticleSummary.safeParse(output);
       if (!parsed.success) throw new Error(`摘要格式不符：${z.prettifyError(parsed.error)}`);
-      return { ...parsed.data, points: parsed.data.points.filter((p) => p.trim()).slice(0, 4) };
+      return { ...parsed.data, points: cleanPoints(parsed.data.points) };
     },
   };
 }

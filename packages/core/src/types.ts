@@ -174,6 +174,12 @@ export const ReaderSummary = z.object({
 });
 export type ReaderSummary = z.infer<typeof ReaderSummary>;
 
+/** 引用推文的摘要和要点 */
+export const QuotedDigest = z.object({
+  summary: z.string(),
+  points: z.array(z.string()).max(4).default([]),
+});
+
 export const AiResult = z.object({
   /** keep：值得推荐；drop：剔除 */
   verdict: z.enum(["keep", "drop"]),
@@ -214,10 +220,15 @@ export const AiResult = z.object({
    * 引用推文较长或被截断时的中文摘要和要点（短引用为 null，直接显示原文 / 译文）。
    * 被截断时只概括能看到的部分。
    */
-  quotedDigest: z
+  quotedDigest: QuotedDigest.nullish(),
+  /**
+   * 原文版用的摘要：推文不是中文时，用推文原来的语言再写一份阅读摘要和引用摘要，
+   * 填写条件和写法与上面的中文版相同。原文是中文时为 null（原文版直接用中文版的摘要）；旧数据没有这个字段。
+   */
+  orig: z
     .object({
-      summary: z.string(),
-      points: z.array(z.string()).max(4).default([]),
+      readerSummary: ReaderSummary.nullish(),
+      quotedDigest: QuotedDigest.nullish(),
     })
     .nullish(),
   /** 视频或含文字图片的中文说明，没有则为 null */
@@ -249,6 +260,17 @@ export const LinkDigest = z.object({
   titleZh: z.string().optional(),
   summary: z.string().optional(),
   points: z.array(z.string()).default([]),
+  /**
+   * 原文版用的概要和要点：分享它的推文不是中文时，用推文的语言（推文语言未知时用文章的语言）再写一份，
+   * 写法与中文概要相同。分享它的推文都是中文时没有。
+   */
+  orig: z
+    .object({
+      lang: z.string(),
+      summary: z.string(),
+      points: z.array(z.string()).default([]),
+    })
+    .optional(),
   summarizedAt: z.string().optional(),
 });
 export type LinkDigest = z.infer<typeof LinkDigest>;

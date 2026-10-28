@@ -216,6 +216,17 @@ describe("精选规则", () => {
     expect(reviewSystemPrompt("")).toContain("40 字以内");
   });
 
+  it("原文版摘要和中文版一一对应：中文版没有的清空，中文推文不要原文版摘要", () => {
+    const orig = { readerSummary: { lead: " Conclusion ", points: ["a", " ", "b", "c", "d"] }, quotedDigest: { summary: "q", points: [] } };
+    const long = { ...tweet, text: "word ".repeat(120) };
+    const withBoth = { ...base, readerSummary: { lead: "结论", points: [] }, orig };
+    expect(normalizeReview(withBoth, long, [{ id: "ai" }]).orig).toEqual({ readerSummary: { lead: "Conclusion", points: ["a", "b", "c"] }, quotedDigest: null });
+    // 中文版阅读摘要因篇幅被清空时，原文版的也清空
+    expect(normalizeReview(withBoth, tweet, [{ id: "ai" }]).orig).toBeNull();
+    expect(normalizeReview(withBoth, { ...long, lang: "zh" }, [{ id: "ai" }]).orig).toBeNull();
+    expect(reviewSystemPrompt("")).toContain("orig：原文版邮件用的摘要");
+  });
+
   it("提示词包含 config/curation.md 的内容，缺省时使用内置标准", () => {
     expect(reviewSystemPrompt("自定义标准 XYZ")).toContain("自定义标准 XYZ");
     expect(reviewSystemPrompt("")).toContain("best_practice");

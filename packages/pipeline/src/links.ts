@@ -3,7 +3,7 @@ import { type AppConfig, type Link, type LinkDigest, primaryArticle, type TimeRa
 import { type Db, linkDigests, loadLinkDigests, tweets, type TweetRow } from "@xrss/core/db";
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import { parseHTML } from "linkedom";
-import type { Summarizer } from "./ai.ts";
+import { articleOrigLang, type Summarizer } from "./ai.ts";
 import { inBatch } from "./batch.ts";
 
 export { primaryArticle } from "@xrss/core";
@@ -221,17 +221,21 @@ export async function summarizeArticles(
     .select()
     .from(tweets)
     .where(and(eq(tweets.status, "scored"), inBatch(range)));
-  const wanted = new Map<string, { link: Link; tweetText: string }>();
+  const wanted = new Map<string, { link: Link; tweetText: string; lang?: string }>();
   for (const row of rows) {
     const p = primaryArticle(row.raw);
-    if (p && !wanted.has(p.link.expandedUrl)) {
-      wanted.set(p.link.expandedUrl, { link: p.link, tweetText: [row.raw.text, row.raw.quoted?.text].filter(Boolean).join("\n") });
+    if (!p) continue;
+    const prev = wanted.get(p.link.expandedUrl);
+    // 同一篇文章被多条推文分享时，有一条不是中文就要原文版概要：优先用那条推文的语言
+    if (!prev || (articleOrigLang(prev.lang) === null && articleOrigLang(row.raw.lang) !== null)) {
+      wanted.set(p.link.expandedUrl, { link: p.link, tweetText: [row.raw.text, row.raw.quoted?.text].filter(Boolean).join("\n"), lang: row.raw.lang });
     }
   }
   const cache = await loadDigests(db, [...wanted.keys()]);
-  const todo = [...wanted.entries()].filter(([url]) => {
+  const todo = [...wanted.entries()].filter(([url, w]) => {
     const d = cache.get(url);
-    return d && d.status !== "skipped" && !d.summarizedAt;
+    // 以前只生成过中文概要、现在又被外文推文分享的，补上原文版概要
+    return d && d.status !== "skipped" && (!d.summarizedAt || (!d.orig && articleOrigLang(w.lang) !== null));
   });
 
   const result = { summarized: 0, failed: [] as Array<{ url: string; error: string }> };
@@ -239,12 +243,12 @@ export async function summarizeArticles(
   await Promise.all(
     Array.from({ length: Math.min(opts.concurrency ?? 3, todo.length) }, async () => {
       while (i < todo.length) {
-        const [url, { link, tweetText }] = todo[i++]!;
+        const [url, { link, tweetText, lang }] = todo[i++]!;
         const base = withCardFallback(cache.get(url), link)!;
         if (!base.title && !base.excerpt && !base.description) continue;
         try {
-          const s = await summarizer.summarize(base, { tweetText });
-          await saveDigest(db, { ...cache.get(url)!, titleZh: s.titleZh, summary: s.summary, points: s.points, summarizedAt: new Date().toISOString() });
+          const s = await summarizer.summarize(base, { tweetText, lang });
+          await saveDigest(db, { ...cache.get(url)!, titleZh: s.titleZh, summary: s.summary, points: s.points, orig: s.orig, summarizedAt: new Date().toISOString() });
           result.summarized++;
         } catch (e) {
           result.failed.push({ url, error: (e as Error).message });
