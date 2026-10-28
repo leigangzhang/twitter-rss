@@ -303,7 +303,7 @@ function configStamp(dir: string): string {
   return ["topics.yaml", "digest.yaml", "crawl.yaml", "curation.md"]
     .map((f) => {
       try {
-        return statSync(join(dir, f)).mtimeMs;
+        return statSync(join(/*turbopackIgnore: true*/ dir, f)).mtimeMs;
       } catch {
         return 0;
       }
