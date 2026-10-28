@@ -59,4 +59,4 @@
   选原因或点"保存"（回车）即更新，随后自动收起成一行"原因：说明　修改"；点面板外面或按 Esc 也会收起。赞不需要原因。
 - 每条推文只留一条后台评价（`feedback` 表 `source = admin`），重新打开预览会显示之前的评价、原因和说明。
 
-反馈不直接参与选稿，用法见 [日常运维](../maintenance/operations.md#根据反馈调整精选)。命令行：`pnpm feedback`（`--down` 只看踩，`--summary` 汇总）。
+反馈不直接参与选稿，机制见 [AI 精选](curation.md#5-人工反馈不过滤内容)，定期操作见 [日常运维](../maintenance/operations.md#根据反馈调整精选)。命令行：`pnpm feedback`（`--down` 只看踩，`--summary` 汇总）。

@@ -18,10 +18,10 @@
 | 段 | 作用 | 细节 |
 |---|---|---|
 | `collect_window` / `window_hours` / `timezone` | 只取前一天，或最近 N 小时 | [AI 精选](../features/curation.md#1-时间范围和规则粗筛) |
-| `digest` | `total_items`（60）、`min_per_topic`（1）、`candidates_per_topic`（30，按天） | [AI 精选](../features/curation.md#5-评分和选稿) |
+| `digest` | `total_items`（60）、`min_per_topic`（1）、`candidates_per_topic`（30，按天） | [AI 精选](../features/curation.md#6-评分和选稿) |
 | `filters` | 回复、纯转发、过短内容、`min_quality`（3） | [AI 精选](../features/curation.md) |
 | `media_weight` / `video_mode` | 视频降权（0.6）、视频显示封面还是一行文字 | [邮件与 RSS](../features/email.md#版式) |
-| `account_weight` | 个别账号的分数权重（默认 1，0–2），只影响排序；目前 `jinchenma_ai: 0.6` | [AI 精选](../features/curation.md#5-评分和选稿) |
+| `account_weight` | 个别账号的分数权重（默认 1，0–2），只影响排序；目前 `jinchenma_ai: 0.6` | [AI 精选](../features/curation.md#6-评分和选稿) |
 | `thread` | 合并连续推文、最多显示几条 | [邮件与 RSS](../features/email.md#版式) |
 | `languages` / `default_language` | 可选阅读语言（zh / orig）和订阅页默认值 | [邮件与 RSS](../features/email.md#中文版和原文版) |
 | `links` | 外部文章抓取、摘要、超时、不抓取的域名 | [AI 精选](../features/curation.md#外部文章摘要) |
