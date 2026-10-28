@@ -55,6 +55,8 @@ export interface CardView {
   ctaLabel: string;
   /** AI 一句话摘要（中文版），邮件放不下时用它代替完整卡片 */
   summary?: string;
+  /** AI 起的标题（RSS 条目标题）：中文版用中文的，原文版用推文原来语言的那份；旧数据没有 */
+  title?: string;
   /** 长推文、Thread 的阅读摘要（中文版）：一句结论 + 最多 3 条要点，邮件里先显示它、原文折叠 */
   readerSummary?: { lead: string; points: string[] };
 }
@@ -269,6 +271,7 @@ export function toCardView(t: TweetForView, opts: ViewOptions): CardView {
     ctaLabel: videoMedia ? "看视频 ↗" : "原推 ↗",
     // 一句话摘要只是旧数据的退路，而且只有中文
     summary: opts.lang === "zh" || isChinese ? (t.ai?.summary ?? undefined) : undefined,
+    title: (opts.lang === "zh" || isChinese ? t.ai?.title : t.ai?.orig?.title) ?? undefined,
     readerSummary: toReaderSummary(digests?.readerSummary),
   };
 }

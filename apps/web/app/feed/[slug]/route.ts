@@ -33,6 +33,17 @@ function cardHtml(c: CardView): string {
   return parts + images + video + quoted + (c.article ? articleHtml(c.article) : link) + meta;
 }
 
+/**
+ * 条目标题：AI 起的标题；旧数据没有标题时，中文版用一句话摘要，都没有再用"作者：正文开头"。
+ * 作者在条目的 author 里，阅读器会单独显示，标题里不再重复。
+ */
+function itemTitle(c: CardView): string {
+  const ai = c.title ?? c.summary;
+  if (ai) return ai;
+  const first = c.parts[0] ?? "";
+  return `${c.author.name}：${first.length > 60 ? `${first.slice(0, 60)}…` : first}`;
+}
+
 export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params;
   const match = /^([a-z][a-z0-9-]*)\.(zh|orig)\.xml$/.exec(slug);
@@ -79,11 +90,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
   for (const r of items) {
     const p = primaryArticle(r.raw);
     const card = toCardView({ id: r.id, topicId: topic.id, kind: r.kind, raw: r.raw, ai: r.ai, article: p ? digests.get(p.link.expandedUrl) : undefined }, viewOpts);
-    const first = card.parts[0] ?? "";
     feed.addItem({
       id: card.url,
       link: card.url,
-      title: `${card.author.name}：${first.length > 60 ? `${first.slice(0, 60)}…` : first}`,
+      title: itemTitle(card),
       content: cardHtml(card),
       date: r.createdAt,
       author: [{ name: `${card.author.name} (@${card.author.handle})`, link: `https://x.com/${card.author.handle}` }],
