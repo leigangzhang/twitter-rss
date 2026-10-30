@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Browser, Page } from "playwright-core";
-import { chromeArgs, chromeOptions, connectChrome, ensureChrome } from "../src/browser/chrome.ts";
+import { chromeArgs, chromeOptions, connectChrome, ensureChrome, ensurePage } from "../src/browser/chrome.ts";
 import { budgetWait, captureAccount, classifyPage, formatClock, isOfflineError, pinnedIds, type RateLimit, rateLimits, reachedEnd, readRateLimit } from "../src/browser/x-page.ts";
 import { createRandom } from "../src/random.ts";
 import type { Step } from "../src/runner.ts";
@@ -69,6 +69,50 @@ describe("脚本采集：X 返回的额度", () => {
 
   it("重置时间按北京时间显示", () => {
     expect(formatClock(Date.parse("2026-10-26T08:38:00Z"))).toBe("16:38");
+  });
+});
+
+describe("脚本采集：采集 Chrome 的窗口都关了", () => {
+  /** 模拟 Chrome 调试端口：记下新开标签页的请求 */
+  const devtools = async (pages: string[]) => {
+    const opened: string[] = [];
+    const server = createServer((req, res) => {
+      const url = req.url ?? "/";
+      res.writeHead(200, { "content-type": "application/json" });
+      if (url === "/json/list") return res.end(JSON.stringify([{ type: "service_worker" }, ...pages.map((u) => ({ type: "page", url: u }))]));
+      if (url.startsWith("/json/new?") && req.method === "PUT") {
+        opened.push(url.slice("/json/new?".length));
+        return res.end(JSON.stringify({ type: "page" }));
+      }
+      res.end("{}");
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    return { server, opened, port: (server.address() as { port: number }).port };
+  };
+
+  it("没有标签页时开一个空白页，有标签页时不动", async () => {
+    const empty = await devtools([]);
+    const busy = await devtools(["https://x.com/home"]);
+    try {
+      expect(await ensurePage({ port: empty.port })).toBe(true);
+      expect(empty.opened).toEqual(["about:blank"]);
+      expect(await ensurePage({ port: busy.port })).toBe(false);
+      expect(busy.opened).toEqual([]);
+    } finally {
+      empty.server.close();
+      busy.server.close();
+    }
+  });
+
+  it("Chrome 已在运行时，连接前补开标签页（pnpm crawl:chrome 打开登录页）", async () => {
+    const empty = await devtools([]);
+    try {
+      const opts = { ...chromeOptions(), port: empty.port };
+      expect(await ensureChrome(opts, "https://x.com/login")).toEqual({ started: false });
+      expect(empty.opened).toEqual(["https://x.com/login"]);
+    } finally {
+      empty.server.close();
+    }
   });
 });
 

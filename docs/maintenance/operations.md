@@ -36,6 +36,7 @@
 | 额度用完暂停（退出码 6） | 不冷却；看 `calls.jsonl` 是哪个接口，额度恢复后手动运行 `scripts/daily-auto.sh` 补采 |
 | 限流、验证码 | 自动停止并冷却（24 / 48 小时），已采到的内容照常发送。不要重试或绕过，冷却结束后自动恢复 |
 | 登录失效 | `pnpm crawl:chrome`，在采集专用的 Chrome 里重新登录采集用的 X 账号，然后 `pnpm crawl:reset` |
+| 报「端口 9333 上的 Chrome 不接受自动控制」 | 采集 Chrome 的窗口全部关掉后会出现（macOS 上进程还在，但用户资料被卸载了）。采集和同步关注连接前会自动开一个空白标签页，一般不用管；仍然出现时，完全退出这个 Chrome，再运行 `pnpm crawl:chrome` |
 | 账号不存在、改名、被冻结 | 提醒里会列出来，改 `config/topics.yaml` |
 | `pnpm plan` 退出码 3 | 冷却期或不在允许时段，今天不采集；`pnpm crawl:status` 看原因 |
 | `scripts/daily.sh` 退出码 4 | 清单还没采完；`daily-auto.sh` 会自动接着采一次，Agent 版让 Agent 继续 `pnpm crawl next` |

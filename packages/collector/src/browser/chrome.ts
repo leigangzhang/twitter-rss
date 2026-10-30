@@ -44,7 +44,7 @@ export function chromeArgs(opts: ChromeOptions, url?: string): string[] {
   ];
 }
 
-const endpoint = (opts: ChromeOptions) => `http://127.0.0.1:${opts.port}`;
+const endpoint = (opts: Pick<ChromeOptions, "port">) => `http://127.0.0.1:${opts.port}`;
 
 async function isUp(opts: ChromeOptions): Promise<boolean> {
   try {
@@ -55,9 +55,28 @@ async function isUp(opts: ChromeOptions): Promise<boolean> {
   }
 }
 
-/** 采集用的 Chrome 没在运行就启动它（脱离当前进程，采集结束后继续开着，保持登录） */
+const DEVTOOLS_TIMEOUT_MS = 5000;
+
+/**
+ * 保证至少开着一个标签页，返回是否新开了。
+ * macOS 上关掉 Chrome 的所有窗口后进程还在，但会卸载用户资料，这时调试端口仍有响应，
+ * 连接却会报 Browser context management is not supported；开一个新标签页就会重新加载资料。
+ */
+export async function ensurePage(opts: Pick<ChromeOptions, "port">, url = "about:blank"): Promise<boolean> {
+  const list = await fetch(`${endpoint(opts)}/json/list`, { signal: AbortSignal.timeout(DEVTOOLS_TIMEOUT_MS) });
+  const targets = (await list.json()) as { type?: string }[];
+  if (targets.some((t) => t.type === "page")) return false;
+  const res = await fetch(`${endpoint(opts)}/json/new?${url}`, { method: "PUT", signal: AbortSignal.timeout(DEVTOOLS_TIMEOUT_MS) });
+  if (!res.ok) throw new Error(`采集 Chrome 没有打开的窗口，新开标签页失败（HTTP ${res.status}）`);
+  return true;
+}
+
+/** 采集用的 Chrome 没在运行就启动它（脱离当前进程，采集结束后继续开着，保持登录）；在运行但窗口都关了就开一个标签页 */
 export async function ensureChrome(opts = chromeOptions(), url?: string): Promise<{ started: boolean }> {
-  if (await isUp(opts)) return { started: false };
+  if (await isUp(opts)) {
+    await ensurePage(opts, url);
+    return { started: false };
+  }
   if (!existsSync(opts.path)) throw new Error(`找不到 Chrome：${opts.path}。请安装 Google Chrome，或在 .env 里设置 XRSS_CHROME_PATH`);
   mkdirSync(opts.profileDir, { recursive: true });
   const child = spawn(opts.path, chromeArgs(opts, url), { detached: true, stdio: "ignore" });
@@ -83,7 +102,7 @@ export async function connectChrome(opts = chromeOptions()): Promise<Browser> {
 export function explainConnectError(e: unknown, opts: Pick<ChromeOptions, "port">): string {
   const raw = ((e as Error)?.message ?? String(e)).split("\n")[0]!.replace(/^browserType\.connectOverCDP:\s*/, "");
   if (/not supported/i.test(raw)) {
-    return `端口 ${opts.port} 上的 Chrome 不接受自动控制（${raw}）。这个端口上开着的多半不是用 pnpm crawl:chrome 启动的采集 Chrome：请完全退出它，运行 pnpm crawl:chrome 重新打开并确认登录了采集账号，再同步`;
+    return `端口 ${opts.port} 上的 Chrome 不接受自动控制（${raw}）。如果是采集 Chrome 的窗口都关了，下次连接前会自动开一个标签页；仍然出现说明这个端口上开着的不是用 pnpm crawl:chrome 启动的采集 Chrome：请完全退出它，运行 pnpm crawl:chrome 重新打开并确认登录了采集账号，再同步`;
   }
   if (/ECONNREFUSED|connect|timeout/i.test(raw)) {
     return `连不上端口 ${opts.port} 上的采集 Chrome（${raw}）。请运行 pnpm crawl:chrome 打开它，再同步`;
