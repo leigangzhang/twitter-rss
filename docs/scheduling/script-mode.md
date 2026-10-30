@@ -81,6 +81,7 @@ sudo pmset repeat wakeorpoweron MTWRFSU 07:55:00     # 每天 07:55 唤醒 Mac�
 | 接口额度不够（X 响应头 `x-rate-limit-*`） | 20 分钟内能恢复就等到重置再继续；更久就暂停采集（退出码 6，不冷却），已采到的内容照常发送，发提醒 |
 | 限流、验证码、登录失效 | 立即停止采集并进入冷却，已采到的内容照常发送，发提醒 |
 | 采集进程意外中断 | `daily.sh` 发现清单没采完时再接着采一次 |
+| 根据反馈调整精选标准失败（模型出错等） | 只记日志，按原来的标准照常评审和发送；这些反馈下次再处理（见 [AI 精选](../features/curation.md#5-人工反馈不过滤内容)） |
 
 日志：`data/logs/auto-<日期>.log`（总流程）、`data/logs/<日期>.log`（精选和发送）。
 登录失效时：运行 `pnpm crawl:chrome`，在采集专用的 Chrome 里重新登录采集用的 X 账号，然后 `pnpm crawl:reset`。

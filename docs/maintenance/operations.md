@@ -52,11 +52,13 @@
 
 ## 根据反馈调整精选
 
-反馈不直接参与选稿，由人定期汇总后改规则：
+反馈不直接参与选稿。每天评审前 `scripts/daily.sh` 会运行 `pnpm feedback:tune`，根据上次以来的踩自动修改 `config/curation.md`（最多 3 处），
+改动和理由记在 `config/curation-changelog.md`，同时给管理员发提醒；不认可就运行 `pnpm feedback:tune --revert` 撤销最近一次。
+机制见 [AI 精选](../features/curation.md#5-人工反馈不过滤内容)。账号和主题的调整仍由人来做：
 
-1. 每隔几天运行 `pnpm feedback --summary`（默认最近 7 天，或 `--days 14`、`--from 2026-10-20 --to 2026-10-26`）。
+1. 看 `config/curation-changelog.md` 里"其他建议"（降权、调整主题），或每隔几天运行 `pnpm feedback --summary`（默认最近 7 天，或 `--days 14`、`--from 2026-10-20 --to 2026-10-26`）。
    它列出每条踩的账号、主题、类别、分数、AI 当时的判断理由、你选的原因和说明，以及按账号 / 主题 / 类别 / 原因的计数。
-2. 共性问题（某类内容总被踩）写进 [`config/curation.md`](../../config/curation.md) 的剔除类型或判断原则。
+2. 自动调整没处理好的共性问题（某类内容总被踩）写进 [`config/curation.md`](../../config/curation.md) 的剔除类型或判断原则。
 3. 某个账号整体偏弱时，在 `config/digest.yaml` 的 `account_weight` 里降权（如 `0.6`），并注明原因和日期；完全不想看就从 `topics.yaml` 移出。
 4. `pnpm pipeline:dry --rereview` 按新标准重评，对照精选报告确认效果。
 

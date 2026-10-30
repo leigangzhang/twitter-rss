@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 采集完成后的处理：解析原始响应 → 入库 → AI 精选（初审 + 终审）→ 发送邮件，并写日志。
+# 采集完成后的处理：解析原始响应 → 根据上次以来的赞 / 踩调整精选标准 → 入库 → AI 精选（初审 + 终审）→ 发送邮件，并写日志。
 # 由每日任务在采集结束后调用（脚本版 scripts/daily-auto.sh，Agent 版见 agents/daily-task.md），也可以手动运行。
 #   scripts/daily.sh            正式运行
 #   scripts/daily.sh --dry-run  试跑，不发邮件
@@ -37,6 +37,12 @@ main() {
   # 采集端保存的原始响应统一再解析一次（已解析过也没关系），确保详情页补抓的全文被合并
   if [ -d "data/inbox/$TODAY/raw" ]; then
     pnpm -s --filter @xrss/collector parse || return 1
+  fi
+
+  # 评审前先根据上次以来后台的赞 / 踩修改 config/curation.md（每天一次，改动记在 config/curation-changelog.md），
+  # 当天的评审就用新标准；失败时只记日志，按原来的标准继续。试跑不改标准
+  if [[ " $* " != *" --dry-run "* ]]; then
+    pnpm -s feedback:tune --notify || echo "根据反馈调整精选标准失败，按原来的标准继续"
   fi
 
   local status=0
