@@ -25,6 +25,8 @@ export interface AccountQuality {
   /** 其中 AI 判为保留的 */
   kept: number;
   keepRate: number | null;
+  /** 平滑保留率（分档用，见 crawl.yaml 的 account_quality.prior_rate / prior_weight） */
+  smoothedRate: number | null;
   /** 评审过的推文平均分（5 分制） */
   avgQuality: number | null;
   lastTweetAt: Date | null;
@@ -65,14 +67,15 @@ export function rateAccounts(
     const list = byHandle.get(handle) ?? [];
     const kept = list.filter(isKept).length;
     const keepRate = list.length ? kept / list.length : null;
+    const smoothedRate = list.length ? (kept + q.prior_rate * q.prior_weight) / (list.length + q.prior_weight) : null;
     const avgQuality = list.length ? Math.round((list.reduce((s, r) => s + qualityOf(r.ai), 0) / list.length) * 10) / 10 : null;
     const lastTweetAt = profiles.get(handle)?.lastTweetAt ?? null;
 
     let tier: AccountTier;
     if (lastTweetAt && now.getTime() - lastTweetAt.getTime() > q.inactive_days * 86_400_000) tier = "inactive";
-    else if (list.length < q.min_samples || keepRate === null) tier = "unrated";
-    else if (keepRate >= q.good_keep_rate) tier = "good";
-    else if (keepRate < q.poor_keep_rate) tier = "poor";
+    else if (list.length < q.min_samples || smoothedRate === null) tier = "unrated";
+    else if (smoothedRate >= q.good_keep_rate) tier = "good";
+    else if (smoothedRate < q.poor_keep_rate) tier = "poor";
     else tier = "normal";
 
     const intervalHours = tier === "good" ? q.interval_hours.good : tier === "poor" || tier === "inactive" ? q.interval_hours.poor : q.interval_hours.normal;
@@ -82,6 +85,7 @@ export function rateAccounts(
       reviewed: list.length,
       kept,
       keepRate,
+      smoothedRate,
       avgQuality,
       lastTweetAt,
       intervalHours,
@@ -112,11 +116,11 @@ export function renderAccountReport(quality: Map<string, AccountQuality>, config
   const lines = [
     `近 ${q.stats_days} 天：${counts}。优质每 ${q.interval_hours.good} 小时、普通每 ${q.interval_hours.normal} 小时、低质和不活跃每 ${q.interval_hours.poor} 小时采集一次。`,
     "",
-    "| 账号 | 档位 | 评审 | 保留 | 保留率 | 平均分 |",
-    "|---|---|---|---|---|---|",
+    "| 账号 | 档位 | 评审 | 保留 | 保留率 | 平滑保留率 | 平均分 |",
+    "|---|---|---|---|---|---|---|",
     ...list
-      .sort((a, b) => order.indexOf(a.tier) - order.indexOf(b.tier) || (b.keepRate ?? -1) - (a.keepRate ?? -1) || b.reviewed - a.reviewed)
-      .map((a) => `| @${a.handle} | ${TIER_LABELS[a.tier]}${a.suggestRemove ? " ⚠" : ""} | ${a.reviewed} | ${a.kept} | ${pct(a.keepRate)} | ${a.avgQuality ?? "—"} |`),
+      .sort((a, b) => order.indexOf(a.tier) - order.indexOf(b.tier) || (b.smoothedRate ?? -1) - (a.smoothedRate ?? -1) || b.reviewed - a.reviewed)
+      .map((a) => `| @${a.handle} | ${TIER_LABELS[a.tier]}${a.suggestRemove ? " ⚠" : ""} | ${a.reviewed} | ${a.kept} | ${pct(a.keepRate)} | ${pct(a.smoothedRate)} | ${a.avgQuality ?? "—"} |`),
   ];
   const remove = list.filter((a) => a.suggestRemove);
   if (remove.length) {
