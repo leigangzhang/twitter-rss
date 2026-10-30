@@ -4,6 +4,7 @@ import {
   type Lang,
   effectiveTopicId,
   localDate,
+  READER_SUMMARY_MIN_CHARS,
   primaryArticle,
   qualityOf,
   resolveTopicId,
@@ -25,6 +26,14 @@ function articleHtml(a: ArticleView): string {
   return `${img}<p><strong><a href="${esc(a.url)}">${esc(a.title)}</a></strong>${a.originalTitle ? `<br><small>${esc(a.originalTitle)}</small>` : ""}${a.site ? `<br><small>${esc(a.site)}</small>` : ""}</p>${a.summary ? `<p>${esc(a.summary)}</p>` : ""}${points}<p><a href="${esc(a.url)}">阅读原文 ↗</a>${a.aiSummary ? " <small>（摘要由 AI 生成）</small>" : ""}</p>`;
 }
 
+/** 长推文的 AI 阅读摘要（结论 + 要点），规则和邮件一样；邮件里原文折叠，RSS 里摘要后照常给全文 */
+function readerSummaryHtml(c: CardView): string {
+  const s = c.readerSummary ?? (c.summary ? { lead: c.summary, points: [] } : undefined);
+  if (!s || c.parts.reduce((n, p) => n + p.length, 0) <= READER_SUMMARY_MIN_CHARS) return "";
+  const points = s.points.length ? `<ul>${s.points.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "";
+  return `<blockquote><p><strong>AI 摘要</strong> ${esc(s.lead)}</p>${points}</blockquote><hr>`;
+}
+
 /** RSS 条目正文：与邮件卡片同样的内容，用简单 HTML 呈现 */
 function cardHtml(c: CardView): string {
   const total = c.parts.length + c.moreParts;
@@ -43,7 +52,7 @@ function cardHtml(c: CardView): string {
   const linkTitle = c.link?.title ?? (c.link?.kind === "x_article" ? "在 X（原 Twitter）上阅读这篇长文" : undefined);
   const link = c.link && linkTitle ? `<p>🔗 <a href="${esc(c.link.url)}">${esc(linkTitle)}</a>${c.link.description ? `<br>${esc(c.link.description)}` : ""}</p>` : "";
   const meta = `<p><small>${c.categoryLabel ? `【${c.categoryLabel}】` : ""}@${esc(c.author.handle)} · ${esc(c.time)}${c.translatedFrom ? ` · ${c.translatedFrom}` : ""} · ♡ ${c.likes} · ⇄ ${c.reposts} · <a href="${esc(c.url)}">${c.ctaLabel}</a></small></p>`;
-  return parts + images + video + quoted + (c.article ? articleHtml(c.article) : link) + meta;
+  return readerSummaryHtml(c) + parts + images + video + quoted + (c.article ? articleHtml(c.article) : link) + meta;
 }
 
 /**
