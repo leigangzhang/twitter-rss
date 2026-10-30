@@ -51,7 +51,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   const sync = loadSyncState();
   const progress = runningSync(sync);
   const unfollowed = new Set(sync.unfollowed.filter((h) => cfg.accountTopics.has(h)));
-  const warning = budgetWarning([...quality.values()].map((a) => a.tier), cfg);
+  const warning = budgetWarning([...quality.values()].map((a) => a.intervalHours), cfg);
   const fmt = (d: Date | null | undefined) => (d ? new Intl.DateTimeFormat("zh-CN", { timeZone: tz, month: "2-digit", day: "2-digit" }).format(d) : "—");
 
   const all = [...quality.values()].sort(
@@ -87,7 +87,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
               按近 {q.stats_days} 天 AI 初审的保留率分档，档位决定多久采一次 <span className="text-accent group-open:hidden">· 规则</span>
             </summary>
             <p className="mt-2 mb-0 max-w-[760px] rounded-lg bg-note px-3 py-2.5 text-xs leading-relaxed">
-              优质每 {q.interval_hours.good} 小时、普通每 {q.interval_hours.normal} 小时、低质和不活跃每 {q.interval_hours.poor} 小时采集一次。分档用平滑保留率（每个账号先加 {q.prior_weight} 条保留率 {pct(q.prior_rate)} 的虚拟样本，评审少的账号要连续通过才能升档）：≥ {pct(q.good_keep_rate)} 为优质，&lt; {pct(q.poor_keep_rate)} 为低质；没有评审记录的为样本不足。⚠ = 评审 ≥{" "}
+              采集间隔按每天产出的合格内容（平滑保留率 × 每天发帖数）排：约每攒够 {q.schedule.target_kept_per_crawl} 条采一次，1–{q.schedule.max_days} 天；低质账号至少隔 {q.schedule.poor_min_days} 天，官方号最多隔 {q.schedule.fast_max_days} 天。分档用平滑保留率（每个账号先加 {q.prior_weight} 条保留率 {pct(q.prior_rate)} 的虚拟样本，评审少的账号要连续通过才能升档）：≥ {pct(q.good_keep_rate)} 为优质，&lt; {pct(q.poor_keep_rate)} 为低质；没有评审记录的为样本不足。⚠ = 评审 ≥{" "}
               {q.suggest_remove.min_samples} 条且保留率 &lt; {pct(q.suggest_remove.max_keep_rate)}，建议移出。添加、移出改 config/topics.yaml，权重改 config/digest.yaml（原因写成行尾注释），下次运行生效；只有一个账号的主题不能再移出。
             </p>
           </details>
@@ -215,6 +215,9 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${TIER_STYLE[a.tier]}`}>{TIER_LABELS[a.tier]}</span>
+                        <span className="ml-1.5 text-xs text-muted" title={`每天约 ${a.keptPerDay.toFixed(1)} 条合格内容`}>
+                          {a.crawlEveryDays === 1 ? "每天采" : `每 ${a.crawlEveryDays} 天采`}
+                        </span>
                         {a.suggestRemove ? (
                           <span className="ml-1.5 text-xs font-bold text-danger" title="长期低质，建议移出">
                             ⚠

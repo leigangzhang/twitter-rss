@@ -131,7 +131,7 @@ async function sync(page: Page): Promise<Result> {
   const fresh = loadConfig();
   const db = createDb();
   await migrateDb(db);
-  const warning = budgetWarning([...(await loadAccountQuality(db, fresh)).values()].map((a) => a.tier), fresh);
+  const warning = budgetWarning([...(await loadAccountQuality(db, fresh)).values()].map((a) => a.intervalHours), fresh);
   if (warning) summary.push(`⚠ ${warning}`);
   return { code: 0, ok: true, message: summary.join("；"), added: plan.add, next: { ...plan.next, handle, lastSyncAt: new Date().toISOString() } };
 }

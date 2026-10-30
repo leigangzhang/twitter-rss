@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { scheduleDetails } from "../src/details.ts";
 import { checkGate, EMPTY_STATE, recordRun, resetState } from "../src/health.ts";
 import { makePlan } from "../src/plan.ts";
-import { type AccountTier, rateAccounts, renderAccountReport } from "../src/quality.ts";
+import { type AccountTier, crawlEveryDays, daysToHours, rateAccounts, renderAccountReport } from "../src/quality.ts";
 import { createRandom } from "../src/random.ts";
 
 const base = loadConfig(join(import.meta.dirname, "..", "..", "..", "config"));
@@ -19,16 +19,32 @@ const crawl = config.crawl;
 const morning = new Date("2026-10-18T23:00:00Z");
 
 describe("采集清单的节流", () => {
-  it("按质量档位决定采集间隔，超期最多的优先，超出预算的延后，并预先排好随机节奏", () => {
+  it("按采集间隔决定是否到期，攒下合格内容最多的优先，超出预算的延后，并预先排好随机节奏", () => {
     const known = new Map([
       ["a", { lastSeenId: null, lastCollectedAt: new Date("2026-10-17T22:00:00Z") }], // 25 小时前，优质（20 小时）→ 到期
       ["b", { lastSeenId: null, lastCollectedAt: new Date("2026-10-18T20:00:00Z") }], // 3 小时前刚采过
-      ["c", { lastSeenId: null, lastCollectedAt: new Date("2026-10-16T22:00:00Z") }], // 49 小时前，样本不足（44 小时）→ 到期
+      ["c", { lastSeenId: null, lastCollectedAt: new Date("2026-10-16T22:00:00Z") }], // 49 小时前，没有质量数据 → 到期，但攒下的少
       ["d", { lastSeenId: null, lastCollectedAt: null }], // 从没采过 → 最先
       ["e", { lastSeenId: null, lastCollectedAt: new Date("2026-10-17T23:00:00Z") }], // 24 小时前，低质（68 小时）→ 没到时间
     ]);
     const tier = (handle: string, t: AccountTier, intervalHours: number) =>
-      [handle, { handle, tier: t, intervalHours, reviewed: 10, kept: 1, keepRate: 0.1, smoothedRate: 0.17, avgQuality: 2, lastTweetAt: null, suggestRemove: false }] as const;
+      [
+        handle,
+        {
+          handle,
+          tier: t,
+          intervalHours,
+          crawlEveryDays: 1 + (intervalHours - 20) / 24,
+          keptPerDay: t === "good" ? 1.5 : 0.2,
+          reviewed: 10,
+          kept: 1,
+          keepRate: 0.1,
+          smoothedRate: 0.17,
+          avgQuality: 2,
+          lastTweetAt: null,
+          suggestRemove: false,
+        },
+      ] as const;
     const quality = new Map([tier("a", "good", 20), tier("b", "good", 20), tier("e", "poor", 68)]);
     const small = { ...config, crawl: { ...crawl, budget: { ...crawl.budget, max_accounts_per_run: 2 } } };
     const plan = makePlan({ config: small, state: EMPTY_STATE, known, quality, now: morning, seed: 42 });
@@ -36,8 +52,8 @@ describe("采集清单的节流", () => {
     expect(plan.accounts.map((a) => a.handle).sort()).toEqual(["a", "d"]);
     expect(plan.accounts.find((a) => a.handle === "a")!.tier).toBe("good");
     expect(plan.deferred).toEqual([
-      { handle: "b", reason: "优质账号，每 20 小时采集一次，还没到时间" },
-      { handle: "e", reason: "低质账号，每 68 小时采集一次，还没到时间" },
+      { handle: "b", reason: "优质账号（每天约 1.5 条合格），每 20 小时采集一次，还没到时间" },
+      { handle: "e", reason: "低质账号（每天约 0.2 条合格），每 68 小时采集一次，还没到时间" },
       { handle: "c", reason: "超出本次预算，下次优先安排（内容会补收）" },
     ]);
   });
@@ -52,7 +68,7 @@ describe("采集清单的节流", () => {
     const since = Object.fromEntries(plan.accounts.map((a) => [a.handle, a.since]));
     expect(plan.since).toBe("2026-10-17T16:00:00.000Z");
     expect(since.a).toBe("2026-10-16T16:00:00.000Z"); // 补收 10 月 17 日
-    expect(since.c).toBe("2026-10-14T16:00:00.000Z"); // 最多往回 4 天
+    expect(since.c).toBe("2026-10-13T16:00:00.000Z"); // 最多往回 catch_up_days（5）天
     expect(since.d).toBe("2026-10-17T16:00:00.000Z"); // 第一次采集只收前一天
   });
 
@@ -168,7 +184,7 @@ describe("账号质量分档", () => {
     ai: { verdict: keep ? "keep" : "drop", category: keep ? "best_practice" : "other", dropReason: keep ? null : "shallow", quality: keep ? 4 : 1, scale: 5, topicId: "ai", summary: "", reason: "", zh: null, mediaNote: null } as const,
   });
   const rows = [
-    ...Array.from({ length: 10 }, (_, i) => review("good", i < 7)),
+    ...Array.from({ length: 28 }, (_, i) => review("good", i < 20)),
     ...Array.from({ length: 25 }, (_, i) => review("poor", i < 1)),
     ...Array.from({ length: 2 }, () => review("few", true)),
     ...Array.from({ length: 10 }, () => review("quiet", true)),
@@ -177,12 +193,13 @@ describe("账号质量分档", () => {
   const profiles = new Map([["quiet", { lastTweetAt: new Date("2026-09-20T00:00:00Z") }]]);
   const q = rateAccounts(cfg, rows, profiles, now);
 
-  it("按平滑保留率分优质 / 低质，没有评审记录的按普通频率，很久没发推的为不活跃", () => {
-    expect(q.get("good")).toMatchObject({ tier: "good", reviewed: 10, kept: 7, keepRate: 0.7, intervalHours: 20 });
-    expect(q.get("good")!.smoothedRate).toBeCloseTo(8.5 / 15);
-    expect(q.get("poor")).toMatchObject({ tier: "poor", keepRate: 0.04, intervalHours: 68, suggestRemove: true });
-    expect(q.get("none")).toMatchObject({ tier: "unrated", reviewed: 0, smoothedRate: null, intervalHours: 44, suggestRemove: false });
-    expect(q.get("quiet")).toMatchObject({ tier: "inactive", intervalHours: 68 });
+  it("按平滑保留率分优质 / 低质，按每天合格条数排间隔；没有评审记录、很久没发推的按最长间隔", () => {
+    expect(q.get("good")).toMatchObject({ tier: "good", reviewed: 28, kept: 20, crawlEveryDays: 1, intervalHours: 20 });
+    expect(q.get("good")!.smoothedRate).toBeCloseTo(21.5 / 33);
+    expect(q.get("good")!.keptPerDay).toBeCloseTo(((21.5 / 33) * 28) / 14);
+    expect(q.get("poor")).toMatchObject({ tier: "poor", keepRate: 0.04, crawlEveryDays: 4, intervalHours: 92, suggestRemove: true });
+    expect(q.get("none")).toMatchObject({ tier: "unrated", reviewed: 0, smoothedRate: null, intervalHours: 92, suggestRemove: false });
+    expect(q.get("quiet")).toMatchObject({ tier: "inactive", intervalHours: 92 });
   });
 
   it("报告列出分档和建议移出的账号", () => {
@@ -198,5 +215,19 @@ describe("账号质量分档", () => {
     const one = rateAccounts({ accounts: ["one", "half"], crawl: base.crawl }, [review("one", true), ...Array.from({ length: 10 }, (_, i) => review("half", i < 5))], new Map(), now);
     expect(one.get("one")).toMatchObject({ tier: "normal", keepRate: 1 });
     expect(one.get("half")).toMatchObject({ tier: "normal", keepRate: 0.5 });
+  });
+
+  it("采集间隔：约每攒够 1.2 条合格内容一次；低质至少隔天，官方号最多隔天，不活跃不受官方号限制", () => {
+    const c = { crawl: { ...base.crawl, account_quality: { ...base.crawl.account_quality, schedule: { ...base.crawl.account_quality.schedule, fast_accounts: ["OpenAI"] } } } };
+    expect(crawlEveryDays(c, "x", "good", 2)).toBe(1);
+    expect(crawlEveryDays(c, "x", "good", 1.2)).toBe(1);
+    expect(crawlEveryDays(c, "x", "normal", 0.8)).toBe(2);
+    expect(crawlEveryDays(c, "x", "normal", 0.5)).toBe(3);
+    expect(crawlEveryDays(c, "x", "good", 0.1)).toBe(4);
+    expect(crawlEveryDays(c, "x", "poor", 3)).toBe(2);
+    expect(crawlEveryDays(c, "openai", "good", 0.1)).toBe(2);
+    expect(crawlEveryDays(c, "openai", "unrated", 0)).toBe(2);
+    expect(crawlEveryDays(c, "openai", "inactive", 0)).toBe(4);
+    expect(daysToHours(c, 4)).toBe(92);
   });
 });
