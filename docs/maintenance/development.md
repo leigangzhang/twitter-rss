@@ -45,6 +45,7 @@ pnpm pipeline:dry        # 试跑流水线，不发邮件（没有 API Key 时�
 | `pnpm crawl progress` / `pnpm crawl:status` | 采集进度 / 冷却期、最近异常和用量 |
 | `pnpm crawl:reset` / `pnpm crawl:resume` | 重新登录后解除暂停 / 解除冷却并从出错的那一步接着采 |
 | `pnpm accounts` | 账号分档 |
+| `pnpm review:backfill` | 补评审旧推文，只用于重算保留率 |
 | `pnpm follows:sync [--dry-run]` | 把 X 关注列表同步进 `topics.yaml` |
 | `pnpm subscribers` / `pnpm resend` / `pnpm notify` / `pnpm feedback` | 订阅者 / 推送历史和重新推送 / 给管理员发提醒 / 赞踩反馈 |
 | `scripts/daily-auto.sh` | 完整的每日任务（launchd 每天 08:00 调用） |

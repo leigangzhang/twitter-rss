@@ -51,7 +51,7 @@ crawl() {
       wait_network || return 0
       continue
     fi
-    [ "$code" -eq 0 ] || say "采集结束（退出码 $code）"
+    [ "$code" -eq 0 ] || say "采集结束（退出码 ${code}）"
     return 0
   done
 }
@@ -66,7 +66,7 @@ main() {
     if [ "$plan" -eq 0 ]; then
       crawl
     else
-      say "今天不采集（pnpm plan 退出码 $plan），直接处理已有内容"
+      say "今天不采集（pnpm plan 退出码 ${plan}），直接处理已有内容"
     fi
   fi
 
@@ -75,7 +75,7 @@ main() {
     pnpm -s notify "$TODAY 采集因额度用完暂停" "X 返回的接口额度不够，采集已暂停（不算异常、不冷却），今天用已经采到的内容照常发送。哪个接口额度不够见 data/inbox/$TODAY/calls.jsonl；额度恢复后可以手动运行 scripts/daily-auto.sh 补采。"
     XRSS_ALLOW_PARTIAL=1 scripts/daily.sh
     local partial=$?
-    say "===== 每日任务结束（退出码 $partial） ====="
+    say "===== 每日任务结束（退出码 ${partial}） ====="
     return "$partial"
   fi
 
@@ -88,7 +88,7 @@ main() {
     scripts/daily.sh
     code=$?
   fi
-  say "===== 每日任务结束（退出码 $code） ====="
+  say "===== 每日任务结束（退出码 ${code}） ====="
   return "$code"
 }
 

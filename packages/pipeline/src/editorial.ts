@@ -105,7 +105,7 @@ export function renderCurationReport(rows: TweetRow[], range: TimeRange, date: s
     "",
     `## 未评审（${pending.length}）`,
     "",
-    "规则分没进前列（见 digest.yaml 的 candidates_per_topic）或评审失败的推文。",
+    "评审失败的推文，或设了 digest.yaml 的 candidates_per_topic 时规则分没进前列的。",
     "",
     ...pending.map(line),
     "",

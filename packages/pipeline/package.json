@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "notify": "tsx src/cli-notify.ts",
-    "feedback": "tsx src/cli-feedback.ts"
+    "feedback": "tsx src/cli-feedback.ts",
+    "review:backfill": "tsx src/cli-backfill.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

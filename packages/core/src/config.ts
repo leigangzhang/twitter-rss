@@ -42,7 +42,7 @@ export const DigestFile = z.object({
   digest: z.object({
     total_items: z.number().int().min(1).max(60).default(30),
     min_per_topic: z.number().int().min(0).default(1),
-    candidates_per_topic: z.number().int().min(1).default(15),
+    candidates_per_topic: z.number().int().min(0).default(15),
   }),
   filters: z.object({
     include_replies: z.boolean().default(false),
