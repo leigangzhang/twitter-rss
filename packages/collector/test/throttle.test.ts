@@ -28,7 +28,7 @@ describe("采集清单的节流", () => {
       ["e", { lastSeenId: null, lastCollectedAt: new Date("2026-10-17T23:00:00Z") }], // 24 小时前，低质（68 小时）→ 没到时间
     ]);
     const tier = (handle: string, t: AccountTier, intervalHours: number) =>
-      [handle, { handle, tier: t, intervalHours, reviewed: 10, kept: 1, keepRate: 0.1, avgQuality: 2, lastTweetAt: null, suggestRemove: false }] as const;
+      [handle, { handle, tier: t, intervalHours, reviewed: 10, kept: 1, keepRate: 0.1, smoothedRate: 0.17, avgQuality: 2, lastTweetAt: null, suggestRemove: false }] as const;
     const quality = new Map([tier("a", "good", 20), tier("b", "good", 20), tier("e", "poor", 68)]);
     const small = { ...config, crawl: { ...crawl, budget: { ...crawl.budget, max_accounts_per_run: 2 } } };
     const plan = makePlan({ config: small, state: EMPTY_STATE, known, quality, now: morning, seed: 42 });
@@ -161,33 +161,42 @@ describe("详情页补抓预算", () => {
 });
 
 describe("账号质量分档", () => {
-  const cfg = { accounts: ["good", "poor", "few", "quiet"], crawl: base.crawl };
+  const cfg = { accounts: ["good", "poor", "few", "none", "quiet"], crawl: base.crawl };
   const review = (handle: string, keep: boolean) => ({
     handle,
     status: keep ? "scored" : "rejected",
     ai: { verdict: keep ? "keep" : "drop", category: keep ? "best_practice" : "other", dropReason: keep ? null : "shallow", quality: keep ? 4 : 1, scale: 5, topicId: "ai", summary: "", reason: "", zh: null, mediaNote: null } as const,
   });
   const rows = [
-    ...Array.from({ length: 10 }, (_, i) => review("good", i < 5)),
+    ...Array.from({ length: 10 }, (_, i) => review("good", i < 7)),
     ...Array.from({ length: 25 }, (_, i) => review("poor", i < 1)),
-    ...Array.from({ length: 3 }, () => review("few", false)),
+    ...Array.from({ length: 2 }, () => review("few", true)),
     ...Array.from({ length: 10 }, () => review("quiet", true)),
   ];
   const now = new Date("2026-10-19T00:00:00Z");
   const profiles = new Map([["quiet", { lastTweetAt: new Date("2026-09-20T00:00:00Z") }]]);
   const q = rateAccounts(cfg, rows, profiles, now);
 
-  it("按保留率分优质 / 低质，样本不足按普通频率，很久没发推的为不活跃", () => {
-    expect(q.get("good")).toMatchObject({ tier: "good", reviewed: 10, kept: 5, keepRate: 0.5, intervalHours: 20 });
+  it("按平滑保留率分优质 / 低质，没有评审记录的按普通频率，很久没发推的为不活跃", () => {
+    expect(q.get("good")).toMatchObject({ tier: "good", reviewed: 10, kept: 7, keepRate: 0.7, intervalHours: 20 });
+    expect(q.get("good")!.smoothedRate).toBeCloseTo(8.5 / 15);
     expect(q.get("poor")).toMatchObject({ tier: "poor", keepRate: 0.04, intervalHours: 68, suggestRemove: true });
-    expect(q.get("few")).toMatchObject({ tier: "unrated", intervalHours: 44, suggestRemove: false });
+    expect(q.get("none")).toMatchObject({ tier: "unrated", reviewed: 0, smoothedRate: null, intervalHours: 44, suggestRemove: false });
     expect(q.get("quiet")).toMatchObject({ tier: "inactive", intervalHours: 68 });
   });
 
   it("报告列出分档和建议移出的账号", () => {
     const report = renderAccountReport(q, cfg);
-    expect(report).toContain("优质 1");
+    expect(report).toContain("优质 2");
+    expect(report).toContain("平滑保留率");
     expect(report).toContain("建议从 config/topics.yaml 移出");
     expect(report).toContain("@poor");
+  });
+
+  it("评审少的账号要连续通过才能升档：2/2 为优质，1/1 和 5/10 为普通", () => {
+    expect(q.get("few")).toMatchObject({ tier: "good", keepRate: 1 });
+    const one = rateAccounts({ accounts: ["one", "half"], crawl: base.crawl }, [review("one", true), ...Array.from({ length: 10 }, (_, i) => review("half", i < 5))], new Map(), now);
+    expect(one.get("one")).toMatchObject({ tier: "normal", keepRate: 1 });
+    expect(one.get("half")).toMatchObject({ tier: "normal", keepRate: 0.5 });
   });
 });

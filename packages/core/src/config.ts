@@ -148,11 +148,17 @@ const CrawlFile = z.object({
       /** 统计最近多少天评审过的推文（建议 7–14 天：既能反映账号近况，样本也够） */
       stats_days: z.number().int().min(1).max(60).default(14),
       /** 评审过的推文少于这个数时，样本不足，按"普通"处理 */
-      min_samples: z.number().int().min(1).default(6),
-      /** 保留率（AI 判为保留的比例）达到这个值为"优质" */
-      good_keep_rate: z.number().min(0).max(1).default(0.35),
-      /** 保留率低于这个值为"低质" */
-      poor_keep_rate: z.number().min(0).max(1).default(0.12),
+      min_samples: z.number().int().min(1).default(1),
+      /**
+       * 平滑保留率 =（保留数 + prior_rate × prior_weight）/（评审数 + prior_weight）：
+       * 每个账号先带 prior_weight 条保留率为 prior_rate 的"虚拟样本"，评审少的账号要连续通过几条才能升档。prior_weight 为 0 时不平滑
+       */
+      prior_rate: z.number().min(0).max(1).default(0.3),
+      prior_weight: z.number().min(0).default(5),
+      /** 平滑保留率达到这个值为"优质" */
+      good_keep_rate: z.number().min(0).max(1).default(0.45),
+      /** 平滑保留率低于这个值为"低质" */
+      poor_keep_rate: z.number().min(0).max(1).default(0.2),
       /** 超过这么多天没发推的账号视为"不活跃"，按低质的频率采集 */
       inactive_days: z.number().int().min(1).default(14),
       /** 各档采集间隔（小时）：优质每次都采，普通约隔天，低质约 3 天一次 */

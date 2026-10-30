@@ -55,7 +55,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   const fmt = (d: Date | null | undefined) => (d ? new Intl.DateTimeFormat("zh-CN", { timeZone: tz, month: "2-digit", day: "2-digit" }).format(d) : "—");
 
   const all = [...quality.values()].sort(
-    (a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier) || (b.keepRate ?? -1) - (a.keepRate ?? -1) || b.reviewed - a.reviewed || a.handle.localeCompare(b.handle),
+    (a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier) || (b.smoothedRate ?? -1) - (a.smoothedRate ?? -1) || b.reviewed - a.reviewed || a.handle.localeCompare(b.handle),
   );
   const weightOf = (a: AccountQuality) => accountWeight(cfg.digest.account_weight, a.handle);
   const matchTier = (a: AccountQuality, id: string) => id === "all" || a.tier === id;
@@ -87,7 +87,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
               按近 {q.stats_days} 天 AI 初审的保留率分档，档位决定多久采一次 <span className="text-accent group-open:hidden">· 规则</span>
             </summary>
             <p className="mt-2 mb-0 max-w-[760px] rounded-lg bg-note px-3 py-2.5 text-xs leading-relaxed">
-              优质每 {q.interval_hours.good} 小时、普通每 {q.interval_hours.normal} 小时、低质和不活跃每 {q.interval_hours.poor} 小时采集一次；评审少于 {q.min_samples} 条为样本不足。⚠ = 评审 ≥{" "}
+              优质每 {q.interval_hours.good} 小时、普通每 {q.interval_hours.normal} 小时、低质和不活跃每 {q.interval_hours.poor} 小时采集一次。分档用平滑保留率（每个账号先加 {q.prior_weight} 条保留率 {pct(q.prior_rate)} 的虚拟样本，评审少的账号要连续通过才能升档）：≥ {pct(q.good_keep_rate)} 为优质，&lt; {pct(q.poor_keep_rate)} 为低质；没有评审记录的为样本不足。⚠ = 评审 ≥{" "}
               {q.suggest_remove.min_samples} 条且保留率 &lt; {pct(q.suggest_remove.max_keep_rate)}，建议移出。添加、移出改 config/topics.yaml，权重改 config/digest.yaml（原因写成行尾注释），下次运行生效；只有一个账号的主题不能再移出。
             </p>
           </details>
@@ -224,6 +224,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap">
                         <b className="font-mono">{pct(a.keepRate)}</b> <span className="font-mono text-xs text-muted">{a.kept}/{a.reviewed}</span>
+                        {a.smoothedRate !== null && a.reviewed < 20 ? <div className="font-mono text-xs text-muted" title="分档用的平滑保留率">平滑 {pct(a.smoothedRate)}</div> : null}
                       </td>
                       <td className="px-3 py-3 text-right font-mono">{a.avgQuality ?? "—"}</td>
                       <td className="px-3 py-3 font-mono text-xs whitespace-nowrap text-body">
