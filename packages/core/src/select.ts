@@ -58,7 +58,8 @@ export interface FeedIssue<T> {
 
 /**
  * 单个主题 Feed 的选稿，规则和邮件一致：按期（运行日期）分组，每期按订阅了这一个主题的邮件选稿
- * （total、minPerTopic、综合分排序，综合分已含视频降权和账号权重），期号从新到旧，最多 limit 条。
+ * （total、minPerTopic、综合分排序，综合分已含视频降权和账号权重），期号从新到旧。
+ * 每期整期收录，攒够 limit 条后不再加更早的期。
  */
 export function selectFeedIssues<T extends Scored & { issueDate: string }>(
   candidates: T[],
@@ -71,7 +72,7 @@ export function selectFeedIssues<T extends Scored & { issueDate: string }>(
   for (const date of [...byDate.keys()].sort().reverse()) {
     if (left <= 0) break;
     const [group] = selectForSubscriber(byDate.get(date)!, { topicOrder: [opts.topicId], total: opts.total, minPerTopic: opts.minPerTopic });
-    const items = (group?.items ?? []).slice(0, left);
+    const items = group?.items ?? [];
     left -= items.length;
     if (items.length) issues.push({ date, items });
   }

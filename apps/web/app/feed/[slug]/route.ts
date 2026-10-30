@@ -101,12 +101,23 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
       // 加批次之前的旧数据：按发布日期的第二天（发信那天）算
       issueDate: r.batchDate ?? localDate(new Date(r.createdAt.getTime() + 86_400_000), timezone),
     }));
-  // 当天这一期要等终审去重、发出邮件后才对外可见（评审途中的推文可能还会被终审剔除）
+  // 和邮件一致：发过邮件的期只收邮件里实际发出的推文（因篇幅去掉的不收）；
+  // 当天这一期要等终审去重、发出邮件后才可见。没有发信记录的往期（如发送失败）按选稿规则计算
   const today = localDate(now, timezone);
-  const todaySent = pool.some((r) => r.issueDate === today)
-    ? (await d.select({ id: deliveries.id }).from(deliveries).where(eq(deliveries.digestDate, today)).limit(1)).length > 0
-    : false;
-  const issues = selectFeedIssues(pool.filter((r) => r.issueDate < today || (r.issueDate === today && todaySent)), {
+  const sentByDate = new Map<string, Set<string>>();
+  for (const r of await d
+    .select({ date: deliveries.digestDate, tweetIds: deliveries.tweetIds })
+    .from(deliveries)
+    .where(gte(deliveries.digestDate, localDate(since, timezone)))) {
+    const set = sentByDate.get(r.date) ?? new Set<string>();
+    for (const id of r.tweetIds) set.add(id);
+    sentByDate.set(r.date, set);
+  }
+  const visible = pool.filter((r) => {
+    const sent = sentByDate.get(r.issueDate);
+    return sent ? sent.has(r.id) : r.issueDate < today;
+  });
+  const issues = selectFeedIssues(visible, {
     topicId: topic.id,
     total: cfg.digest.digest.total_items,
     minPerTopic: cfg.digest.digest.min_per_topic,

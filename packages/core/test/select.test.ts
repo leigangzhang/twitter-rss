@@ -54,12 +54,19 @@ describe("selectFeedIssues", () => {
     ]);
   });
 
-  it("每期最多 total 条，整个 Feed 最多 limit 条", () => {
-    const pool = [f("a", "2026-10-30", 0.9), f("b", "2026-10-30", 0.8), f("c", "2026-10-30", 0.1), f("d", "2026-10-29", 0.5), f("e", "2026-10-29", 0.4)];
+  it("每期最多 total 条；整期收录，攒够 limit 条后不再加更早的期", () => {
+    const pool = [
+      f("a", "2026-10-30", 0.9),
+      f("b", "2026-10-30", 0.8),
+      f("c", "2026-10-30", 0.1),
+      f("d", "2026-10-29", 0.5),
+      f("e", "2026-10-29", 0.4),
+      f("g", "2026-10-28", 0.4),
+    ];
     const issues = selectFeedIssues(pool, { topicId: "ai", total: 2, minPerTopic: 1, limit: 3 });
     expect(issues.map((i) => [i.date, i.items.map((x) => x.id)])).toEqual([
       ["2026-10-30", ["a", "b"]],
-      ["2026-10-29", ["d"]],
+      ["2026-10-29", ["d", "e"]],
     ]);
   });
 });
