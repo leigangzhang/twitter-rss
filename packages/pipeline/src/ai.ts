@@ -535,6 +535,58 @@ export function createLlmEditor(opts: LlmOptions = {}): Editor {
   };
 }
 
+/** 根据后台反馈修改精选标准（每天评审前由 pnpm feedback:tune 调用） */
+export function curationTuneSystemPrompt(): string {
+  return `你是一份 X（原 Twitter）每日精选邮件的主编，负责维护精选标准（curation.md）。这份标准会原样放进评审提示词，决定每条推文的去留和分数。
+管理员看过最近实际发出的内容，给一部分条目点了赞或踩：踩表示 AI 不该选它（或分数给高了），赞表示选对了。
+你的任务：从踩里找出现有标准没写到、或写得不够清楚的规律，对标准做最少、最稳妥的修改，让以后的评审不再选这类内容。
+
+要求：
+1. 只改有依据的地方：至少 2 条踩指向同一规律，或 1 条踩带了说明、说明里给出了一条通用的规则时才修改。单条没有说明的踩不改。
+2. 不能误伤：改之前对照被赞的条目，确认新规则不会把它们剔除；有冲突时把规则写得更具体，或者不改。
+3. 原因是"不喜欢这个作者"的踩不改标准（标准要求不因作者放宽或收紧），在 notes 里建议在 digest.yaml 的 account_weight 给这个账号降权；
+   "话题不感兴趣"集中在某个主题时，也可以在 notes 里建议调整 topics.yaml。
+4. 优先在已有条目里补一句判断标准或一个概括的例子，其次才新增条目。不删除已有规则，不改标题层级、类别代码（best_practice、promo 等）和打分档位。
+   例子写成概括的类型（"转述官方公告、没有自己的使用细节"），不点名具体账号，不照抄推文原文。
+5. 每处改动用 old / new 表示：old 是当前标准里原样照抄的一段（一整行或连续几行，在全文中只出现一次），new 是替换后的完整文字（old 里要保留的部分也要写上）。
+   最多 3 处改动，每处新增不超过约 200 字。和现有表述一致：简体中文，短句，具体。
+6. why 写一句理由：哪几条踩（用编号）体现了什么规律，为什么现有标准没拦住。
+7. summary 用一两句话总结这次的判断；没有需要改的就让 edits 为空数组，在 summary 里说明原因。`;
+}
+
+const TUNE_TOOL = "submit_curation_edits";
+
+export const CurationTuneResult = z.object({
+  summary: z.string(),
+  edits: z.array(z.object({ old: z.string(), new: z.string(), why: z.string() })),
+  notes: z.array(z.string()).default([]),
+});
+export type CurationTuneResult = z.infer<typeof CurationTuneResult>;
+
+export interface CurationTuner {
+  /** feedback：编号、赞 / 踩、原因、当时的 AI 判断和原文（见 curation-tune.ts 的 feedbackPayload） */
+  propose(guide: string, feedback: unknown[]): Promise<CurationTuneResult>;
+}
+
+export function createLlmCurationTuner(opts: LlmOptions = {}): CurationTuner {
+  const client = createClient(opts);
+  const schema = z.toJSONSchema(CurationTuneResult, { io: "input" }) as Record<string, unknown>;
+  return {
+    async propose(guide, feedback) {
+      const output = await client.callTool({
+        system: curationTuneSystemPrompt(),
+        text: `当前的精选标准：\n<curation_guide>\n${guide}\n</curation_guide>\n\n管理员的反馈（${feedback.length} 条）：\n${JSON.stringify(feedback, null, 2)}`,
+        tool: { name: TUNE_TOOL, description: "提交对精选标准的修改", schema },
+        maxTokens: 4000,
+        temperature: 0,
+      });
+      const parsed = CurationTuneResult.safeParse(unwrapToolInput(output, "edits"));
+      if (!parsed.success) throw new Error(`修改建议格式不符：${z.prettifyError(parsed.error)}`);
+      return parsed.data;
+    },
+  };
+}
+
 /** 不调用 AI 的替代方案：只用规则分，不翻译、不分类，用于本地试跑 */
 export function createRuleOnlyReviewer(ruleScores: Map<string, number>): Reviewer {
   return {
