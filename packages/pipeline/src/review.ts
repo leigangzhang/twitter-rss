@@ -43,7 +43,8 @@ export async function reviewCandidates(
   config: AppConfig,
   candidates: TweetRow[],
   reviewer: Reviewer,
-  opts: { strict: boolean; concurrency?: number; articles?: Map<string, LinkDigest> },
+  /** audit：只记评审结果用于统计账号保留率（补评审旧推文），状态记为 audited，不进邮件和 RSS */
+  opts: { strict: boolean; concurrency?: number; articles?: Map<string, LinkDigest>; audit?: boolean },
 ): Promise<ReviewStats> {
   const concurrency = opts.concurrency ?? 4;
   const stats: ReviewStats = { kept: 0, rejected: 0, reviewed: 0, failed: [] };
@@ -60,11 +61,13 @@ export async function reviewCandidates(
       await db
         .update(tweets)
         .set({
-          status: rejectReason ? "rejected" : "scored",
+          status: opts.audit ? "audited" : rejectReason ? "rejected" : "scored",
           filterReason: rejectReason,
           ai,
           topicId: ai.topicId,
-          finalScore: finalScore(qualityOf(ai), row.ruleScore ?? 0, row.kind, config.digest.media_weight, accountWeight(config.digest.account_weight, row.handle)),
+          finalScore: opts.audit
+            ? null
+            : finalScore(qualityOf(ai), row.ruleScore ?? 0, row.kind, config.digest.media_weight, accountWeight(config.digest.account_weight, row.handle)),
           processedAt: new Date(),
         })
         .where(eq(tweets.id, row.id));

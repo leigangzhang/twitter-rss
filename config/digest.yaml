@@ -13,7 +13,7 @@ window_hours: 24
 digest:
   total_items: 60        # 每期最多条数（通过精选的都放进来，按分数排序，上限 60）；超出 mail.max_kb 时分卷发送
   min_per_topic: 1       # 每个已订阅主题至少保底几条（当天有合格内容时）
-  candidates_per_topic: 30  # 规则粗筛后，每个主题每天送给 AI 评审的条数上限（按互动表现排序），控制 AI 成本；同一天重跑只补足到这个数
+  candidates_per_topic: 0   # 规则粗筛后，每个主题每天送给 AI 评审的条数上限（按互动表现排序），控制 AI 成本；同一天重跑只补足到这个数。0 = 不设上限，采集的推文全部评审
 
 filters:
   include_replies: false   # 回复别人的推文

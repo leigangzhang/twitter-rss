@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { loadConfig, RawTweet } from "@xrss/core";
 import { createDb, migrateDb, tweets } from "@xrss/core/db";
 import { describe, expect, it } from "vitest";
+import { rateAccounts } from "@xrss/collector";
 import type { Reviewer } from "../src/ai.ts";
 import { reviewCandidates } from "../src/review.ts";
 
@@ -45,5 +46,28 @@ describe("初审失败的处理", () => {
     const byId = new Map((await db.select().from(tweets)).map((t) => [t.id, t]));
     expect(byId.get("1")).toMatchObject({ status: "rejected", filterReason: expect.stringContaining("闲聊") });
     expect(byId.get("2")?.status).toBe("failed");
+  });
+});
+
+describe("补评审（audit）", () => {
+  it("结果记为 audited、不算最终分，但计入账号保留率", async () => {
+    const config = loadConfig(join(import.meta.dirname, "..", "..", "..", "config"));
+    const handle = config.accounts[0]!;
+    const topicId = config.accountTopics.get(handle)![0]!;
+    const db = createDb(`file:${join(mkdtempSync(join(tmpdir(), "xrss-")), "app.db")}`);
+    await migrateDb(db);
+    const raw = tweet("3", "A detailed walkthrough of how we evaluate agents in production. ".repeat(3));
+    await db.insert(tweets).values({ id: raw.id, handle, createdAt: new Date(raw.createdAt), kind: "image", raw, engagement: 1, status: "new" });
+    const reviewer: Reviewer = {
+      async review() {
+        return { verdict: "keep", category: "best_practice", dropReason: null, quality: 4, scale: 5, topicId, summary: "评测 Agent 的做法", reason: "有方法", zh: null, mediaNote: null };
+      },
+    };
+    const stats = await reviewCandidates(db, config, await db.select().from(tweets), reviewer, { strict: true, audit: true });
+    expect(stats).toMatchObject({ kept: 1, reviewed: 1 });
+    const [row] = await db.select().from(tweets);
+    expect(row).toMatchObject({ status: "audited", finalScore: null });
+    const q = rateAccounts(config, [{ handle, status: row!.status, ai: row!.ai }], new Map(), new Date("2026-10-28T00:00:00Z"));
+    expect(q.get(handle)).toMatchObject({ reviewed: 1, kept: 1 });
   });
 });

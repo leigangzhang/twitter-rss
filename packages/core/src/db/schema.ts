@@ -47,7 +47,7 @@ export const tweets = sqliteTable(
      * new：已入库；filtered：规则排除；scored：通过 AI 精选，可进入邮件；
      * rejected：AI 初审或编辑终审剔除（原因见 filterReason）；failed：AI 处理失败
      */
-    status: text("status").$type<"new" | "filtered" | "scored" | "rejected" | "failed">().notNull().default("new"),
+    status: text("status").$type<"new" | "filtered" | "scored" | "rejected" | "failed" | "audited">().notNull().default("new"),
     filterReason: text("filter_reason"),
     ruleScore: real("rule_score"),
     ai: text("ai", { mode: "json" }).$type<AiResult>(),

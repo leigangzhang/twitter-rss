@@ -17,6 +17,7 @@
     "test": "vitest run --passWithNoTests",
     "notify": "tsx src/cli-notify.ts",
     "feedback": "tsx src/cli-feedback.ts",
+    "review:backfill": "tsx src/cli-backfill.ts",
     "feedback:tune": "tsx src/cli-curation-tune.ts"
   },
   "dependencies": {

@@ -24,6 +24,7 @@
     "resend": "pnpm -s --filter @xrss/pipeline resend",
     "notify": "pnpm -s --filter @xrss/pipeline notify",
     "feedback": "pnpm -s --filter @xrss/pipeline feedback",
+    "review:backfill": "pnpm -s --filter @xrss/pipeline review:backfill",
     "feedback:tune": "pnpm -s --filter @xrss/pipeline feedback:tune",
     "pipeline": "pnpm --filter @xrss/pipeline run daily",
     "pipeline:dry": "pnpm --filter @xrss/pipeline run daily --dry-run",

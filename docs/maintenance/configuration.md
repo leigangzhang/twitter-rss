@@ -19,7 +19,7 @@
 | 段 | 作用 | 细节 |
 |---|---|---|
 | `collect_window` / `window_hours` / `timezone` | 只取前一天，或最近 N 小时 | [AI 精选](../features/curation.md#1-时间范围和规则粗筛) |
-| `digest` | `total_items`（60）、`min_per_topic`（1）、`candidates_per_topic`（30，按天） | [AI 精选](../features/curation.md#6-评分和选稿) |
+| `digest` | `total_items`（60）、`min_per_topic`（1）、`candidates_per_topic`（0 = 全部评审；正数为每个主题每天的上限） | [AI 精选](../features/curation.md#6-评分和选稿) |
 | `filters` | 回复、纯转发、过短内容（`min_text_length` 20、只有图片或视频时 `min_text_length_with_media` 10）、`min_quality`（3） | [AI 精选](../features/curation.md#1-时间范围和规则粗筛) |
 | `media_weight` / `video_mode` | 视频降权（0.6）、视频显示封面还是一行文字 | [邮件与 RSS](../features/email.md#版式) |
 | `account_weight` | 个别账号的分数权重（默认 1，0–2），只影响排序；目前 `jinchenma_ai: 0.6` | [AI 精选](../features/curation.md#6-评分和选稿) |

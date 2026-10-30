@@ -72,4 +72,21 @@ describe("挑选候选", () => {
     expect(second.map((t) => t.id)).toEqual([first[1]!.id]);
     delete process.env.INBOX_DIR;
   });
+  it("candidates_per_topic 为 0 时不设上限，全部送评审", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "xrss-inbox-"));
+    process.env.INBOX_DIR = dir;
+    const date = "2026-10-19";
+    const range = { ...collectRange({ mode: "previous_day", timezone: "Asia/Shanghai", windowHours: 24 }, date, new Date("2026-10-18T23:00:00Z")), runDate: date };
+    mkdirSync(join(dir, date), { recursive: true });
+    const list = ["501", "502", "503", "504"].map((id, i) => tweet(id, `2026-10-18T0${i + 1}:00:00Z`));
+    writeFileSync(join(dir, date, "sama.json"), JSON.stringify({ source: "test", collectedAt: "2026-10-18T23:30:00Z", handle: "sama", status: "ok", tweets: list }));
+    const db = createDb(`file:${join(mkdtempSync(join(tmpdir(), "xrss-")), "app.db")}`);
+    await migrateDb(db);
+    await ingest(db, config, date, range);
+    const unlimited = { ...config, digest: { ...config.digest, digest: { ...config.digest.digest, candidates_per_topic: 0 } } };
+
+    const picked = await pickCandidates(db, unlimited, range);
+    expect(picked.map((t) => t.id).sort()).toEqual(["501", "502", "503", "504"]);
+    delete process.env.INBOX_DIR;
+  });
 });
