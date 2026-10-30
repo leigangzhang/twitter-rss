@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectForSubscriber } from "../src/select.ts";
+import { selectFeedIssues, selectForSubscriber } from "../src/select.ts";
 
 const c = (id: string, topicId: string, finalScore: number) => ({ id, topicId, finalScore });
 
@@ -37,5 +37,36 @@ describe("selectForSubscriber", () => {
   it("当天没有内容的主题不出现，内容不足时不凑数", () => {
     const groups = selectForSubscriber([c("1", "ai", 0.9)], { topicOrder: ["ai", "crypto"], total: 10, minPerTopic: 1 });
     expect(groups).toEqual([{ topicId: "ai", items: [c("1", "ai", 0.9)] }]);
+  });
+});
+
+describe("selectFeedIssues", () => {
+  const f = (id: string, issueDate: string, finalScore: number, topicId = "ai") => ({ id, topicId, finalScore, issueDate });
+
+  it("按期分组，期号从新到旧，期内按综合分排序", () => {
+    const issues = selectFeedIssues(
+      [f("a", "2026-10-29", 0.5), f("b", "2026-10-30", 0.4), f("c", "2026-10-30", 0.9), f("d", "2026-10-30", 0.7, "crypto")],
+      { topicId: "ai", total: 60, minPerTopic: 1, limit: 30 },
+    );
+    expect(issues.map((i) => [i.date, i.items.map((x) => x.id)])).toEqual([
+      ["2026-10-30", ["c", "b"]],
+      ["2026-10-29", ["a"]],
+    ]);
+  });
+
+  it("每期最多 total 条；整期收录，攒够 limit 条后不再加更早的期", () => {
+    const pool = [
+      f("a", "2026-10-30", 0.9),
+      f("b", "2026-10-30", 0.8),
+      f("c", "2026-10-30", 0.1),
+      f("d", "2026-10-29", 0.5),
+      f("e", "2026-10-29", 0.4),
+      f("g", "2026-10-28", 0.4),
+    ];
+    const issues = selectFeedIssues(pool, { topicId: "ai", total: 2, minPerTopic: 1, limit: 3 });
+    expect(issues.map((i) => [i.date, i.items.map((x) => x.id)])).toEqual([
+      ["2026-10-30", ["a", "b"]],
+      ["2026-10-29", ["d", "e"]],
+    ]);
   });
 });

@@ -1,6 +1,18 @@
-import { type ArticleView, type CardView, type Lang, effectiveTopicId, localDate, primaryArticle, qualityOf, resolveTopicId, toCardView } from "@xrss/core";
-import { linkDigests, recordFeedHit, tweets } from "@xrss/core/db";
-import { and, desc, eq, gte, inArray, or } from "drizzle-orm";
+import {
+  type ArticleView,
+  type CardView,
+  type Lang,
+  effectiveTopicId,
+  localDate,
+  primaryArticle,
+  qualityOf,
+  resolveTopicId,
+  selectFeedIssues,
+  startOfLocalDay,
+  toCardView,
+} from "@xrss/core";
+import { deliveries, linkDigests, recordFeedHit, tweets } from "@xrss/core/db";
+import { and, eq, gte, inArray, isNull, or } from "drizzle-orm";
 import { Feed } from "feed";
 import { clientIp } from "@/lib/rate-limit";
 import { config, db, siteUrl } from "@/lib/server";
@@ -30,7 +42,7 @@ function cardHtml(c: CardView): string {
     : "";
   const linkTitle = c.link?.title ?? (c.link?.kind === "x_article" ? "在 X（原 Twitter）上阅读这篇长文" : undefined);
   const link = c.link && linkTitle ? `<p>🔗 <a href="${esc(c.link.url)}">${esc(linkTitle)}</a>${c.link.description ? `<br>${esc(c.link.description)}` : ""}</p>` : "";
-  const meta = `<p><small>${c.categoryLabel ? `【${c.categoryLabel}】` : ""}@${esc(c.author.handle)}${c.translatedFrom ? ` · ${c.translatedFrom}` : ""} · ♡ ${c.likes} · ⇄ ${c.reposts} · <a href="${esc(c.url)}">${c.ctaLabel}</a></small></p>`;
+  const meta = `<p><small>${c.categoryLabel ? `【${c.categoryLabel}】` : ""}@${esc(c.author.handle)} · ${esc(c.time)}${c.translatedFrom ? ` · ${c.translatedFrom}` : ""} · ♡ ${c.likes} · ⇄ ${c.reposts} · <a href="${esc(c.url)}">${c.ctaLabel}</a></small></p>`;
   return parts + images + video + quoted + (c.article ? articleHtml(c.article) : link) + meta;
 }
 
@@ -63,21 +75,62 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
     .then((d) => recordFeedHit(d, { date: localDate(new Date(), cfg.digest.timezone), slug, ip, userAgent: h.get("user-agent") ?? "" }))
     .catch((e) => console.error(`[feed] 记录抓取失败：${(e as Error).message}`));
 
-  const rows = await (await db())
-    .select()
-    .from(tweets)
-    .where(
-      and(
-        eq(tweets.status, "scored"),
-        or(inArray(tweets.topicId, [topic.id, ...topic.aliases]), inArray(tweets.handle, topic.accounts)),
-        gte(tweets.createdAt, new Date(Date.now() - 30 * 86_400_000)),
-      ),
-    )
-    .orderBy(desc(tweets.createdAt))
-    .limit(cfg.digest.rss.items_per_feed * 3);
-  const items = rows
-    .filter((r) => effectiveTopicId(cfg, r.topicId, r.handle) === topic.id && qualityOf(r.ai) >= cfg.digest.filters.min_quality)
-    .slice(0, cfg.digest.rss.items_per_feed);
+  // 选稿和邮件一致：按期（运行日期）分组，每期按"只订阅这个主题"的邮件选稿，期内按综合分排序。
+  // 先只取打分需要的列，选定后再取全文
+  const { timezone, send_time: sendTime } = cfg.digest;
+  const now = new Date();
+  const since = new Date(now.getTime() - 30 * 86_400_000);
+  const d = await db();
+  const pool = (
+    await d
+      .select({ id: tweets.id, topicId: tweets.topicId, handle: tweets.handle, ai: tweets.ai, finalScore: tweets.finalScore, batchDate: tweets.batchDate, createdAt: tweets.createdAt })
+      .from(tweets)
+      .where(
+        and(
+          eq(tweets.status, "scored"),
+          or(inArray(tweets.topicId, [topic.id, ...topic.aliases]), inArray(tweets.handle, topic.accounts)),
+          or(gte(tweets.batchDate, localDate(since, timezone)), and(isNull(tweets.batchDate), gte(tweets.createdAt, since))),
+        ),
+      )
+  )
+    .filter((r) => qualityOf(r.ai) >= cfg.digest.filters.min_quality)
+    .map((r) => ({
+      id: r.id,
+      topicId: effectiveTopicId(cfg, r.topicId, r.handle) ?? "",
+      finalScore: r.finalScore ?? 0,
+      // 加批次之前的旧数据：按发布日期的第二天（发信那天）算
+      issueDate: r.batchDate ?? localDate(new Date(r.createdAt.getTime() + 86_400_000), timezone),
+    }));
+  // 和邮件一致：发过邮件的期只收邮件里实际发出的推文（因篇幅去掉的不收）；
+  // 当天这一期要等终审去重、发出邮件后才可见。没有发信记录的往期（如发送失败）按选稿规则计算
+  const today = localDate(now, timezone);
+  const sentByDate = new Map<string, Set<string>>();
+  for (const r of await d
+    .select({ date: deliveries.digestDate, tweetIds: deliveries.tweetIds })
+    .from(deliveries)
+    .where(gte(deliveries.digestDate, localDate(since, timezone)))) {
+    const set = sentByDate.get(r.date) ?? new Set<string>();
+    for (const id of r.tweetIds) set.add(id);
+    sentByDate.set(r.date, set);
+  }
+  const visible = pool.filter((r) => {
+    const sent = sentByDate.get(r.issueDate);
+    return sent ? sent.has(r.id) : r.issueDate < today;
+  });
+  const issues = selectFeedIssues(visible, {
+    topicId: topic.id,
+    total: cfg.digest.digest.total_items,
+    minPerTopic: cfg.digest.digest.min_per_topic,
+    limit: cfg.digest.rss.items_per_feed,
+  });
+  const ids = issues.flatMap((i) => i.items.map((x) => x.id));
+  const full = new Map(ids.length ? (await d.select().from(tweets).where(inArray(tweets.id, ids))).map((r) => [r.id, r]) : []);
+  // 条目时间用这一期的发信时间，期内按名次每条早 1 秒：阅读器按时间排序时，顺序和邮件一样
+  const [hh, mm] = sendTime.split(":").map(Number);
+  const items = issues.flatMap((issue) => {
+    const at = Math.min(startOfLocalDay(issue.date, timezone).getTime() + (hh! * 60 + mm!) * 60_000, now.getTime());
+    return issue.items.map((x, i) => ({ row: full.get(x.id)!, date: new Date(at - i * 1000) })).filter((x) => x.row);
+  });
 
   const feed = new Feed({
     id: siteUrl(`/feed/${slug}`),
@@ -86,16 +139,16 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
     description: `每日精选 ${topic.name} 主题的 X（原 Twitter）推文`,
     language: lang === "zh" ? "zh-CN" : undefined,
     copyright: "内容版权归原作者所有",
-    updated: items[0]?.createdAt ?? new Date(),
+    updated: items[0]?.date ?? now,
     feedLinks: { rss: siteUrl(`/feed/${slug}`) },
   });
 
-  const urls = items.map((r) => primaryArticle(r.raw)?.link.expandedUrl).filter((u): u is string => Boolean(u));
+  const urls = items.map(({ row: r }) => primaryArticle(r.raw)?.link.expandedUrl).filter((u): u is string => Boolean(u));
   const digests = urls.length
-    ? new Map((await (await db()).select().from(linkDigests).where(inArray(linkDigests.url, [...new Set(urls)]))).map((r) => [r.url, r.data]))
+    ? new Map((await d.select().from(linkDigests).where(inArray(linkDigests.url, [...new Set(urls)]))).map((r) => [r.url, r.data]))
     : new Map();
-  const viewOpts = { lang, timezone: cfg.digest.timezone, videoMode: cfg.digest.video_mode, maxThreadParts: cfg.digest.thread.max_parts };
-  for (const r of items) {
+  const viewOpts = { lang, timezone: cfg.digest.timezone, videoMode: cfg.digest.video_mode, maxThreadParts: cfg.digest.thread.max_parts, now };
+  for (const { row: r, date } of items) {
     const p = primaryArticle(r.raw);
     const card = toCardView({ id: r.id, topicId: topic.id, kind: r.kind, raw: r.raw, ai: r.ai, article: p ? digests.get(p.link.expandedUrl) : undefined }, viewOpts);
     feed.addItem({
@@ -103,7 +156,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
       link: card.url,
       title: itemTitle(card),
       content: cardHtml(card),
-      date: r.createdAt,
+      date,
       author: [{ name: `${card.author.name} (@${card.author.handle})`, link: `https://x.com/${card.author.handle}` }],
     });
   }
