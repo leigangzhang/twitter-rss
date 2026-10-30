@@ -49,3 +49,32 @@ export function selectForSubscriber<T extends Scored>(candidates: T[], opts: Sel
     }))
     .filter((g) => g.items.length > 0);
 }
+
+export interface FeedIssue<T> {
+  /** 期号（运行日期，YYYY-MM-DD），和邮件同一期 */
+  date: string;
+  items: T[];
+}
+
+/**
+ * 单个主题 Feed 的选稿，规则和邮件一致：按期（运行日期）分组，每期按订阅了这一个主题的邮件选稿
+ * （total、minPerTopic、综合分排序，综合分已含视频降权和账号权重），期号从新到旧。
+ * 每期整期收录，攒够 limit 条后不再加更早的期。
+ */
+export function selectFeedIssues<T extends Scored & { issueDate: string }>(
+  candidates: T[],
+  opts: { topicId: string; total: number; minPerTopic: number; limit: number },
+): FeedIssue<T>[] {
+  const byDate = new Map<string, T[]>();
+  for (const c of candidates) if (c.topicId === opts.topicId) byDate.set(c.issueDate, [...(byDate.get(c.issueDate) ?? []), c]);
+  const issues: FeedIssue<T>[] = [];
+  let left = opts.limit;
+  for (const date of [...byDate.keys()].sort().reverse()) {
+    if (left <= 0) break;
+    const [group] = selectForSubscriber(byDate.get(date)!, { topicOrder: [opts.topicId], total: opts.total, minPerTopic: opts.minPerTopic });
+    const items = group?.items ?? [];
+    left -= items.length;
+    if (items.length) issues.push({ date, items });
+  }
+  return issues;
+}
