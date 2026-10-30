@@ -127,12 +127,13 @@ describe("采集 Chrome 的锁", () => {
 });
 
 describe("每天要采的账号数", () => {
-  it("按档位估算；轮一遍超过补收天数时才提醒", () => {
-    expect(estimateDailyAccounts(["good", "normal", "poor"], config)).toBe(Math.round(1 + 24 / 44 + 24 / 68));
-    expect(budgetWarning(Array(40).fill("good"), config)).toBeNull();
-    // 超过上限但 4 天内能轮一遍：不漏内容，不提醒
-    expect(budgetWarning(Array(150).fill("good"), config)).toBeNull();
-    const warn = budgetWarning(Array(300).fill("good"), config);
+  it("按采集间隔估算；轮一遍超过补收天数时才提醒", () => {
+    // 20 小时 = 每天，44 = 隔天，68 = 每 3 天，92 = 每 4 天
+    expect(estimateDailyAccounts([20, 20, 44, 44, 68, 92, 92, 92, 92], config)).toBe(Math.round(2 + 1 + 1 / 3 + 1));
+    expect(budgetWarning(Array(40).fill(20), config)).toBeNull();
+    // 超过上限但补收天数内能轮一遍：不漏内容，不提醒
+    expect(budgetWarning(Array(150).fill(20), config)).toBeNull();
+    const warn = budgetWarning(Array(300).fill(20), config);
     expect(warn).toContain("超过每天上限 50 个");
     expect(warn).toContain("部分内容会漏掉");
   });

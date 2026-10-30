@@ -107,11 +107,11 @@ export function makePlan({ config, state, known, quality, now = new Date(), seed
   const gate = checkGate(state, crawl, tz, now);
   if (!gate.ok) return { ...base, skip: { reason: gate.reason, until: gate.until } };
 
-  // 每个账号按质量档位决定采集间隔（优质每次都采、低质约 3 天一次）；
-  // 到期的按"超期程度"排序（从没采过的最先），超出预算的留到下次，没轮到的内容下次补收
+  // 每个账号按每天产出的合格内容决定采集间隔（产出多的每天采，少的最多隔 max_days 天）；
+  // 到期的按"攒下的合格内容"（每天合格条数 × 距上次采集的天数）排序，从没采过的最先；超出预算的留到下次，没轮到的内容下次补收
   const q = crawl.account_quality;
   const tierOf = (h: string): AccountTier => quality?.get(h)?.tier ?? "unrated";
-  const intervalOf = (h: string) => Math.max(crawl.min_interval_hours, quality?.get(h)?.intervalHours ?? q.interval_hours.normal);
+  const intervalOf = (h: string) => Math.max(crawl.min_interval_hours, quality?.get(h)?.intervalHours ?? crawl.min_interval_hours);
   const hoursSince = (h: string) => {
     const last = known.get(h)?.lastCollectedAt;
     return last ? (now.getTime() - last.getTime()) / 3_600_000 : Number.POSITIVE_INFINITY;
@@ -119,12 +119,15 @@ export function makePlan({ config, state, known, quality, now = new Date(), seed
   const deferred: CrawlPlan["deferred"] = [];
   const due = config.accounts.filter((h) => {
     if (hoursSince(h) >= intervalOf(h)) return true;
-    deferred.push({ handle: h, reason: `${TIER_LABELS[tierOf(h)]}账号，每 ${intervalOf(h)} 小时采集一次，还没到时间` });
+    const kpd = quality?.get(h)?.keptPerDay;
+    deferred.push({ handle: h, reason: `${TIER_LABELS[tierOf(h)]}账号${kpd ? `（每天约 ${kpd.toFixed(1)} 条合格）` : ""}，每 ${intervalOf(h)} 小时采集一次，还没到时间` });
     return false;
   });
   const capacity = Math.min(crawl.budget.max_accounts_per_run, crawl.budget.max_page_loads_per_run);
-  const overdue = (h: string) => hoursSince(h) / intervalOf(h);
-  const ordered = [...due].sort((a, b) => overdue(b) - overdue(a) || a.localeCompare(b));
+  // 产出很少的账号按最长间隔攒够一次的量算，避免一直排在最后
+  const floor = q.schedule.target_kept_per_crawl / q.schedule.max_days;
+  const waiting = (h: string) => (hoursSince(h) / 24) * Math.max(quality?.get(h)?.keptPerDay ?? 0, floor);
+  const ordered = [...due].sort((a, b) => waiting(b) - waiting(a) || a.localeCompare(b));
   for (const h of ordered.slice(capacity)) deferred.push({ handle: h, reason: "超出本次预算，下次优先安排（内容会补收）" });
 
   const breaker = createBreaker(crawl, rng);

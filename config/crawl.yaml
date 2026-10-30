@@ -24,9 +24,10 @@ pacing:
 # 同一账号两次采集的最短间隔（小时）
 min_interval_hours: 20
 # 账号没轮到的那几天不会丢内容：下次采集时从上次入库覆盖到的时间点开始补收，最多往回这么多天
-catch_up_days: 4
+# （需大于 schedule.max_days，留一天给随机延迟和偶尔没采成）
+catch_up_days: 5
 
-# 优 / 劣质账号：按最近 stats_days 天 AI 评审的平滑保留率分档，优质账号多采、低质账号少采
+# 优 / 劣质账号：按最近 stats_days 天 AI 评审的平滑保留率分档；采集间隔按每天产出的合格内容排（见下面的 schedule）
 # 平滑保留率 =（保留数 + prior_rate × prior_weight）/（评审数 + prior_weight）：每个账号先带 5 条 30% 的"虚拟样本"，
 # 评审多的账号几乎不受影响，评审少的要连续通过才能升档（1/1 → 42% 普通，2/2 → 50% 优质，0/2 → 21% 普通）
 # 2026-10-30 全部推文进评审后，整体保留率约 43%，优质线定在略高于平均
@@ -37,11 +38,17 @@ account_quality:
   prior_weight: 5          # 0 = 不平滑，直接用保留率
   good_keep_rate: 0.45     # 平滑保留率 ≥ 45%：优质
   poor_keep_rate: 0.2      # 平滑保留率 < 20%：低质
-  inactive_days: 14        # 超过 14 天没发推：不活跃，按低质的频率采集
-  interval_hours:          # 各档采集间隔，需小于 catch_up_days × 24
-    good: 20               # 每次都采
-    normal: 44             # 约隔天一次
-    poor: 68               # 约 3 天一次
+  inactive_days: 14        # 超过 14 天没发推：不活跃，每 max_days 天采一次
+  # 采集间隔：每天合格条数 = 平滑保留率 × 最近 14 天平均每天发帖数，大约每攒够 target_kept_per_crawl 条采一次
+  #   ≥ 1.2 条/天：每天 | 0.6–1.2：隔天 | 0.4–0.6：每 3 天 | 更少：每 max_days 天
+  # 少采不会丢内容（下次补收），只是晚几天进邮件。间隔小时 = min_interval_hours + 24 ×（天数 − 1）：20 / 44 / 68 / 92
+  # 2026-10-30 按这套规则，101 个账号每天约需采 46 个，上限 50 留出余量给新账号
+  schedule:
+    target_kept_per_crawl: 1.2
+    max_days: 4            # 最长几天采一次；不活跃、没有评审记录的也按这个
+    poor_min_days: 2       # 低质账号产量再高也最多隔天采一次
+    fast_max_days: 2       # 下面的官方号发布消息讲时效，最多隔天采一次（不活跃的除外）
+    fast_accounts: [OpenAI, OpenAIDevs, claudeai, AnthropicAI, GoogleDeepMind, GeminiApp, MistralAI, MiniMax_AI, Kimi_Moonshot, perplexity_ai, AIatMeta, huggingface, cursor_ai, deepseek_ai, ollama, NousResearch, LangChain, Alibaba_Qwen, Zai_org]
   suggest_remove:          # 报告里建议从 topics.yaml 移出（不会自动删除）：评审 ≥ 8 条且保留率（未平滑）< 10%
     min_samples: 8
     max_keep_rate: 0.1

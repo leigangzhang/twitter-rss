@@ -30,7 +30,11 @@ export interface AccountQuality {
   /** 评审过的推文平均分（5 分制） */
   avgQuality: number | null;
   lastTweetAt: Date | null;
-  /** 这一档的采集间隔（小时） */
+  /** 每天产出的合格内容（平滑保留率 × 统计期内平均每天评审的推文数） */
+  keptPerDay: number;
+  /** 几天采一次 */
+  crawlEveryDays: number;
+  /** 采集间隔（小时） */
   intervalHours: number;
   /** 样本足够且保留率极低：建议从 topics.yaml 移出 */
   suggestRemove: boolean;
@@ -49,6 +53,21 @@ const isRealReview = (ai: AiResult | null): ai is AiResult => Boolean(ai) && !(a
 const isKept = (r: ReviewedRow) => (r.ai?.verdict ? r.ai.verdict === "keep" : r.status === "scored");
 
 /** 按评审记录给账号分档（纯函数，便于测试） */
+/**
+ * 采集间隔天数：大约每攒够 target_kept_per_crawl 条合格内容采一次，限制在 1 到 max_days 天；
+ * 低质账号至少 poor_min_days 天，官方号（fast_accounts）最多 fast_max_days 天，不活跃和没有评审记录的按 max_days
+ */
+export function crawlEveryDays(config: Pick<AppConfig, "crawl">, handle: string, tier: AccountTier, keptPerDay: number): number {
+  const s = config.crawl.account_quality.schedule;
+  if (tier === "inactive") return s.max_days;
+  let days = tier === "unrated" || keptPerDay <= 0 ? s.max_days : Math.min(s.max_days, Math.max(1, Math.ceil(s.target_kept_per_crawl / keptPerDay - 1e-9)));
+  if (tier === "poor") days = Math.max(days, Math.min(s.poor_min_days, s.max_days));
+  if (s.fast_accounts.some((a) => a.toLowerCase() === handle.toLowerCase())) days = Math.min(days, s.fast_max_days);
+  return days;
+}
+
+export const daysToHours = (config: Pick<AppConfig, "crawl">, days: number) => config.crawl.min_interval_hours + 24 * (days - 1);
+
 export function rateAccounts(
   config: Pick<AppConfig, "accounts" | "crawl">,
   rows: ReviewedRow[],
@@ -78,7 +97,8 @@ export function rateAccounts(
     else if (smoothedRate < q.poor_keep_rate) tier = "poor";
     else tier = "normal";
 
-    const intervalHours = tier === "good" ? q.interval_hours.good : tier === "poor" || tier === "inactive" ? q.interval_hours.poor : q.interval_hours.normal;
+    const keptPerDay = smoothedRate === null ? 0 : (smoothedRate * list.length) / q.stats_days;
+    const everyDays = crawlEveryDays(config, handle, tier, keptPerDay);
     result.set(handle, {
       handle,
       tier,
@@ -88,7 +108,9 @@ export function rateAccounts(
       smoothedRate,
       avgQuality,
       lastTweetAt,
-      intervalHours,
+      keptPerDay,
+      crawlEveryDays: everyDays,
+      intervalHours: daysToHours(config, everyDays),
       suggestRemove: list.length >= q.suggest_remove.min_samples && (keepRate ?? 1) < q.suggest_remove.max_keep_rate,
     });
   }
@@ -114,13 +136,13 @@ export function renderAccountReport(quality: Map<string, AccountQuality>, config
   const counts = order.map((t) => `${TIER_LABELS[t]} ${list.filter((a) => a.tier === t).length}`).join("，");
   const q = config.crawl.account_quality;
   const lines = [
-    `近 ${q.stats_days} 天：${counts}。优质每 ${q.interval_hours.good} 小时、普通每 ${q.interval_hours.normal} 小时、低质和不活跃每 ${q.interval_hours.poor} 小时采集一次。`,
+    `近 ${q.stats_days} 天：${counts}。按每天产出的合格内容排采集间隔（约每攒够 ${q.schedule.target_kept_per_crawl} 条采一次，1–${q.schedule.max_days} 天），每天约需采 ${estimateDailyAccounts(list.map((a) => a.intervalHours), config)} 个账号。`,
     "",
-    "| 账号 | 档位 | 评审 | 保留 | 保留率 | 平滑保留率 | 平均分 |",
-    "|---|---|---|---|---|---|---|",
+    "| 账号 | 档位 | 评审 | 保留 | 保留率 | 平滑保留率 | 平均分 | 每天合格 | 几天采一次 |",
+    "|---|---|---|---|---|---|---|---|---|",
     ...list
       .sort((a, b) => order.indexOf(a.tier) - order.indexOf(b.tier) || (b.smoothedRate ?? -1) - (a.smoothedRate ?? -1) || b.reviewed - a.reviewed)
-      .map((a) => `| @${a.handle} | ${TIER_LABELS[a.tier]}${a.suggestRemove ? " ⚠" : ""} | ${a.reviewed} | ${a.kept} | ${pct(a.keepRate)} | ${pct(a.smoothedRate)} | ${a.avgQuality ?? "—"} |`),
+      .map((a) => `| @${a.handle} | ${TIER_LABELS[a.tier]}${a.suggestRemove ? " ⚠" : ""} | ${a.reviewed} | ${a.kept} | ${pct(a.keepRate)} | ${pct(a.smoothedRate)} | ${a.avgQuality ?? "—"} | ${a.keptPerDay.toFixed(1)} | ${a.crawlEveryDays} |`),
   ];
   const remove = list.filter((a) => a.suggestRemove);
   if (remove.length) {
@@ -133,20 +155,19 @@ export function renderAccountReport(quality: Map<string, AccountQuality>, config
 }
 
 /**
- * 按各档的采集间隔估算每天平均要采多少个账号（样本不足按普通算）。
+ * 按各账号的采集间隔（小时）估算每天平均要采多少个账号；每天跑一次，间隔 20 小时算每天、44 小时算隔天。
  * 超过每天的上限（budget.max_accounts_per_run）时，各账号实际间隔会拉长。
  */
-export function estimateDailyAccounts(tiers: AccountTier[], config: Pick<AppConfig, "crawl">): number {
-  const h = config.crawl.account_quality.interval_hours;
-  const interval: Record<AccountTier, number> = { good: h.good, normal: h.normal, unrated: h.normal, poor: h.poor, inactive: h.poor };
-  return Math.round(tiers.reduce((sum, t) => sum + Math.min(1, 24 / Math.max(interval[t], 1)), 0));
+export function estimateDailyAccounts(intervals: number[], config: Pick<AppConfig, "crawl">): number {
+  const days = (h: number) => Math.max(1, 1 + Math.ceil((h - config.crawl.min_interval_hours) / 24));
+  return Math.round(intervals.reduce((sum, h) => sum + 1 / days(h), 0));
 }
 
 /** 预算提醒：账号多到轮一遍要超过补收天数（catch_up_days）、会漏内容时返回一句说明，否则 null */
-export function budgetWarning(tiers: AccountTier[], config: Pick<AppConfig, "crawl">): string | null {
-  const need = estimateDailyAccounts(tiers, config);
+export function budgetWarning(intervals: number[], config: Pick<AppConfig, "crawl">): string | null {
+  const need = estimateDailyAccounts(intervals, config);
   const max = config.crawl.budget.max_accounts_per_run;
-  const days = Math.ceil((tiers.length / max) * 10) / 10;
+  const days = Math.ceil((intervals.length / max) * 10) / 10;
   if (need <= max || days <= config.crawl.catch_up_days) return null;
-  return `${tiers.length} 个账号按档位每天约需采 ${need} 个，超过每天上限 ${max} 个，每个账号平均约 ${days} 天才轮到一次，超过补收天数 ${config.crawl.catch_up_days} 天，部分内容会漏掉。可以调高 crawl.yaml 的 budget.max_accounts_per_run，或减少账号。`;
+  return `${intervals.length} 个账号按采集间隔每天约需采 ${need} 个，超过每天上限 ${max} 个，每个账号平均约 ${days} 天才轮到一次，超过补收天数 ${config.crawl.catch_up_days} 天，部分内容会漏掉。可以调高 crawl.yaml 的 budget.max_accounts_per_run，或减少账号。`;
 }

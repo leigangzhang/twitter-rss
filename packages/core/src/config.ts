@@ -141,8 +141,8 @@ const CrawlFile = z.object({
     .prefault({}),
   min_interval_hours: z.number().min(0).default(20),
   /** 轮转到的账号最多补收多少天前的内容（从上次入库覆盖到的时间点开始） */
-  catch_up_days: z.number().int().min(1).max(14).default(4),
-  /** 按账号近期内容质量分档，决定采集频率 */
+  catch_up_days: z.number().int().min(1).max(14).default(5),
+  /** 按账号近期内容质量分档、按产出的合格内容决定采集频率 */
   account_quality: z
     .object({
       /** 统计最近多少天评审过的推文（建议 7–14 天：既能反映账号近况，样本也够） */
@@ -159,14 +159,22 @@ const CrawlFile = z.object({
       good_keep_rate: z.number().min(0).max(1).default(0.45),
       /** 平滑保留率低于这个值为"低质" */
       poor_keep_rate: z.number().min(0).max(1).default(0.2),
-      /** 超过这么多天没发推的账号视为"不活跃"，按低质的频率采集 */
+      /** 超过这么多天没发推的账号视为"不活跃"，按最长间隔采集 */
       inactive_days: z.number().int().min(1).default(14),
-      /** 各档采集间隔（小时）：优质每次都采，普通约隔天，低质约 3 天一次 */
-      interval_hours: z
+      /**
+       * 采集间隔按账号每天产出的合格内容（平滑保留率 × 每天发帖数）决定：大约每攒够 target_kept_per_crawl 条采一次，
+       * 即每 ceil(target / 每天合格条数) 天一次，限制在 1 到 max_days 天。间隔小时 = min_interval_hours + 24 × (天数 − 1)
+       */
+      schedule: z
         .object({
-          good: z.number().min(0).default(20),
-          normal: z.number().min(0).default(44),
-          poor: z.number().min(0).default(68),
+          target_kept_per_crawl: z.number().positive().default(1.2),
+          /** 最长几天采一次（不活跃、没有评审记录的账号也按这个），需小于 catch_up_days */
+          max_days: z.number().int().min(1).default(4),
+          /** 低质账号最多几天才采一次：产量再高也不每天采 */
+          poor_min_days: z.number().int().min(1).default(2),
+          /** 这些账号（官方号，发布消息讲时效）最多隔 fast_max_days 天采一次；不活跃的除外 */
+          fast_accounts: z.array(z.string()).default([]),
+          fast_max_days: z.number().int().min(1).default(2),
         })
         .prefault({}),
       /** 样本足够且保留率低于这个值时，在报告里建议从 topics.yaml 移出（不会自动删除） */
@@ -215,9 +223,9 @@ export type CrawlConfig = z.infer<typeof CrawlFile>;
 
 /** 低质账号的采集间隔超过补收天数时，中间的内容会丢，提前报错 */
 function checkCrawl(c: CrawlConfig): string | null {
-  const longest = Math.max(...Object.values(c.account_quality.interval_hours));
+  const longest = c.min_interval_hours + 24 * (c.account_quality.schedule.max_days - 1);
   if (longest >= c.catch_up_days * 24) {
-    return `account_quality.interval_hours 最长 ${longest} 小时，需要小于 catch_up_days（${c.catch_up_days} 天 = ${c.catch_up_days * 24} 小时），否则轮转期间的内容会丢失`;
+    return `account_quality.schedule.max_days 对应的最长间隔 ${longest} 小时，需要小于 catch_up_days（${c.catch_up_days} 天 = ${c.catch_up_days * 24} 小时），否则轮转期间的内容会丢失`;
   }
   return null;
 }
