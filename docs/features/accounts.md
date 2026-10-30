@@ -75,7 +75,7 @@
 ### 怎么看、怎么调
 
 1. 后台 [账号管理](web-admin.md#账号管理adminaccounts)（`/admin/accounts`）或 `pnpm accounts` 查看每个账号的档位、评审数、保留数、保留率、平均分，和建议移出的名单；后台还显示每个账号累计的赞 / 踩。
-2. `pnpm feedback --summary` 看踩按账号的计数，找出 AI 放行但读者不喜欢的账号（见 [AI 精选](curation.md#5-人工反馈不过滤内容)）。
+2. `config/curation-changelog.md` 的"其他建议"（每天根据反馈自动调整标准时，原因是"不喜欢这个作者"的踩会在这里建议降权），或 `pnpm feedback --summary` 看踩按账号的计数，找出 AI 放行但读者不喜欢的账号（见 [AI 精选](curation.md#5-人工反馈不过滤内容)）。
 3. 据此决定：降权（`account_weight`）、移出（`topics.yaml`），或者不动、让自动分档处理。降权和移出都可以直接在后台账号管理里点。
 
 ## 修改博主和主题

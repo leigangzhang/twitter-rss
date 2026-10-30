@@ -84,7 +84,8 @@ scripts/daily-auto.sh         # 网络自检 → 采集清单 → 采集 → 精
 5. **AI 初审**：每个主题每天最多送 30 条，逐条判断类型和质量分（5 分制，3 分以上通过），同时翻译、写摘要
 6. **编辑终审**：整批去掉重复事件、相同观点和最近几天发过的内容
 7. **人工反馈**：管理员在后台"今日反馈"（`/admin/feedback/today`）的邮件预览里给每条内容点赞 / 踩，踩可以选原因、写说明；
-   每隔几天用 `pnpm feedback --summary` 汇总，据此修改精选标准 `config/curation.md` 或给个别账号降权（`account_weight`），下一次评审生效。
+   每天评审前 `pnpm feedback:tune` 根据上次以来的踩自动修改精选标准 `config/curation.md`（改动记在 `config/curation-changelog.md`，可撤销）；
+   给个别账号降权（`account_weight`）仍由人根据 `pnpm feedback --summary` 决定。
    反馈不直接参与选稿，发给读者的邮件里也没有反馈按钮
 8. **发信**：按每位订阅者的主题和语言挑选，相同组合合并成一封（密送）发送，并更新 RSS
 

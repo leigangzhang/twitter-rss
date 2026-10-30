@@ -21,3 +21,5 @@ data/crawl-state.json
 data/admin-session.key
 data/follow-sync.json
 data/browser.lock
+data/curation-history/
+data/curation-tune.json
