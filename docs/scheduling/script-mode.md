@@ -58,11 +58,10 @@ scripts/daily-auto.sh        # 先手动跑一次完整流程
 ```bash
 cp agents/com.xrss.auto.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/com.xrss.auto.plist
-sudo pmset repeat wakeorpoweron MTWRFSU 15:55:00     # 每天 15:55 唤醒 Mac，16:00 准时运行
+sudo pmset repeat wakeorpoweron MTWRFSU 07:55:00     # 每天 07:55 唤醒 Mac，08:00 准时运行
 ```
 
-采集清单里排好了开始前随机等待 0–20 分钟（`crawl.yaml` 的 `start_jitter_min`），所以实际在本机 16:00–16:20 开始访问 X；采集通常 30–60 分钟，之后精选和发信。
-任务启动时间跟随 macOS 本机时区；邮件日期和 RSS 时间仍由 `config/digest.yaml` 的 `timezone`（默认 `Asia/Shanghai`）决定，不随本机时区变化。
+采集清单里排好了开始前随机等待 0–20 分钟（`crawl.yaml` 的 `start_jitter_min`），所以实际在 08:00–08:20 开始访问 X；采集通常 30–60 分钟，之后精选和发信。
 采集专用的 Chrome 要一直开着并保持登录。
 
 同时停用 DeepSeek Harness 里的定时任务，避免两边同时采集。
