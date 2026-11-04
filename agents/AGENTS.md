@@ -2,7 +2,7 @@
 
 这份说明给**运行每日任务**的 Agent（Agent 版每日任务，备用方式）。开发、改代码时看根目录的 [AGENTS.md](../AGENTS.md)。
 
-默认的每日任务是脚本版：launchd 每天 08:00 运行 `scripts/daily-auto.sh`（`pnpm crawl:auto` 采集），不需要 Agent，
+默认的每日任务是脚本版：launchd 每天 16:00（本机时区）运行 `scripts/daily-auto.sh`（`pnpm crawl:auto` 采集），不需要 Agent，
 见 [docs/scheduling/script-mode.md](../docs/scheduling/script-mode.md)。两种方式共用同一份清单和进度，同一天不要同时运行。
 
 ## 要做什么
@@ -29,7 +29,7 @@
 | `crawl-loop.md` | Agent 采集循环：`crawl next / done`、保存网络响应、从页面读取、必须停止的情况 |
 | `agent-run.sh` | 让命令行 Agent 无人值守跑一次每日任务：`agents/agent-run.sh claude` 或 `codex` |
 | `com.xrss.daily.plist` | Agent 版的 launchd 定时（每天 06:30 运行 `agents/agent-run.sh`） |
-| `com.xrss.auto.plist` | 脚本版的 launchd 定时（每天 08:00 运行 `scripts/daily-auto.sh`，默认） |
+| `com.xrss.auto.plist` | 脚本版的 launchd 定时（每天 16:00（本机时区）运行 `scripts/daily-auto.sh`，默认） |
 | `com.xrss.web.plist` | 网站常驻运行（`scripts/web.sh`） |
 
 接入方式和常见问题见 [docs/scheduling/agent-mode.md](../docs/scheduling/agent-mode.md)。

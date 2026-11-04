@@ -1,6 +1,6 @@
 # 用 Agent 每天自动运行（备用）
 
-> 默认的每日任务是脚本版：launchd 每天 08:00 运行 `scripts/daily-auto.sh`，由 `pnpm crawl:auto` 连接采集专用的 Chrome 采集，不需要 Agent，见 [脚本版每日任务](script-mode.md)。
+> 默认的每日任务是脚本版：launchd 每天 16:00（本机时区）运行 `scripts/daily-auto.sh`，由 `pnpm crawl:auto` 连接采集专用的 Chrome 采集，不需要 Agent，见 [脚本版每日任务](script-mode.md)。
 > 下面的 Agent 版保留作备用。两者共用同一份清单和进度，同一天不要同时运行；启用脚本版时停用这里的定时任务。
 
 每天的流程是：生成采集清单 → Agent 操作浏览器逐个采集 → AI 精选并发邮件。

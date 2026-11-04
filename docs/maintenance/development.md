@@ -49,7 +49,7 @@ pnpm pipeline:dry        # 试跑流水线，不发邮件（没有 API Key 时�
 | `pnpm follows:sync [--dry-run]` | 把 X 关注列表同步进 `topics.yaml` |
 | `pnpm subscribers` / `pnpm resend` / `pnpm notify` / `pnpm feedback` | 订阅者 / 推送历史和重新推送 / 给管理员发提醒 / 赞踩反馈 |
 | `pnpm feedback:tune` | 根据赞踩自动修改 `config/curation.md`（`scripts/daily.sh` 每天评审前调用；`--dry-run` 只看建议，`--revert` 撤销） |
-| `scripts/daily-auto.sh` | 完整的每日任务（launchd 每天 08:00 调用） |
+| `scripts/daily-auto.sh` | 完整的每日任务（launchd 每天 16:00（本机时区）调用） |
 
 ## 改动时要做的事
 

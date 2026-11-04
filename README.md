@@ -44,7 +44,7 @@ scripts/daily-auto.sh         # 网络自检 → 采集清单 → 采集 → 精
 
 ## 每天自动运行
 
-默认用脚本版：`scripts/daily-auto.sh` 由 launchd 每天 08:00 启动（[`agents/com.xrss.auto.plist`](agents/com.xrss.auto.plist)），
+默认用脚本版：`scripts/daily-auto.sh` 由 launchd 每天 16:00（本机时区）启动（[`agents/com.xrss.auto.plist`](agents/com.xrss.auto.plist)），
 依次做网络自检（WireGuard）、同步关注列表（打开 `follow_sync` 时）、`pnpm plan` 生成采集清单、`pnpm crawl:auto` 采集、`scripts/daily.sh` 精选并发信，出问题时给 `ADMIN_EMAIL` 发提醒。
 安装和各种情况的处理见 [脚本版每日任务](docs/scheduling/script-mode.md)。
 
